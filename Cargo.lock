@@ -3516,14 +3516,17 @@ name = "sentinel-workers"
 version = "0.1.0"
 dependencies = [
  "futures",
+ "reqwest",
  "sentinel-core",
  "serde",
+ "serde_json",
  "tempfile",
  "thiserror 2.0.21",
  "time",
  "tokio",
  "toml",
  "which",
+ "wiremock",
 ]
 
 [[package]]
