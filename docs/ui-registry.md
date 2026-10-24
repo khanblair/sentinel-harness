@@ -34,7 +34,11 @@ Every UI component. If it is not here, it does not exist yet.
 |---|---|---|---|---|---|
 | AppShell | Page frame with header and navigation | children, theme | phone, tablet, desktop, wide | P6 | planned |
 | TopBar | Title menu, agent stack, cost chip, run controls, panel icons | run, cost, layout | running, paused, offline, phone | P6 | planned |
-| Sidebar | Run list grouped by repository, update button, profile row | runs, active, query | expanded, collapsed, searching | P6 | planned |
+| Sidebar | Chat list grouped by project, New chat button, archived group, update button, profile row | chats, active, query | expanded, collapsed, searching | P6 | planned |
+| ProjectHeader | Project name, collapse toggle, plus for a new chat in the project | project, closed | open, closed | P6 | planned |
+| ChatRow | One chat: title, status icon, count, attention dot, phone icon, menu button | chat, active | idle, running, paused, done, blocked, pinned, archived, renaming | P6 | planned |
+| ChatMenu | Rename, Pin or Unpin, Archive or Unarchive, Delete. The top bar title opens the same menu plus Export report and Stop run | chat, device | each item, delete disabled on phone and during a run | P6 | planned |
+| ConfirmDelete | Asks before a chat and its uploads are deleted | chat | open, working | P6 | planned |
 | BottomTabBar | Phone tabs: Stream, Board, Reserved, Changes, More | items, active | default, active, badge | P7 | planned |
 | ConnectionBanner | Offline and reconnecting notice | state, since | offline, reconnecting | P7 | planned |
 
@@ -43,7 +47,7 @@ Every UI component. If it is not here, it does not exist yet.
 | Name | Purpose | Props | States | Phase | Status |
 |---|---|---|---|---|---|
 | Stream | Ordered feed of one run | events, focus | live, paused, empty, filtered | P6 | planned |
-| EmptyRunState | First-run actions: start, plan only, tour | run | idle | P6 | planned |
+| EmptyChatState | Empty chat: describe the work, use the backlog, plan only, take the tour | chat | idle | P6 | planned |
 | UserMessage | Instruction from the user, optionally to one agent | text, to | default | P6 | planned |
 | SystemMessage | Sentinel narrative text | html | default | P6 | planned |
 | NoteLine | One muted line with an icon | text, icon, spinner | default, working | P6 | planned |
@@ -58,7 +62,10 @@ Every UI component. If it is not here, it does not exist yet.
 | VerdictCard | Status, checks, receipt, quality note | verdict | verified, blocked | P6 | planned |
 | BudgetBanner | 70% and 95% notices | level | warn, danger | P6 | planned |
 | ReportCard | Counts and links to the report and the Brain | report | default | P6 | planned |
-| Composer | Text box, plus menu, voice, send | value | idle, typing, slash open, disabled | P6 | planned |
+| Composer | Text box, plus menu, attachment chips, voice, send | value, attachments | idle, typing, slash open, disabled | P6 | planned |
+| AttachMenu | Add files, Add a folder, Use a backlog file, Add a context note | chat | open, closed | P6 | planned |
+| AttachmentChip | One attachment above the text box, with an x | attachment | file, folder, backlog, note, upload, error | P6 | planned |
+| RepoFilePicker | A list of repository files with a filter box, for the plus menu | files, kind | files, folders | P6 | planned |
 | SlashMenu | Command list under the composer | commands, query | hidden, open | P6 | planned |
 | PermissionChip | Shows and changes the permission mode | mode | each mode, free (warn) | P6 | planned |
 | BrainChip | Shows and changes the Brain mode | mode, device | each mode, locked on phone | P11 | planned |

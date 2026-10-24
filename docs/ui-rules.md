@@ -13,7 +13,7 @@ How the UI looks, reads, and behaves. Values come from [ui-tokens.md](ui-tokens.
 7. **No decoration.** Every element carries information or an action.
 8. **Tokens only.** No raw colors, sizes, or fonts in components.
 9. **Stream first.** The stream is the product. Everything else slides in beside it and never replaces it.
-10. **Familiar before clever.** Where Claude Code, Codex, or Antigravity set a convention (sidebar of runs, top-bar icons, slash commands, permission chip, send-to chip), follow it.
+10. **Familiar before clever.** Where Claude, Claude Code, Codex, or Antigravity set a convention (sidebar of chats, plus button on the composer, top-bar icons, slash commands, permission chip, send-to chip), follow it.
 
 ## Layout
 
@@ -21,7 +21,7 @@ Three zones.
 
 | Zone | Contents |
 |---|---|
-| Left sidebar (264 px) | New run, then runs grouped by repository. Each run shows a status icon, a verified count, a dot when it needs you, and a phone icon when it can be steered from a phone. Footer: Relaunch to update (when ready), theme switch, settings |
+| Left sidebar (264 px) | New chat, then chats grouped by project. Each chat shows its title, a status icon, a verified count, a dot when it needs you, and a phone icon when it can be steered from a phone. A project header has a plus (new chat in this project). A chat row has a menu: Rename, Pin, Archive, Delete. Archived chats sit in a collapsed group at the bottom. Footer: Relaunch to update (when ready), theme switch, settings |
 | Center | Top bar, stream, composer |
 | Right panels (440 px) | Tabs: Board, Terminal, Changes, Reserved, Brain, Remote, Files, Cost, Report, Agents, Permissions. Slides in and out. Can expand |
 
@@ -35,11 +35,11 @@ The sidebar is open by default on tablet and desktop and can be collapsed. On ph
 
 ## Top Bar
 
-Left of the stream header: sidebar toggle (when hidden), back and forward through opened runs, a search toggle for the run list.
+Left of the stream header: sidebar toggle (when hidden), back and forward through opened chats, a search toggle for the chat list.
 
 | Control | Behavior |
 |---|---|
-| Run title with caret | Menu: duplicate, export report, rename, archive |
+| Chat title with caret | Menu: rename, pin, export report, stop run (while live), archive, delete |
 | Agent stack | Avatars of ready agents with a state dot. Opens the agent popover: focus the stream, open the terminal, or kill, per agent |
 | Cost chip | Spend, a bar, and the cap. Opens the Cost panel. Turns warn at 70% and danger at 95% |
 | Pause and stop | Shown while a run is live |
@@ -72,12 +72,15 @@ On phone the panel icons move to the bottom tab bar and the More tab.
 
 ## Composer
 
-- A text box with a plus menu (use sample backlog, attach a backlog, add a context note), a voice button, and send.
+- A text box with a plus menu, a voice button, and send.
+- The plus menu has four entries: **Add files** (pick repository files, or upload from this device), **Add a folder** (a repository folder), **Use a backlog file** (a repository file or an upload), and **Add a context note**. On a phone, Add files also offers the camera roll.
+- Each choice becomes a chip above the text box, with an icon, a short name, and an x. Chips go with the next message and then show on the message in the stream. A chip that cannot be used says why in its tooltip (a file over 1 MB, a path outside the repository).
+- Dropping files on the stream or pasting a file into the text box adds chips the same way on desktop.
 - Enter sends. Shift + Enter adds a line. Typing `/` opens the command list.
 - Footer chips, left to right: permission mode, Brain mode, then on the right the send-to chip (Sentinel or one agent) and a spinner while a run is live.
 - Commands: `/pause`, `/resume`, `/stop`, `/cap 1.50`, `/agent claude`, `/focus codex`, `/kill codex`, `/plan`, `/brain off`, `/report`, `/help`. `/cap` only accepts a lower value.
 - A message to Sentinel or an agent never changes which files a task has reserved. The reply says so when it matters.
-- When no run is live, the first message starts a run with that instruction.
+- When no run is live in the open chat, a message starts a run with that instruction. When another chat holds the live run, the message is not sent. A note names the busy chat and offers to open it.
 
 ## Permissions and Approvals
 
@@ -85,7 +88,7 @@ On phone the panel icons move to the bottom tab bar and the More tab.
 - Choosing Bypass permissions opens a confirm dialog. It says what changes (no approval cards, free files granted) and what stays enforced (locks, the test-edit guard, the budget cap).
 - An approval card says who asks, for what, and why. Buttons are verbs: Allow, Deny, Approve wave, Stop run.
 - Once answered, the card collapses to one line that says what was decided.
-- A card waiting for you puts a dot on its run in the sidebar.
+- A card waiting for you puts a dot on its chat in the sidebar.
 - Writes to files a task has not reserved are never an approval. They are blocked and shown as a blocked-write card.
 
 

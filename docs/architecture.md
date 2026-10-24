@@ -90,6 +90,7 @@ Limit: for CLI workers, step 4 is complete only where the CLI supports hooks. El
 
 ### Run
 
+0. A message in an idle chat starts the run. The message, with its attachments, is the request. A backlog attachment gives one task per section. Plain text gives the planner the whole message to turn into tasks. The run belongs to the chat that started it, and every event of the run carries the chat id.
 1. Load backlog and repo. Planner builds the task graph (scopes, dependencies, contradictions, already-done flags).
 2. Scheduler builds Wave 1: ready tasks with disjoint scopes, capped by worker count and budget.
 3. For each task: reserve files, choose a worker, spawn it with the task prompt, the MCP file server, and a guard config.
@@ -170,6 +171,8 @@ Running -> Crashed -> Resuming -> Running
 
 | Table | Key columns |
 |---|---|
+| `chats` | id, project (repository name), title, pinned, archived_at, created_at, updated_at |
+| `attachments` | id, chat_id, kind (file, folder, backlog, note, upload), name, path_or_text, size, created_at, used_by_message (the event id that carried it, null until sent) |
 | `tasks` | id, title, body, status, tier, attempts, scope_json, flags |
 | `task_deps` | task_id, depends_on, kind (order, read-after-write) |
 | `reservations` | id, task_id, path, state, reserved_at, released_at |
@@ -180,7 +183,7 @@ Running -> Crashed -> Resuming -> Running
 | `tools` | id, name, path, version, adapter, status, tier |
 | `devices` | id, name, token_hash, created_at, revoked_at |
 | `decisions` | id, kind, prompt, answer, actor (human or default), at |
-| `events` | id, ts, kind, task_id, payload_json |
+| `events` | id, ts, kind, chat_id (null for events that belong to no chat), task_id, payload_json |
 | `settings` | key, value |
 | `telegram_chats` | id, telegram_user_id (one row), level flags (notify, control, code, reports), detail (status, summary, detail), events_json, quiet_hours, connected_at, revoked_at |
 | `telegram_outbox` | id, chat_id, kind, payload_hash, state (queued, sent, failed), tries, created_at |
@@ -212,7 +215,14 @@ Money is stored as integer micro-dollars.
 | `GET /api/reserved` | Reserved files map |
 | `GET /api/cost` | Spend, cap, estimate flags |
 | `GET /api/tools`, `POST /api/tools/scan` | Detected CLIs, rescan |
-| `POST /api/run`, `/pause`, `/resume`, `/stop` | Harness control |
+| `GET /api/chats?archived=` | The chats of the project, newest first, pinned first. Each row has title, pinned, archived, run state, verified and total counts, and whether it needs you |
+| `POST /api/chats` | Create an empty chat. Body: optional title. Returns the chat |
+| `PUT /api/chats/:id` | Rename, pin or unpin, archive or unarchive. Body: any of `title`, `pinned`, `archived`. Archive is refused while the chat has a live run |
+| `DELETE /api/chats/:id` | Delete a chat, its events, and its uploads. Refused while the chat has a live run. The computer only |
+| `GET /api/chats/:id/events?after=&limit=` | The stored events of one chat, for opening an old chat |
+| `POST /api/chats/:id/attachments` | Add an attachment. Body: `kind` and `path` for a repository file, folder, or backlog; `text` for a note; `name` and `content_base64` for an upload (at most 1 MB each). Returns the attachment |
+| `DELETE /api/chats/:id/attachments/:attachment` | Remove an attachment that was not sent yet |
+| `POST /api/run`, `/pause`, `/resume`, `/stop` | Harness control. `POST /api/run` takes `chat`, `text`, and `attachments` (ids). With `text` the planner makes the tasks. With a backlog attachment each section is a task. A project with a live run refuses a second run and names the busy chat |
 | `POST /api/tasks/:id/kill` | Kill one agent |
 | `POST /api/cap/lower` | Lower the cap. No raise route exists |
 | `POST /api/decisions/:id` | Answer a contradiction prompt |
@@ -253,11 +263,11 @@ Server sends `Event` frames. Client sends `Subscribe{topics}` and `Ping`. No con
 
 ### Events
 
-`RunStarted`, `PlanReady`, `WaveStarted`, `Verdict`, `RunFinished`, `ReportReady`, `Message`, `TaskStatus`, `FilesReserved`, `FilesReleased`, `WriteBlocked`, `Checkpoint`, `BarrierStart`, `BarrierEnd`, `CostUpdate`, `BudgetThreshold`, `ToolDetected`, `AgentOutput`, `DecisionRequested`, `HarnessState`, `DeviceAction`, `NoteWritten`, `LessonStateChanged`, `ProposalCreated`, `CareFinished`, `QualityNote`, `ContextCompacted`, `TaskCeilingHit`, `ApprovalRequested`, `ApprovalResolved`, `PermissionChanged`, `ToolStatusChanged`, `ConnectionChanged`, `TailscaleChanged`, `TelegramPaired`, `TelegramSent`, `TelegramReceived`, `HostHeartbeat`, `HostBackOnline`.
+`ChatChanged` (created, renamed, pinned, archived, deleted), `RunStarted`, `PlanReady`, `WaveStarted`, `Verdict`, `RunFinished`, `ReportReady`, `Message`, `TaskStatus`, `FilesReserved`, `FilesReleased`, `WriteBlocked`, `Checkpoint`, `BarrierStart`, `BarrierEnd`, `CostUpdate`, `BudgetThreshold`, `ToolDetected`, `AgentOutput`, `DecisionRequested`, `HarnessState`, `DeviceAction`, `NoteWritten`, `LessonStateChanged`, `ProposalCreated`, `CareFinished`, `QualityNote`, `ContextCompacted`, `TaskCeilingHit`, `ApprovalRequested`, `ApprovalResolved`, `PermissionChanged`, `ToolStatusChanged`, `ConnectionChanged`, `TailscaleChanged`, `TelegramPaired`, `TelegramSent`, `TelegramReceived`, `HostHeartbeat`, `HostBackOnline`.
 
 ### Shared Types
 
-Defined once in `sentinel-core` and used by both daemon and UI (same Rust types, no schema drift): `TaskId`, `TaskStatus`, `Reservation`, `Scope`, `Event`, `Cost`, `ToolInfo`, `Decision`, `Note`, `NoteType`, `Lesson`, `LessonState`, `Proposal`, `QualityNote`, `PermissionMode`, `Capability`, `Approval`.
+Defined once in `sentinel-core` and used by both daemon and UI (same Rust types, no schema drift): `ChatId`, `ChatInfo`, `Attachment`, `AttachmentKind`, `TaskId`, `TaskStatus`, `Reservation`, `Scope`, `Event`, `Cost`, `ToolInfo`, `Decision`, `Note`, `NoteType`, `Lesson`, `LessonState`, `Proposal`, `QualityNote`, `PermissionMode`, `Capability`, `Approval`.
 
 ## Files on Disk
 
@@ -269,6 +279,7 @@ Defined once in `sentinel-core` and used by both daemon and UI (same Rust types,
 | `<repo>/.sentinel/config.toml` | Settings and routing |
 | `<repo>/.sentinel/adapters/*.toml` | Adapter profiles |
 | `<repo>/.sentinel/guard/` | Generated guard config for agents |
+| `<repo>/.sentinel/chats/<chat>/attachments/` | Files uploaded into a chat. Removed when the chat is deleted |
 | `<repo>/.sentinel/brain/` | The Brain vault: markdown notes, `_proposals/` for open proposals. Open it in Obsidian |
 | `<repo>/.sentinel/brain.db` | Search and graph index. Rebuildable from the vault |
 | Browser storage on each device | Appearance preferences and color token overrides. Not stored on the daemon |

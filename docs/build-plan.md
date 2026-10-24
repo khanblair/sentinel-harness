@@ -142,6 +142,13 @@ Goal: the whole harness visible in a browser.
 | P6-11 | Appearance settings and token editor | Theme, accent, tint, fonts, size, density, radius, and stream width change live and persist per device. Contrast readout works |
 | P6-12 | Connections page and agents page | Each connection shows real state and a test action. Tools needing a login or template have a fix action |
 | P6-13 | Popovers and toasts stay inside the app at every width and use tokens | Checked at phone, tablet, desktop. Toast text passes contrast in both themes |
+| P6-14 | Prototype moves to the chat model: New chat, project headers, chat menu, archived group, plus menu with chips, empty chat state, shortcuts | `design/sentinel-prototype.html` shows every chat feature of F23. The Leptos port copies it |
+| P6-15 | Chats in core and store: `ChatId`, `ChatInfo`, `chats` table, `events.chat_id`, `ChatChanged` event | Round-trip tests. Old stores migrate. Events of a run carry the chat |
+| P6-16 | Chat routes: list, create, rename, pin, archive, delete, events of one chat. A chat with a live run cannot be archived or deleted | API tests, including phone rights (phone cannot delete) |
+| P6-17 | Attachments: routes, storage under `.sentinel/chats/`, size limits, prompt context for planner and agents | A file, a folder, a note, a backlog, and an upload each reach the planner prompt. Uploads stay out of the tracked tree |
+| P6-18 | Runs from a message: plain text and attachments start a run, one live run per project, busy chat named | E2E with fake agents: a message with no backlog produces tasks and a report |
+| P6-19 | Sidebar of chats: rows, project header plus, row menu, pin, archive group, search, rename in place, delete confirm | Matches the prototype at phone, tablet, desktop |
+| P6-20 | Composer plus menu, attachment chips, repository file picker, empty chat state, New chat shortcut | Matches the prototype. Chips go with the next message |
 
 Dependencies: P5.
 

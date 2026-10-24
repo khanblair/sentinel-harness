@@ -123,7 +123,7 @@ Web push needs HTTPS. Without it, alerts show only while the app is open.
 | Network | Tailscale only. No public endpoint |
 | Identity | Per-device token. Revocable |
 | Lost phone | Revoke the device from another device or the CLI |
-| Allowed actions | Pause, resume, stop, kill agent, answer decisions and approvals, lower cap, start a run, send a message to an agent, browse folders inside the home folder and choose the repository (not while a run is live), review lessons (approve, reject, retire), accept or dismiss Brain proposals, tighten Brain mode, read notes and the graph. Nothing else |
+| Allowed actions | Pause, resume, stop, kill agent, answer decisions and approvals, lower cap, create and rename a chat, pin or archive a chat, start a run, send a message to an agent, browse folders inside the home folder and choose the repository (not while a run is live), review lessons (approve, reject, retire), accept or dismiss Brain proposals, tighten Brain mode, read notes and the graph. Nothing else. Deleting a chat needs the computer |
 | Forbidden from the phone | Raising the cap, loosening the Brain mode, editing or deleting notes, editing tests, running shell commands, editing files |
 | Secrets | Never sent to the phone |
 | Logging | Every phone action is recorded with the device name |
@@ -166,6 +166,6 @@ Phase 7 in [build-plan.md](build-plan.md): P7-01 to P7-06. Related: P8-05 (pairi
 
 1. Use `tailscale serve` for HTTPS by default, or stay on plain tailnet HTTP?
 2. Is web push worth the HTTPS requirement for v1?
-3. Should the phone be able to start a new run, or only steer a run started on the PC?
+3. Should the phone be able to start a new run, or only steer a run started on the PC? Answered by D68: it may start a run in a chat.
 4. Wake lock on by default during a live run?
 5. Should the phone open on the Stream tab or the Board tab?

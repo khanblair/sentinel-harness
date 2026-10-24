@@ -105,7 +105,7 @@ Out: native mobile app, cloud hosting, multi-user teams, non-git repos, fine-tun
 | Git use | Shell out to `git` for plumbing |
 | Logs | Append-only JSONL plus SQLite events |
 | Brain | Plain markdown vault in `.sentinel/brain/`, Obsidian compatible, files are the source of truth. Lessons are typed notes, trusted only after proof. Lesson notes never hold task text |
-| UI layout | Claude Code style: run sidebar, one stream, panels slide in. Phone uses bottom tabs |
+| UI layout | Claude style: chats grouped by project in a sidebar, one stream, a plus button on the composer, panels slide in. Phone uses bottom tabs |
 | Visual direction | Neutral graphite with one amber accent. Inter and JetBrains Mono by default. Everything adjustable in Settings |
 | Smells on agent code | Warnings in the report. Never block or change VERIFIED |
 

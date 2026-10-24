@@ -153,14 +153,14 @@ Before step 1 an install check confirms Rust, the WASM target, trunk, git, and T
 
 ### F14. Stream-First Workspace
 
-- **What:** A layout people already know from Claude Code, Codex, and Antigravity: a run sidebar, one stream, and panels that slide in.
+- **What:** A layout people already know from Claude, Claude Code, and Codex: a sidebar of chats grouped by project, one stream, and panels that slide in.
 - **How:**
-  1. The sidebar lists runs by repository with a status icon, a verified count, a dot when the run needs you, and a phone icon when it can be steered from a phone. Scheduled Brain care runs sit under Scheduled. The sidebar is open by default on tablet and desktop.
-  2. The stream shows the plan, waves, agent steps, file checkpoints, barriers, verdicts, approvals, and the report in order.
+  1. The sidebar lists chats by project (a repository). Each chat shows its title, a status icon, a verified count, a dot when it needs you, and a phone icon when it can be steered from a phone. New chat sits at the top. Archived chats sit in a collapsed group at the bottom. Scheduled Brain care runs sit under Scheduled. The sidebar is open by default on tablet and desktop. [F23](#f23-chats-projects-and-attachments) says how chats work.
+  2. The stream shows the messages of the open chat and the work Sentinel did for them: the plan, waves, agent steps, file checkpoints, barriers, verdicts, approvals, and the report, in order.
   3. Top-bar icons open panels: Board, Terminal, Changes, Reserved, Brain, Remote. The More menu opens Files, Cost, Report, Agents, and Permissions.
   4. Panels open as tabs on the right and can be expanded or closed. On tablet and phone they slide over the stream.
-  5. The composer takes plain instructions and slash commands: `/pause`, `/resume`, `/stop`, `/cap`, `/agent`, `/focus`, `/kill`, `/plan`, `/brain`, `/report`, `/help`.
-  6. Ctrl or Cmd + K opens a command palette for agents, panels, and settings.
+  5. The composer takes plain instructions and slash commands: `/pause`, `/resume`, `/stop`, `/cap`, `/agent`, `/focus`, `/kill`, `/plan`, `/brain`, `/report`, `/help`. The plus button adds files, folders, a backlog, or a note ([F23](#f23-chats-projects-and-attachments)).
+  6. Ctrl or Cmd + K opens a command palette for chats, agents, panels, and settings.
 - **Why:** Familiar layout means no manual. The stream is the product, and everything else sits beside it.
 
 ### F15. Permissions and Approvals
@@ -309,6 +309,22 @@ Plan: 2 files (src/limits/rate.ts, src/api/transfer.ts). No conflicts.
 - **Why:** New users need a place to learn that is not the app.
 - **When:** Built in the coding phase (Phase 15). Only the structure exists now.
 
+### F23. Chats, Projects, and Attachments
+
+- **What:** Sentinel is a coding tool you talk to. You open a chat in a project, say what you want built, and Sentinel plans it, runs the agents, and verifies the result. It works the way Claude does: a list of chats, a plus button to add things, and chats you can rename, pin, archive, and delete.
+- **Words:** A **project** is a repository folder. A **chat** is one conversation with Sentinel in a project. A **run** is one pass of the harness (plan, waves, verify, report) that a message starts. A chat holds many runs, one after another. The word "run" stays for the harness work (Pause run, Stop run, run report). The word "chat" is what you open, name, and keep.
+- **How:**
+  1. **New chat.** The New chat button at the top of the sidebar, a plus on each project header, the shortcut Ctrl or Cmd + Shift + O, and the palette all open an empty chat in a project. The title is empty until the first message. Then it becomes the first line of that message (cut at 48 characters), or the backlog file name. You can rename it.
+  2. **Starting work.** A plain message in an idle chat starts a run. Sentinel's planner turns the message into one or more tasks. A backlog file can be attached instead, and then each section of the file is a task, as before. A message in a chat with a live run goes to the agents as a note (F16). One run is live per project, because there is one working tree. Another chat that tries to start work in the same project is told which chat is busy.
+  3. **The plus button.** The composer's plus opens a menu: **Add files** (choose from the repository's files, or upload from this device), **Add a folder** (a folder of the repository, as a hint about where the work belongs), **Use a backlog file** (a file in the repository, or an upload), and **Add a context note** (text that goes into the agents' prompts). Each choice becomes a chip above the text box with an x to remove it. Chips travel with the next message. Files and folders reach the planner and the agents as paths, with the file text included when a file is small. Uploads are saved under `.sentinel/chats/CHAT/attachments/`, never inside the tracked tree. Attached files are hints for the planner. They do not reserve files.
+  4. **Chat menu.** A row in the sidebar has a menu (three dots, or a long press on a phone) with Rename, Pin, Archive, and Delete. The title in the top bar opens the same menu plus Export report. Rename edits in place. Pin keeps a chat at the top of its project. Archive hides a chat in the Archived group, and Unarchive brings it back. Delete asks first, removes the chat's messages and uploads, and never touches the repository or its commits. A chat with a live run cannot be archived or deleted until the run is stopped.
+  5. **Search.** The search button filters chats by title, across projects.
+  6. **Projects.** The sidebar groups chats under their project. One Sentinel daemon serves one project in this version. The model, the API, and the screens already speak in projects, so adding more projects later (a project switcher and an Add project button) needs no redesign.
+  7. **History.** A chat keeps its messages and the events of its runs, so reopening an old chat shows what happened, including the honest report. The Board, Reserved, and Cost panels show the project's live run, or the last run when none is live.
+  8. **Phone.** A phone may create a chat, send, rename, pin, and archive. Deleting a chat needs the computer ([mobile.md](mobile.md), Security).
+- **Why:** People already know this shape from Claude. A coding tool you talk to needs chats you can keep, name, and clean up, and a plus button for the things you want to hand it. A backlog file is one way to say what you want, not the only way.
+- **Limits:** A chat is not a Q&A thread with a model. Every message either starts work, steers running work, or is a slash command. Questions about the code go to an agent through the send-to chip.
+
 ## User Flow
 
 How to use Sentinel properly. The in-app guide walks through the same steps with a try-it button on each.
@@ -396,6 +412,10 @@ Open questions live in [progress-tracker.md](progress-tracker.md).
 
 | Term | Definition |
 |---|---|
+| Project | A repository folder Sentinel works in. Chats are grouped by project |
+| Chat | One conversation with Sentinel in a project. It holds messages and many runs. You name, pin, archive, and delete chats |
+| Run | One pass of the harness started by a message: plan, waves, verify, report. At most one is live per project |
+| Attachment | A file, folder, backlog, or note added with the composer plus button. It goes with the next message |
 | Adapter | Code mapping one CLI to the Worker interface |
 | Barrier | Clean-tree pause where the full suite runs |
 | Checkpoint | Commit of one task's reserved paths |
