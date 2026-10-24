@@ -2,8 +2,10 @@
 //! environment.
 
 mod commands;
+mod doctor_host;
 mod serve;
 mod service;
+mod writeup;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -42,12 +44,18 @@ enum Command {
         #[arg(long)]
         repo: Option<PathBuf>,
     },
-    /// Check Rust, tools, git, and Tailscale.
-    Doctor,
+    /// Check Rust, tools, git, and Tailscale, then the always-on host.
+    Doctor {
+        #[arg(long)]
+        repo: Option<PathBuf>,
+    },
     /// Print the report of the last run.
     Report {
         #[arg(long)]
         repo: Option<PathBuf>,
+        /// Print a one-page Markdown draft of what the run did, built from the report and the log.
+        #[arg(long)]
+        writeup: bool,
     },
     /// Serve the UI and the API for a repository until you press Ctrl+C.
     Daemon {
@@ -139,13 +147,25 @@ async fn dispatch(command: Command) -> anyhow::Result<ExitCode> {
             fake_agents,
         } => commands::run(&backlog, repo, cap, fake_agents).await,
         Command::Scan { repo } => commands::scan(repo).await,
-        Command::Doctor => commands::doctor().await,
-        Command::Report { repo } => commands::report(repo),
+        Command::Doctor { repo } => commands::doctor(repo).await,
+        Command::Report { repo, writeup } => commands::report(repo, writeup),
         other @ (Command::Daemon { .. }
         | Command::Open { .. }
         | Command::Pair { .. }
         | Command::Service { .. }
         | Command::Keys { .. }) => dispatch_serve(other).await,
+    }
+}
+
+fn dispatch_service(action: ServiceCommand) -> anyhow::Result<ExitCode> {
+    match action {
+        ServiceCommand::Install {
+            repo,
+            port,
+            no_start,
+        } => service::install(repo, port, !no_start),
+        ServiceCommand::Uninstall => service::uninstall(),
+        ServiceCommand::Status => service::status(),
     }
 }
 
@@ -168,15 +188,7 @@ async fn dispatch_serve(command: Command) -> anyhow::Result<ExitCode> {
             })
             .await
         }
-        Command::Service { action } => match action {
-            ServiceCommand::Install {
-                repo,
-                port,
-                no_start,
-            } => service::install(repo, port, !no_start),
-            ServiceCommand::Uninstall => service::uninstall(),
-            ServiceCommand::Status => service::status(),
-        },
+        Command::Service { action } => dispatch_service(action),
         Command::Open { repo, print } => serve::open(repo, print),
         Command::Pair { repo } => serve::pair(repo).await,
         Command::Keys { action } => match action {
@@ -184,7 +196,10 @@ async fn dispatch_serve(command: Command) -> anyhow::Result<ExitCode> {
             KeysCommand::Delete { name } => serve::keys(&serve::KeysAction::Delete, &name),
             KeysCommand::Status { name } => serve::keys(&serve::KeysAction::Status, &name),
         },
-        Command::Run { .. } | Command::Scan { .. } | Command::Doctor | Command::Report { .. } => {
+        Command::Run { .. }
+        | Command::Scan { .. }
+        | Command::Doctor { .. }
+        | Command::Report { .. } => {
             unreachable!("handled by dispatch")
         }
     }

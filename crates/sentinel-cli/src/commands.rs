@@ -6,11 +6,15 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Context, Result, bail};
-use sentinel_core::api::{CheckStatus, RunRequest};
+use sentinel_core::api::{CheckRow, CheckStatus, RunRequest};
 use sentinel_core::{Event, HarnessState, TaskStatus};
 use sentinel_daemon::cmd::SystemRunner;
+use sentinel_daemon::doctor::{current_os, install_check};
 use sentinel_daemon::engine::{Engine, EngineOptions, FakeAgents};
 use sentinel_daemon::secrets::{EnvFallback, KeychainStore};
+
+use crate::doctor_host::host_check_rows;
+use crate::writeup;
 
 pub(crate) fn repo_or_current(repo: Option<PathBuf>) -> Result<PathBuf> {
     let path = match repo {
@@ -168,18 +172,19 @@ pub(crate) async fn scan(repo: Option<PathBuf>) -> Result<ExitCode> {
     Ok(ExitCode::SUCCESS)
 }
 
-pub(crate) async fn doctor() -> Result<ExitCode> {
-    let engine = open_engine(&repo_or_current(None)?, false)?;
-    let report = engine.doctor().await;
-    let mut failed = false;
-    for row in report.rows {
-        let mark = if row.status == CheckStatus::Ok {
-            "ok "
-        } else {
-            "FIX"
-        };
-        failed |= row.status != CheckStatus::Ok;
-        println!("{mark} {:<24} {}", row.name, row.detail);
+/// The install check, then the host checks when the folder is a repository. The exit code
+/// follows the install check only.
+pub(crate) async fn doctor(repo: Option<PathBuf>) -> Result<ExitCode> {
+    let repo = repo_or_current(repo)?;
+    let install = install_check(&SystemRunner, current_os()).await;
+    print_rows(&install.rows);
+    let failed = install.rows.iter().any(|row| row.status != CheckStatus::Ok);
+    if repo.join(".git").exists() {
+        println!("\nHost checks");
+        let engine = open_engine(&repo, false)?;
+        print_rows(&host_check_rows(&engine, &SystemRunner).await?);
+    } else {
+        println!("Host checks need a repository. Run this inside one.");
     }
     Ok(if failed {
         ExitCode::FAILURE
@@ -188,10 +193,36 @@ pub(crate) async fn doctor() -> Result<ExitCode> {
     })
 }
 
-pub(crate) fn report(repo: Option<PathBuf>) -> Result<ExitCode> {
-    let path = repo_or_current(repo)?.join(".sentinel/report.md");
+/// One line per row: `ok` or `needs action`, the name, and the detail.
+fn print_rows(rows: &[CheckRow]) {
+    for row in rows {
+        let mark = match row.status {
+            CheckStatus::Ok => "ok",
+            CheckStatus::NeedsAction | CheckStatus::Invalid => "needs action",
+        };
+        println!("{mark:<13} {:<24} {}", row.name, row.detail);
+    }
+}
+
+pub(crate) fn report(repo: Option<PathBuf>, writeup: bool) -> Result<ExitCode> {
+    let repo = repo_or_current(repo)?;
+    let path = repo.join(".sentinel/report.md");
     let text = std::fs::read_to_string(&path)
         .with_context(|| format!("no report yet at {}", path.display()))?;
-    println!("{text}");
+    if writeup {
+        let log = read_log(&repo.join(".sentinel/log.jsonl"))?;
+        println!("{}", writeup::build(&text, &log));
+    } else {
+        println!("{text}");
+    }
     Ok(ExitCode::SUCCESS)
+}
+
+/// A run that never wrote a log has no events, so a missing log reads as empty.
+fn read_log(path: &Path) -> Result<String> {
+    match std::fs::read_to_string(path) {
+        Ok(text) => Ok(text),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
+        Err(error) => Err(error).with_context(|| format!("could not read {}", path.display())),
+    }
 }
