@@ -110,7 +110,7 @@ CI and releases run on GitHub, not on your computer. Do not run `cargo xtask ci`
 
 ### Signing the .dmg
 
-With no setup the .dmg is signed ad hoc: it works, and macOS asks you to confirm the first open (right click the app, then Open). For a build that opens with no warning, join the Apple Developer Program, make a "Developer ID Application" certificate, export it as a .p12 file, and add these repository secrets (Settings, Secrets and variables, Actions):
+With no setup the .dmg is signed ad hoc: it works, but macOS blocks the first open ("Apple could not verify Sentinel is free of malware"). Click Done, then open System Settings, Privacy & Security, and choose Open Anyway. Or run `xattr -dr com.apple.quarantine /Applications/Sentinel.app`. On macOS 14 and older, right click the app and choose Open also works. For a build that opens with no warning, join the Apple Developer Program, make a "Developer ID Application" certificate, export it as a .p12 file, and add these repository secrets (Settings, Secrets and variables, Actions):
 
 | Secret | What it is |
 |---|---|

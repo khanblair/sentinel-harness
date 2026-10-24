@@ -14,8 +14,8 @@ name: release
 #
 # Signing. With the secrets below the app and the image are signed with a Developer ID
 # certificate and notarized, so macOS opens them without a warning. Without them the build still
-# runs and signs ad hoc: the image works, but macOS asks you to confirm the first open (right
-# click the app, then Open). Add the secrets in Settings, Secrets and variables, Actions:
+# runs and signs ad hoc: the image works, but macOS blocks the first open until you choose Open
+# Anyway in System Settings, Privacy & Security (or run xattr -dr com.apple.quarantine on the app). Add the secrets in Settings, Secrets and variables, Actions:
 #   APPLE_CERTIFICATE           the "Developer ID Application" certificate as a .p12 file, base64
 #   APPLE_CERTIFICATE_PASSWORD  the password of that .p12 file
 #   APPLE_ID                    the Apple ID that is in the Apple Developer Program
@@ -134,7 +134,7 @@ jobs:
           elif [ -n "$APPLE_CERTIFICATE" ]; then
             echo "Signed with a Developer ID certificate. Not notarized: the notarization secrets are missing." | tee -a "$GITHUB_STEP_SUMMARY"
           else
-            echo "Signed ad hoc. The signing secrets are not set, so macOS asks to confirm the first open (right click the app, then Open)." | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "Signed ad hoc. The signing secrets are not set, so macOS blocks the first open: choose Open Anyway in System Settings, Privacy and Security." | tee -a "$GITHUB_STEP_SUMMARY"
           fi
 
       - uses: actions/upload-artifact@v4
