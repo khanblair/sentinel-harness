@@ -27,6 +27,7 @@ pub mod hashing;
 pub mod host;
 pub mod live;
 pub mod onboarding;
+mod openrouter_tool;
 pub mod pairing;
 mod plan_phase;
 mod prompt;
