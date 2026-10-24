@@ -123,9 +123,11 @@ fn measure(popover: &Popover, element: &web_sys::HtmlElement) -> Option<Placemen
     let app = document
         .get_element_by_id("app")?
         .get_bounding_client_rect();
+    // The content's own height. `offset_height` would read the `max-height` the last open left
+    // behind (0 on the first open), so the menu would think it fits below and be cut off.
     let size = Size {
         width: f64::from(element.offset_width()),
-        height: f64::from(element.offset_height()),
+        height: f64::from(element.scroll_height()),
     };
     let viewport = Size {
         width: app.width(),

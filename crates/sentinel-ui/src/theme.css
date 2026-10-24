@@ -420,3 +420,9 @@ select.fs{background:var(--surface);border:1px solid var(--border);border-radius
 .tgbtn:hover:not(:disabled){background:var(--bg)}
 .tgbtn:disabled{opacity:.5;cursor:default}
 .tgin{display:flex;gap:.4em;padding:.5em;border-top:1px solid var(--border)}
+
+/* Rules from the prototype that the first port missed: dialog footer, picker inputs, live line. */
+.modal-ft{display:flex;flex-wrap:wrap;gap:.5em;justify-content:flex-end;padding:.8em 1em;border-top:1px solid var(--border);flex:none}
+.mi input{margin-top:.25em;accent-color:var(--accent)}
+.live-in{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:.86em}
+.app[data-layout="phone"] .run{min-height:44px}
