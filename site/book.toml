@@ -12,6 +12,7 @@ create-missing = false
 default-theme = "light"
 preferred-dark-theme = "navy"
 additional-css = ["theme/sentinel.css"]
+additional-js = ["theme/figures.js"]
 git-repository-url = "https://github.com/khanblair/sentinel-harness"
 edit-url-template = "https://github.com/khanblair/sentinel-harness/edit/main/site/{path}"
 

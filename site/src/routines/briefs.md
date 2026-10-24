@@ -11,9 +11,12 @@ A brief is a short text that Sentinel builds from the facts of your project. It 
 3. In Telegram, send `/brief` for the Morning brief and `/wrapup` for the Sundown wrap-up. `/daily` gives the same text as the wrap-up.
 4. The last 14 briefs are kept in Settings, Routines.
 
-## Screenshot
+## See it
 
-![Screenshot of a brief in Telegram](../images/brief-telegram.png)
+<figure class="fig" data-fig="brief-telegram" data-ratio="16 / 10" data-title="A brief in Telegram.">
+<figcaption>A brief in Telegram.<ol><li>The Morning brief, as it arrives in your Telegram chat.</li></ol></figcaption>
+<noscript><p>This view needs JavaScript. Open the <a href="../prototype/sentinel-prototype.html">prototype</a> instead.</p></noscript>
+</figure>
 
 ## Tip
 

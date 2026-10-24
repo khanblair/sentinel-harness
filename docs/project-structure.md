@@ -56,7 +56,7 @@ site/
   src/try-it.md           embeds the interactive prototype
   src/help/               troubleshooting.md, faq.md, changelog.md
   theme/                  CSS from ui-tokens, fonts, and the light and dark switch
-  img/                    screenshots from the prototype, light and dark
+  img/                    images the site needs that the prototype cannot show
 ```
 
 ## .github/

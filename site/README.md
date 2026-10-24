@@ -18,7 +18,8 @@ Install mdBook once with `cargo install mdbook`. Then run these commands from th
 - `theme/sentinel.css` maps the colors and fonts from `docs/ui-tokens.md` to mdBook. Light is the default. The dark themes (navy and coal) use the dark values.
 - `src/SUMMARY.md` sets the order and the menu. A page must be listed there to appear in the book.
 - `src/` holds one folder per top-level section. Each section has an `index.md` page and its sub pages.
-- `src/images/` holds the screenshots. The names come from the image placeholders in the pages. The screenshots are not added yet.
+- `theme/figures.js` turns each `<figure class="fig" data-fig="ID">` into a live view of the prototype. The prototype file is copied to `prototype/` when the site is built, and the view is its `?fig=ID` screen. There are no screenshot files.
+- To add a view, define `ID` in the `FIGS` table in `design/sentinel-prototype.html` (its setup, the crop, and the marks that get outlines and arrows), then add the figure block to the page.
 
 ## Page template
 
@@ -36,9 +37,13 @@ One sentence that says what the feature is.
 1. One action per step.
 2. Next action.
 
-## Screenshot
+## See it
 
-![Screenshot of image-name](../images/image-name.png)
+<figure class="fig" data-fig="view-id" data-ratio="16 / 10" data-title="What the view shows">
+<figcaption>What the view shows.<ol><li>The first marked part.</li><li>The second marked part.</li></ol></figcaption>
+</figure>
+
+Leave the section out when a picture adds nothing (overview pages, tables).
 
 ## Tip
 

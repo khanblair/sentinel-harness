@@ -12,9 +12,12 @@ A routine is a job that runs at a set time, like a cron job but set up in plain 
 4. Press Send now to see a brief at once.
 5. Press Add a reminder to set your own text at a time, for example "Review the plan before standup".
 
-## Screenshot
+## See it
 
-![Screenshot of the Routines page](../images/routines-page.png)
+<figure class="fig" data-fig="routines-page" data-ratio="16 / 10" data-title="The Routines page in Settings.">
+<figcaption>The Routines page in Settings.<ol><li>The switch for a routine.</li><li>The time, on this computer's clock.</li><li>Send now builds the brief at once.</li></ol></figcaption>
+<noscript><p>This view needs JavaScript. Open the <a href="../prototype/sentinel-prototype.html">prototype</a> instead.</p></noscript>
+</figure>
 
 ## Tip
 

@@ -11,9 +11,12 @@ You can add any skill to your next message yourself, even one that is switched O
 3. The skill appears as a chip above the text box. Press the x on the chip to remove it.
 4. Send your message. The skill goes into the task prompts of that run.
 
-## Screenshot
+## See it
 
-![Screenshot of a skill chip in the composer](../images/skill-chip.png)
+<figure class="fig" data-fig="skill-chip" data-ratio="16 / 10" data-title="A skill chip in the composer.">
+<figcaption>A skill chip in the composer.<ol><li>The chip for a skill added by hand.</li><li>The plus button, then Use a skill.</li></ol></figcaption>
+<noscript><p>This view needs JavaScript. Open the <a href="../prototype/sentinel-prototype.html">prototype</a> instead.</p></noscript>
+</figure>
 
 ## Tip
 

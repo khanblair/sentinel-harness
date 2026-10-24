@@ -12,9 +12,12 @@ A skill is a folder with a `SKILL.md` file that teaches agents one thing the way
 4. Pick a switch for each skill: Off, Auto, or Always.
 5. Start a run. The stream says which skills were loaded for each task.
 
-## Screenshot
+## See it
 
-![Screenshot of the Skills page](../images/skills-page.png)
+<figure class="fig" data-fig="skills-page" data-ratio="16 / 10" data-title="The Skills page in Settings.">
+<figcaption>The Skills page in Settings.<ol><li>Off, Auto, or Always for each skill.</li><li>New skill opens the editor.</li><li>Import copies a skill from another tool. The original stays as it was.</li></ol></figcaption>
+<noscript><p>This view needs JavaScript. Open the <a href="../prototype/sentinel-prototype.html">prototype</a> instead.</p></noscript>
+</figure>
 
 ## Tip
 

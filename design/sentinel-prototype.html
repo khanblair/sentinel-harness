@@ -433,6 +433,17 @@ select.fs{background:var(--surface);border:1px solid var(--border);border-radius
 .tgbtn:hover:not(:disabled){background:var(--bg)}
 .tgbtn:disabled{opacity:.5;cursor:default}
 .tgin{display:flex;gap:.4em;padding:.5em;border-top:1px solid var(--border)}
+
+/* figures (how-to site): ?fig=ID shows one view, fixed size, scaled to fit, with highlights */
+body.fig{overflow:hidden;background:var(--bg)}
+body.fig .pbar{display:none}
+body.fig .frame{position:absolute;left:0;top:0;margin:0;border:0;border-radius:0;box-shadow:none;transition:none;min-height:0;max-width:none}
+body.fig .toast{display:none}
+#figOv{position:fixed;inset:0;pointer-events:none;z-index:200}
+#figOv svg{position:absolute;inset:0}
+.figbadge{position:absolute;width:22px;height:22px;border-radius:50%;background:var(--accent);color:var(--accent-fg);font:600 12px/22px var(--font-ui);text-align:center;box-shadow:0 1px 4px rgba(0,0,0,.35)}
+.figlbl{position:absolute;display:flex;gap:8px;align-items:flex-start;max-width:230px;background:var(--accent);color:var(--accent-fg);border-radius:10px;padding:7px 10px;font:500 13px/1.35 var(--font-ui);box-shadow:0 2px 10px rgba(0,0,0,.35)}
+.figlbl b{flex:none;width:18px;height:18px;border-radius:50%;background:var(--accent-fg);color:var(--accent);font-size:11px;line-height:18px;text-align:center}
 </style>
 </head>
 <body>
@@ -664,6 +675,7 @@ const KEY = 'sentinel-proto-v2';
 /* event ids restart on every page load, so they are not saved; renderStream assigns new ones */
 const chatForSave = r => ({ id: r.id, repo: r.repo, title: r.title, status: isActive(r) ? 'stopped' : r.status, verified: r.verified, pinned: !!r.pinned, archived: !!r.archived, renamed: !!r.renamed, care: !!r.care, past: !!r.past, remote: !!r.remote, events: r.events.map(ev => Object.assign({}, ev, { id: undefined })) });
 function save() {
+  if (FIG_ID) return;
   try { localStorage.setItem(KEY, JSON.stringify({ prefs: S.prefs, skills: S.skills, found: S.found, routines: S.routines, briefs: S.briefs, setup: S.setup, perm: S.perm, brainMode: S.brainMode, routing: S.routing, tools: S.tools.map(t => ({ id: t.id, enabled: t.enabled, status: t.status, tier: t.tier })), conn: S.conn, devices: S.devices, brain: S.brain ? { notes: S.brain.notes, care: S.brain.care, journal: S.brain.journal, proposals: S.brain.proposals } : null, tg: S.tg ? Object.assign({}, S.tg, { messages: [], unread: 0, log: [] }) : null, live: S.live, chats: S.runs.map(chatForSave) })); } catch (e) { }
 }
 function load() {
@@ -2736,8 +2748,128 @@ document.addEventListener('change', ev => {
 });
 if (window.matchMedia) { try { matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (S.prefs.theme === 'system') { applyPrefs(); renderAll(); } }); } catch (e) { } }
 
+/* ---------- figures: single views for the how-to site (?fig=ID) ----------
+   A figure is one real view of this prototype, rendered at a fixed size, optionally cropped to a
+   region, with numbered outlines and arrow labels on the parts a page talks about.
+   def = { device, theme, setup(), crop: selector, pad, dim: bool, marks: [{ sel, n, label, side }] } */
+const FIG_ID = new URLSearchParams(location.search).get('fig');
+const FIG_SIZE = { desktop: [1280, 800], tablet: [820, 1060], phone: [390, 780] };
+const FIGS = {};
+function figInit() {
+  const def = FIGS[FIG_ID];
+  if (!def) { document.body.textContent = 'Unknown figure: ' + FIG_ID; return; }
+  const q = new URLSearchParams(location.search), dev = def.device || 'desktop', size = FIG_SIZE[dev];
+  document.body.classList.add('fig');
+  brInit(); tgInit();
+  S.prefs.theme = q.get('theme') === 'light' ? 'light' : 'dark';
+  S.setup.done = true; S.conn.tailscale.state = 'connected'; S.device = dev;
+  if (!S.devices.length) S.devices = [{ id: 'd1', name: 'Pixel 7', kind: 'phone', seen: 'just now' }];
+  applyPrefs(); mountApp();
+  const fr = $('#frame'); fr.dataset.device = dev; fr.style.width = size[0] + 'px'; fr.style.height = size[1] + 'px';
+  renderStream(); renderAll(); onResize();
+  if (def.setup) def.setup();
+  const fit = () => figFit(def, size);
+  setTimeout(fit, 400); window.addEventListener('resize', fit);
+}
+function figUnion(els) {
+  const rs = els.map(e => e.getBoundingClientRect());
+  const left = Math.min(...rs.map(r => r.left)), top = Math.min(...rs.map(r => r.top));
+  return { left, top, right: Math.max(...rs.map(r => r.right)), bottom: Math.max(...rs.map(r => r.bottom)) };
+}
+function figRect(els, pad, bounds) {
+  const r = figUnion(els), b = bounds;
+  const x0 = Math.max(b.left, r.left - pad), y0 = Math.max(b.top, r.top - pad), x1 = Math.min(b.right, r.right + pad), y1 = Math.min(b.bottom, r.bottom + pad);
+  return { left: x0, top: y0, width: x1 - x0, height: y1 - y0 };
+}
+function figFit(def, size) {
+  const fr = $('#frame'), vw = window.innerWidth, vh = window.innerHeight;
+  fr.style.transform = 'none'; fr.style.transformOrigin = '0 0';
+  const base = fr.getBoundingClientRect();
+  let tgt = { left: base.left, top: base.top, width: size[0], height: size[1] };
+  const cropEls = [].concat(def.crop || []).map(sel => $(sel)).filter(Boolean);
+  if (cropEls.length) tgt = figRect(cropEls, def.pad == null ? 14 : def.pad, base);
+  const k = Math.min(vw / tgt.width, vh / tgt.height, def.maxZoom || 2);
+  const tx = (vw - tgt.width * k) / 2 - (tgt.left - base.left) * k, ty = (vh - tgt.height * k) / 2 - (tgt.top - base.top) * k;
+  fr.style.transform = `translate(${tx}px,${ty}px) scale(${k})`;
+  requestAnimationFrame(() => figMarks(def));
+}
+function figEdge(r, p) {
+  const cx = r.left + r.width / 2, cy = r.top + r.height / 2, dx = p.x - cx, dy = p.y - cy;
+  if (!dx && !dy) return { x: cx, y: cy };
+  const s = Math.min((r.width / 2) / Math.abs(dx || 1e-6), (r.height / 2) / Math.abs(dy || 1e-6));
+  return { x: cx + dx * s, y: cy + dy * s };
+}
+function figMarks(def) {
+  let ov = $('#figOv'); if (ov) ov.remove();
+  const vw = window.innerWidth, vh = window.innerHeight, pad = 5, marks = (def.marks || []).map(m => ({ m, el: $(m.sel) })).filter(x => x.el);
+  ov = document.createElement('div'); ov.id = 'figOv';
+  const rects = marks.map(x => { const r = x.el.getBoundingClientRect(); return { left: r.left - pad, top: r.top - pad, width: r.width + 2 * pad, height: r.height + 2 * pad }; });
+  const dim = def.dim ? `<defs><mask id="figMask"><rect width="${vw}" height="${vh}" fill="#fff"/>${rects.map(r => `<rect x="${r.left}" y="${r.top}" width="${r.width}" height="${r.height}" rx="9" fill="#000"/>`).join('')}</mask></defs><rect width="${vw}" height="${vh}" fill="rgba(0,0,0,.4)" mask="url(#figMask)"/>` : '';
+  const boxes = rects.map(r => `<rect x="${r.left}" y="${r.top}" width="${r.width}" height="${r.height}" rx="9" fill="none" stroke="var(--accent)" stroke-width="2.5"/>`).join('');
+  ov.innerHTML = `<svg width="${vw}" height="${vh}" aria-hidden="true"><defs><marker id="figArrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--accent)"/></marker></defs>${dim}${boxes}<g id="figLines"></g></svg>`;
+  document.body.appendChild(ov);
+  const lines = $('#figLines', ov);
+  marks.forEach((x, i) => {
+    const r = rects[i], m = x.m, n = m.n || i + 1;
+    if (!m.label) {
+      const badge = document.createElement('div'); badge.className = 'figbadge'; badge.textContent = n;
+      badge.style.left = (r.left - 11) + 'px'; badge.style.top = (r.top - 11) + 'px'; ov.appendChild(badge);
+      return;
+    }
+    const lb = document.createElement('div'); lb.className = 'figlbl'; lb.innerHTML = `<b>${n}</b><span>${esc(m.label)}</span>`; ov.appendChild(lb);
+    const w = lb.offsetWidth, h = lb.offsetHeight, gap = 34, side = m.side || (r.top > h + gap + 10 ? 'top' : 'bottom');
+    let x0 = r.left + r.width / 2 - w / 2, y0 = r.top - h - gap;
+    if (side === 'bottom') y0 = r.top + r.height + gap;
+    if (side === 'left') { x0 = r.left - w - gap; y0 = r.top + r.height / 2 - h / 2; }
+    if (side === 'right') { x0 = r.left + r.width + gap; y0 = r.top + r.height / 2 - h / 2; }
+    x0 = Math.max(8, Math.min(vw - w - 8, x0)); y0 = Math.max(8, Math.min(vh - h - 8, y0));
+    lb.style.left = x0 + 'px'; lb.style.top = y0 + 'px';
+    const box = { left: x0, top: y0, width: w, height: h }, bc = { x: x0 + w / 2, y: y0 + h / 2 }, tc = { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    const a = figEdge(box, tc), b = figEdge(r, bc);
+    lines.insertAdjacentHTML('beforeend', `<line x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" marker-end="url(#figArrow)"/>`);
+  });
+}
+
+
+/* ---------- figure definitions (see the engine above). One entry per picture on the site. ---------- */
+const figTelegram = () => { S.tg.bot = { user: 'sentinel_dev_bot' }; S.tg.paired = true; S.tg.userId = '1048293'; S.tg.chat = { name: 'You', id: '1048293' }; };
+Object.assign(FIGS, {
+  'skills-page': {
+    setup() { openSettings('skills'); },
+    crop: '.modal', dim: true,
+    marks: [
+      { sel: '#setBody .seg', label: 'Off, Auto, or Always. Always puts the skill in every task.', side: 'left' },
+      { sel: '#setBody [data-act="skillNew"]', label: 'Write a new skill here.', side: 'right' },
+      { sel: '#setBody [data-act="skillImport"]', label: 'Import copies a skill from another tool. The original stays as it was.', side: 'left' }
+    ]
+  },
+  'skill-chip': {
+    setup() { S.attach = [{ kind: 'skill', name: 'release-checklist' }]; renderFoot(); },
+    crop: '#compWrap', pad: 90, dim: true, maxZoom: 1.3,
+    marks: [
+      { sel: '#attachChips .chip', label: 'The skill goes with your next message. The x removes it.', side: 'right' },
+      { sel: '[data-act="attachMenu"]', label: 'Plus, then Use a skill. Or type /skill and the name.', side: 'top' }
+    ]
+  },
+  'routines-page': {
+    setup() { S.routines[0].on = true; routineFire(S.routines[0]); openSettings('routines'); },
+    crop: '.modal', dim: true,
+    marks: [
+      { sel: '#setBody .card .tog', label: 'Turn a routine on or off.', side: 'left' },
+      { sel: '#setBody select[data-sel^="routineTime"]', label: 'The time, on this computer\'s clock.', side: 'bottom' },
+      { sel: '#setBody [data-act="routineNow"]', label: 'Send now shows the brief at once.', side: 'left' }
+    ]
+  },
+  'brief-telegram': {
+    setup() { figTelegram(); routineFire(S.routines[0]); openPanel('telegram'); },
+    crop: '.tgchat', pad: 60, dim: true, maxZoom: 1.6,
+    marks: [{ sel: '.tgm.bot:last-of-type', label: 'The Morning brief, in your Telegram chat.', side: 'left' }]
+  }
+});
+
 /* ---------- init ---------- */
 function init() {
+  if (FIG_ID) { figInit(); return; }
   brInit(); tgInit(); load(); if (!S.setup.done) { S.devices = []; S.conn.tailscale.state = 'missing'; }
   applyPrefs(); mountApp();
   $('#frame').dataset.device = S.device;

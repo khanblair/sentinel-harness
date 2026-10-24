@@ -305,7 +305,7 @@ Plan: 2 files (src/limits/rate.ts, src/api/transfer.ts). No conflicts.
 ### F22. How-To Site
 
 - **What:** A simple static site on GitHub Pages that shows how to install, set up, and use Sentinel, one feature per page, with the interactive prototype embedded.
-- **How:** mdBook (written in Rust) builds the site from markdown in `site/`. GitHub Actions builds and publishes it on every push to main. The theme uses the app's colors and fonts, with light and dark. Pages: Home, Get started, Using Sentinel, Brain, Remote, Reference, Guides, Try it, Help. Every content page has the same parts: what it is, numbered steps, a screenshot, a tip, and related pages. The structure is shown in `design/site-structure.html`. Screenshots come from the prototype in both themes. The slop check and a link check run on the site text.
+- **How:** mdBook (written in Rust) builds the site from markdown in `site/`. GitHub Actions builds and publishes it on every push to main. The theme uses the app's colors and fonts, with light and dark. Pages: Home, Get started, Using Sentinel, Brain, Remote, Reference, Guides, Try it, Help. Every content page has the same parts: what it is, numbered steps, a live view where a picture helps, a tip, and related pages. A live view is the real prototype, loaded at one screen (`?fig=ID`), cropped to the part that matters, with numbered outlines and arrows on the parts the page talks about. It follows the site's light or dark theme. There are no screenshot files. The structure is shown in `design/site-structure.html`. The slop check and a link check run on the site text.
 - **Why:** New users need a place to learn that is not the app.
 - **When:** Built in the coding phase (Phase 15). Only the structure exists now.
 

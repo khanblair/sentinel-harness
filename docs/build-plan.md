@@ -271,8 +271,8 @@ Goal: a simple GitHub Pages site that shows all of this.
 | ID | Task | Done when |
 |---|---|---|
 | P15-01 | mdBook project with the theme from `ui-tokens.md` | Light and dark work. Fonts load locally |
-| P15-02 | Pages from the site map in `design/site-structure.html` | Every page has the same parts: what it is, steps, screenshot, tip, related |
-| P15-03 | Screenshots from the prototype in both themes, and the embedded prototype page | Images load. The embed works on phone width |
+| P15-02 | Pages from the site map in `design/site-structure.html` | Every page has the same parts: what it is, steps, a live view where a picture helps, tip, related |
+| P15-03 | Live views from the prototype (`?fig=ID`, in both themes) with numbered highlights and arrows, and the embedded prototype page | Each view loads and points at the right part. The embeds work on phone width |
 | P15-04 | GitHub Actions workflow to build, check, and deploy | A push to main updates the site |
 | P15-05 | Slop check and link check on the site | Both pass in CI |
 | P15-06 | Publish and link from the README. **M10** | The public URL works |
