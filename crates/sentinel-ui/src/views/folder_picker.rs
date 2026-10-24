@@ -162,18 +162,27 @@ fn FolderBrowser(browsing: RwSignal<bool>) -> impl IntoView {
                         .collect_view()
                 }}
             </div>
-            <div class="fd-ft">
-                <span class="sub">{move || path.get()}</span>
-                <button
-                    class="btn pri"
-                    on:click=move |_| {
-                        browsing.set(false);
-                        check_repo(&wizard, path.get_untracked());
-                    }
-                >
-                    {move || format!("Choose {}", fs_name(&path.get()))}
-                </button>
-            </div>
+            <BrowserFooter path=path browsing=browsing />
+        </div>
+    }
+}
+
+/// The browser footer: the folder it is on, and the button that chooses it.
+#[component]
+fn BrowserFooter(path: RwSignal<String>, browsing: RwSignal<bool>) -> impl IntoView {
+    let wizard = use_wizard();
+    view! {
+        <div class="fd-ft">
+            <span class="sub">{move || path.get()}</span>
+            <button
+                class="btn pri"
+                on:click=move |_| {
+                    browsing.set(false);
+                    check_repo(&wizard, path.get_untracked());
+                }
+            >
+                {move || format!("Choose {}", fs_name(&path.get()))}
+            </button>
         </div>
     }
 }

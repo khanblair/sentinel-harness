@@ -143,18 +143,22 @@ impl Wizard {
     pub fn next(self) {
         self.touched.set(true);
         match self.step.get_untracked() {
-            WizardStep::Repository => {
-                if let Some(path) = self.repo_path() {
-                    let body = RepoCheckRequest { path };
-                    self.save_then_go("/api/repo", body, WizardStep::Agents);
-                }
-            }
+            WizardStep::Repository => self.save_repo_then_go(),
             WizardStep::Budget => self.save_cap_then_go(),
             WizardStep::DryRun => self.finish(),
             step @ (WizardStep::Install | WizardStep::Agents | WizardStep::Phone) => {
                 self.go(next_step(step).unwrap_or(step));
             }
         }
+    }
+
+    /// Saves the checked folder, then moves to the agents step. Does nothing without a check.
+    fn save_repo_then_go(self) {
+        let Some(path) = self.repo_path() else {
+            return;
+        };
+        let body = RepoCheckRequest { path };
+        self.save_then_go("/api/repo", body, WizardStep::Agents);
     }
 
     /// Saves a choice with a PUT, then moves on. A failed save stays on the step.
