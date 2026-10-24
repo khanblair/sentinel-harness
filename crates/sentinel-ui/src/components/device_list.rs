@@ -43,46 +43,54 @@ fn revoke(ui: Ui, device: &DeviceInfo) {
 
 #[component]
 fn DeviceRow(device: DeviceInfo, asking: RwSignal<Option<String>>) -> impl IntoView {
-    let ui = use_ui();
     let id = device.id.to_string();
-    let name = device.name.clone();
     let icon = device_icon(device.kind);
-    let question = revoke_text(&name);
-    let is_asking = {
-        let id = id.clone();
-        move || asking.get().as_deref() == Some(id.as_str())
-    };
-    let ask_id = id.clone();
-    let confirm = device.clone();
+    let question = revoke_text(&device.name);
+    let name = device.name.clone();
+    let is_asking = Memo::new(move |_| asking.get().as_deref() == Some(id.as_str()));
     view! {
         <div class="tcard">
             <div class="row sp wrap">
                 <span class="row"><Icon name=icon size=16 /><b>{name}</b></span>
-                <Show
-                    when=is_asking.clone()
-                    fallback=move || {
-                        let id = ask_id.clone();
-                        view! {
-                            <button class="btn sm dng" on:click=move |_| asking.set(Some(id.clone()))>"Revoke"</button>
-                        }
-                    }
-                >
-                    <span class="row" style="gap:.4em">
-                        <button class="btn sm dng" on:click={
-                            let confirm = confirm.clone();
-                            move |_| {
-                                asking.set(None);
-                                revoke(ui, &confirm);
-                            }
-                        }>"Revoke"</button>
-                        <button class="btn sm" on:click=move |_| asking.set(None)>"Cancel"</button>
-                    </span>
-                </Show>
+                <RevokeButtons device=device asking=asking is_asking=is_asking />
             </div>
-            <Show when=is_asking fallback=|| ()>
+            <Show when=move || is_asking.get() fallback=|| ()>
                 <div class="sub" style="margin-top:.3em">{question.clone()}</div>
             </Show>
         </div>
+    }
+}
+
+/// The Revoke button. A second click asks, then Revoke or Cancel.
+#[component]
+fn RevokeButtons(
+    device: DeviceInfo,
+    asking: RwSignal<Option<String>>,
+    is_asking: Memo<bool>,
+) -> impl IntoView {
+    let ui = use_ui();
+    let id = device.id.to_string();
+    view! {
+        <Show
+            when=move || is_asking.get()
+            fallback=move || {
+                let id = id.clone();
+                view! {
+                    <button class="btn sm dng" on:click=move |_| asking.set(Some(id.clone()))>"Revoke"</button>
+                }
+            }
+        >
+            <span class="row" style="gap:.4em">
+                <button class="btn sm dng" on:click={
+                    let device = device.clone();
+                    move |_| {
+                        asking.set(None);
+                        revoke(ui, &device);
+                    }
+                }>"Revoke"</button>
+                <button class="btn sm" on:click=move |_| asking.set(None)>"Cancel"</button>
+            </span>
+        </Show>
     }
 }
 

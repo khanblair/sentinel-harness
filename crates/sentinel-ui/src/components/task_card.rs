@@ -78,13 +78,21 @@ pub fn TaskCard(card: CardModel) -> impl IntoView {
                 {meta_notes.map(|text| view! { <span class="chip">{text}</span> })}
                 {flag.map(|text| view! { <span class="chip a">{text}</span> })}
             </div>
-            <Show when=move || open.get() fallback=|| ()>
-                <div class="sub" style="margin-top:.6em;white-space:pre-wrap">{body.clone()}</div>
-                <div class="tree" style="margin-top:.5em">
-                    {paths.iter().map(|path| view! { <div class="tr"><span class="nm">{path.clone()}</span></div> }).collect_view()}
-                </div>
-            </Show>
+            <CardDetail open=open body=body paths=paths />
         </div>
+    }
+}
+
+/// The body and the file list. Shown only while the card is open.
+#[component]
+fn CardDetail(open: RwSignal<bool>, body: String, paths: Vec<String>) -> impl IntoView {
+    view! {
+        <Show when=move || open.get() fallback=|| ()>
+            <div class="sub" style="margin-top:.6em;white-space:pre-wrap">{body.clone()}</div>
+            <div class="tree" style="margin-top:.5em">
+                {paths.iter().map(|path| view! { <div class="tr"><span class="nm">{path.clone()}</span></div> }).collect_view()}
+            </div>
+        </Show>
     }
 }
 

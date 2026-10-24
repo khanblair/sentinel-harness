@@ -68,6 +68,24 @@ fn NoteListView(ctx: BrainCtx) -> impl IntoView {
         search.run(text, type_from_value(&value));
     });
     view! {
+        <SearchRow query=query filter=filter />
+        <div class="row sp" style="margin-bottom:.6em">
+            <span class="sub">"Notes are plain markdown files. Edits in Obsidian show up here."</span>
+            {move || (ctx.ui.layout.get() != Layout::Phone).then(|| view! {
+                <button class="btn sm" on:click=move |_| new_open.update(|open| *open = !*open)>
+                    "New note"
+                </button>
+            })}
+        </div>
+        {move || new_open.get().then(|| view! { <NewNoteForm ctx=ctx open=new_open /> })}
+        <div id="brainList">{move || note_rows(ctx, rows.get())}</div>
+    }
+}
+
+/// The search box and the type filter above the note list.
+#[component]
+fn SearchRow(query: RwSignal<String>, filter: RwSignal<String>) -> impl IntoView {
+    view! {
         <div class="row" style="gap:.4em;margin-bottom:.6em">
             <input class="field" placeholder="Search notes" aria-label="Search notes"
                 prop:value=move || query.get()
@@ -84,16 +102,6 @@ fn NoteListView(ctx: BrainCtx) -> impl IntoView {
                     .collect_view()}
             </select>
         </div>
-        <div class="row sp" style="margin-bottom:.6em">
-            <span class="sub">"Notes are plain markdown files. Edits in Obsidian show up here."</span>
-            {move || (ctx.ui.layout.get() != Layout::Phone).then(|| view! {
-                <button class="btn sm" on:click=move |_| new_open.update(|open| *open = !*open)>
-                    "New note"
-                </button>
-            })}
-        </div>
-        {move || new_open.get().then(|| view! { <NewNoteForm ctx=ctx open=new_open /> })}
-        <div id="brainList">{move || note_rows(ctx, rows.get())}</div>
     }
 }
 
@@ -133,21 +141,7 @@ fn NewNoteForm(ctx: BrainCtx, open: RwSignal<bool>) -> impl IntoView {
     };
     view! {
         <div class="card" style="margin-bottom:.6em">
-            <div class="row" style="gap:.4em;margin-bottom:.4em">
-                <select class="fs" aria-label="Note type"
-                    prop:value=move || note_type.get()
-                    on:change=move |event| note_type.set(event_target_value(&event))>
-                    {NOTE_TYPES
-                        .into_iter()
-                        .map(|kind| view! {
-                            <option value=type_query_value(kind)>{type_label(kind)}</option>
-                        })
-                        .collect_view()}
-                </select>
-                <input class="field" placeholder="Title" aria-label="Note title"
-                    prop:value=move || title.get()
-                    on:input=move |event| title.set(event_target_value(&event)) />
-            </div>
+            <NewNoteHead note_type=note_type title=title />
             <textarea class="field" rows="5" aria-label="Note text"
                 prop:value=move || body.get()
                 on:input=move |event| body.set(event_target_value(&event))></textarea>
@@ -156,6 +150,28 @@ fn NewNoteForm(ctx: BrainCtx, open: RwSignal<bool>) -> impl IntoView {
                 <button class="btn pri" on:click=save>"Save note"</button>
                 <button class="btn" on:click=move |_| open.set(false)>"Cancel"</button>
             </div>
+        </div>
+    }
+}
+
+/// The type select and the title box at the top of the New note form.
+#[component]
+fn NewNoteHead(note_type: RwSignal<String>, title: RwSignal<String>) -> impl IntoView {
+    view! {
+        <div class="row" style="gap:.4em;margin-bottom:.4em">
+            <select class="fs" aria-label="Note type"
+                prop:value=move || note_type.get()
+                on:change=move |event| note_type.set(event_target_value(&event))>
+                {NOTE_TYPES
+                    .into_iter()
+                    .map(|kind| view! {
+                        <option value=type_query_value(kind)>{type_label(kind)}</option>
+                    })
+                    .collect_view()}
+            </select>
+            <input class="field" placeholder="Title" aria-label="Note title"
+                prop:value=move || title.get()
+                on:input=move |event| title.set(event_target_value(&event)) />
         </div>
     }
 }

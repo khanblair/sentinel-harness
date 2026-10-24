@@ -111,15 +111,16 @@ fn approval_view(snapshot: &Snapshot, id: &ApprovalId) -> Option<ApprovalView> {
 fn act(ui: Ui, id: &ApprovalId, action: ApprovalAction) {
     match action {
         ApprovalAction::StopRun => post_action(ui, "/api/stop".to_owned()),
-        ApprovalAction::Answer(allow) => {
-            let path = format!("/api/approvals/{id}");
-            spawn_local(async move {
-                let result =
-                    api::post::<_, serde_json::Value>(&path, &AnswerApproval { allow }).await;
-                settle(ui, result);
-            });
-        }
+        ApprovalAction::Answer(allow) => answer(ui, id, allow),
     }
+}
+
+fn answer(ui: Ui, id: &ApprovalId, allow: bool) {
+    let path = format!("/api/approvals/{id}");
+    spawn_local(async move {
+        let result = api::post::<_, serde_json::Value>(&path, &AnswerApproval { allow }).await;
+        settle(ui, result);
+    });
 }
 
 fn answered(view: &ApprovalView) -> AnyView {
