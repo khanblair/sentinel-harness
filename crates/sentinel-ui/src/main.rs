@@ -10,6 +10,9 @@ mod icons;
 mod layout;
 mod prefs;
 mod state;
+mod theme;
+mod views;
+mod ws;
 
 fn main() {
     console_error_panic_hook::set_once();
