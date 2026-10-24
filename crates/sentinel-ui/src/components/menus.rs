@@ -305,6 +305,8 @@ fn more_menu(ui: Ui) -> impl IntoView {
         <div class="sep"></div>
         <MenuItem icon="book" label="How to use Sentinel"
             on_pick=move |()| { close(ui); ui.modal.set(Some(Modal::Guide)) } />
+        <MenuItem icon="play" label="Take the tour"
+            on_pick=move |()| { close(ui); crate::tour_state::start(ui) } />
         <MenuItem icon="search" label="Command palette" desc="Ctrl or Cmd + K"
             on_pick=move |()| { close(ui); ui.modal.set(Some(Modal::Palette)) } />
         <MenuItem icon="gear" label="Settings" on_pick=move |()| settings(ui, "general") />

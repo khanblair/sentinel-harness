@@ -7,6 +7,7 @@ use sentinel_core::{ToolId, ToolInfo};
 use wasm_bindgen::JsCast;
 use wasm_bindgen::closure::Closure;
 
+use crate::components::command_palette::CommandPalette;
 use crate::components::connection_banner::ConnectionBanner;
 use crate::components::icon::Icon;
 use crate::components::modal::ModalHost;
@@ -16,10 +17,12 @@ use crate::components::sidebar::Sidebar;
 use crate::components::tab_bar::{TabBar, touch_ended, touch_started};
 use crate::components::toast::Toast;
 use crate::components::top_bar::TopBar;
+use crate::components::tour_coach::TourCoach;
 use crate::layout::Layout;
 use crate::prefs::Prefs;
 use crate::state::{Modal, Ui, provide_ui, use_ui};
 use crate::theme;
+use crate::tour_state::provide_tour;
 use crate::views::composer::Composer;
 use crate::views::onboarding::SetupWizard;
 use crate::views::stream::StreamView;
@@ -158,6 +161,7 @@ fn install(ui: Ui) {
 pub fn App() -> impl IntoView {
     let ui = Ui::new(Layout::from_width(window_width()), load_prefs());
     provide_ui(ui);
+    provide_tour();
     let touch_start = RwSignal::new(None::<f64>);
     Effect::new(move |_| install(ui));
     Effect::new(move |_| {
@@ -189,6 +193,8 @@ pub fn App() -> impl IntoView {
             <PopoverHost />
             <SetupGate />
             <ModalHost />
+            <CommandPalette />
+            <TourCoach />
         </div>
     }
 }

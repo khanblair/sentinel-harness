@@ -15,7 +15,6 @@ pub mod dry_run;
 pub mod files;
 pub mod folder_picker;
 pub mod install;
-pub mod modal_stubs;
 pub mod onboarding;
 pub mod pair_page;
 pub mod pairing;
@@ -28,7 +27,6 @@ pub mod settings;
 pub mod settings_pages;
 pub mod stream;
 pub mod stream_model;
-pub mod stream_slot;
 pub mod telegram {
     pub use super::panel_stubs::TelegramPanel;
 }

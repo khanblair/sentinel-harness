@@ -6,12 +6,16 @@
 mod api;
 mod app;
 mod components;
+mod guide;
 mod icons;
 mod layout;
+mod palette;
 mod prefs;
 mod slash;
 mod state;
 mod theme;
+mod tour;
+mod tour_state;
 mod views;
 mod ws;
 

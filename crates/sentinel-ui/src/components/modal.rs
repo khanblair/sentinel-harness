@@ -7,10 +7,10 @@ use sentinel_core::PermissionMode;
 use sentinel_core::api::PermissionsUpdate;
 
 use crate::api;
+use crate::components::guide_modal::GuideModal;
 use crate::components::icon::Icon;
 use crate::components::top_bar::settle;
 use crate::state::{Modal, ToastKind, Ui, use_ui};
-use crate::views::modal_stubs::{GuideModal, PaletteModal};
 use crate::views::settings::SettingsDialog;
 
 /// The overlay id, as in `ov-<key>`. Bypass uses the key `bp`.
@@ -35,7 +35,8 @@ pub fn modal_class(modal: &Modal) -> &'static str {
 pub fn ModalHost() -> impl IntoView {
     let ui = use_ui();
     move || {
-        ui.modal.get().map(|modal| {
+        // The palette draws its own overlay, so the host skips it.
+        ui.modal.get().filter(|modal| *modal != Modal::Palette).map(|modal| {
             let id = format!("ov-{}", modal_key(&modal));
             let class = modal_class(&modal);
             view! {
@@ -53,7 +54,7 @@ fn modal_body(modal: &Modal) -> AnyView {
     match modal {
         Modal::Settings { .. } => view! { <SettingsDialog /> }.into_any(),
         Modal::Guide => view! { <GuideModal /> }.into_any(),
-        Modal::Palette => view! { <PaletteModal /> }.into_any(),
+        Modal::Palette => ().into_any(),
         Modal::BypassConfirm => view! { <BypassConfirm /> }.into_any(),
     }
 }

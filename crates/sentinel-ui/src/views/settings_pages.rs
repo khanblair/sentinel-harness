@@ -17,6 +17,7 @@ use crate::components::icon::Icon;
 use crate::components::status_badge::shape_markup;
 use crate::components::toggle::Toggle;
 use crate::components::top_bar::settle;
+use crate::components::tour_menu::TourMenu;
 use crate::layout::Layout;
 use crate::state::{Modal, ToastKind, Ui, use_ui};
 use crate::views::settings::Field;
@@ -59,6 +60,9 @@ pub fn GeneralPage() -> impl IntoView {
         <p class="lead">"Where Sentinel works and how it starts."</p>
         <RepositoryField />
         <WakeLockField />
+        <Field label="Product tour" hint="Seven stops through the sidebar, panels, and permissions.">
+            <TourMenu />
+        </Field>
         <div class="row wrap" style="margin-top:1em">
             <button class="btn" on:click=move |_| ui.modal.set(Some(Modal::Guide))>
                 "How to use Sentinel"
