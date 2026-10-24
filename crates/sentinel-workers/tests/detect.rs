@@ -112,7 +112,7 @@ fn make_options(bin_dir: &Path, home: &Path, extra: Vec<String>) -> DetectOption
         search_path: Some(OsString::from(bin_dir)),
         home: Some(home.to_path_buf()),
         extra_names: extra,
-        probe_timeout: Duration::from_millis(500),
+        probe_timeout: Duration::from_secs(5),
     }
 }
 

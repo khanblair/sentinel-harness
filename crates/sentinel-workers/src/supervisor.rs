@@ -238,7 +238,7 @@ impl Spend {
     fn reported_amount(&self, line: &str) -> Option<Cost> {
         let prefix = self.prefix.as_deref()?;
         let rest = line.split_once(prefix)?.1;
-        Cost::parse_usd(leading_amount(rest)?).ok()
+        Cost::parse_usd(cut_decimals(leading_amount(rest)?)).ok()
     }
 
     fn tick(&mut self) -> Option<Stop> {
@@ -255,6 +255,14 @@ impl Spend {
             .iter()
             .any(|event| ceiling_for(event, &self.task))
             .then_some(Stop::CostCeiling)
+    }
+}
+
+/// At most six decimals, the finest unit of a cost. A tool that reports `0.00630725` still counts.
+fn cut_decimals(amount: &str) -> &str {
+    match amount.split_once('.') {
+        Some((whole, fraction)) if fraction.len() > 6 => &amount[..whole.len() + 1 + 6],
+        _ => amount,
     }
 }
 
@@ -532,6 +540,20 @@ mod tests {
         assert_eq!(out.cost, usd("0.07"));
         assert!(!out.cost.is_estimated());
         assert_eq!(budget.spent(), usd("0.07"));
+    }
+
+    #[tokio::test]
+    async fn a_json_cost_with_many_decimals_is_read() {
+        let (ctrl, _received) = control("10.00");
+        let out = run_command(
+            sh(r#"echo '{"type":"result","total_cost_usd":0.00630725,"usage":{}}'"#),
+            &spec(Duration::from_secs(5)),
+            ctrl,
+            &cost_source(Some("\"total_cost_usd\":")),
+        )
+        .await;
+        assert_eq!(out.cost, usd("0.006307"));
+        assert!(!out.cost.is_estimated());
     }
 
     #[tokio::test]
