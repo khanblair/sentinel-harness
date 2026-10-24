@@ -4,7 +4,7 @@
 use std::f64::consts::{FRAC_PI_2, TAU};
 use std::fmt::Write;
 
-use sentinel_core::brain_api::{CareFrequency, GraphNodeView};
+use sentinel_core::brain_api::{CareFrequency, GraphNodeView, LessonReview};
 use sentinel_core::{BrainMode, Cost, LessonState, NoteId, NoteType, ProposalKind};
 
 use crate::api::ApiFailure;
@@ -265,6 +265,58 @@ impl BrainTab {
 /// True for the 404 a daemon without the Brain routes gives.
 pub fn is_missing(failure: &ApiFailure) -> bool {
     matches!(failure, ApiFailure::Status { code: 404, .. })
+}
+
+pub fn review_label(action: LessonReview) -> &'static str {
+    match action {
+        LessonReview::Approve => "Approve",
+        LessonReview::Reject => "Reject",
+        LessonReview::Retire => "Retire",
+    }
+}
+
+pub fn review_done_text(action: LessonReview) -> &'static str {
+    match action {
+        LessonReview::Approve => "Lesson approved.",
+        LessonReview::Reject => "Lesson rejected.",
+        LessonReview::Retire => "Lesson retired.",
+    }
+}
+
+/// `by you · confirmed Oct 20 · used 6 times`. The confirmed part is left out until there is one.
+pub fn note_meta_line(by: &str, confirmed: Option<&str>, uses: u32) -> String {
+    let mut parts = vec![author_label(by).to_owned()];
+    if let Some(date) = confirmed {
+        parts.push(format!("confirmed {date}"));
+    }
+    let times = if uses == 1 { "time" } else { "times" };
+    parts.push(format!("used {uses} {times}"));
+    parts.join(" · ")
+}
+
+pub fn pin_done_text(pinned: bool) -> &'static str {
+    if pinned {
+        "This note is always loaded for agents."
+    } else {
+        "This note is no longer always loaded."
+    }
+}
+
+pub fn answer_done_text(accept: bool) -> &'static str {
+    if accept {
+        "Proposal accepted."
+    } else {
+        "Proposal dismissed."
+    }
+}
+
+/// Approve, Reject, and Retire each hide once the lesson is already in that state.
+pub fn review_offered(state: LessonState, action: LessonReview) -> bool {
+    match action {
+        LessonReview::Approve => !matches!(state, LessonState::Proven | LessonState::Rejected),
+        LessonReview::Reject => state != LessonState::Rejected,
+        LessonReview::Retire => state != LessonState::Retired,
+    }
 }
 
 /// Why a new note cannot be saved yet, or `None` when it can.
@@ -538,6 +590,32 @@ mod tests {
             CareFrequency::AfterRuns(CARE_RUNS)
         );
         assert_eq!(frequency_from_value("unknown"), CareFrequency::Off);
+    }
+
+    #[test]
+    fn the_meta_line_names_the_author_date_and_uses() {
+        assert_eq!(
+            note_meta_line("you", Some("Oct 20"), 6),
+            "by you · confirmed Oct 20 · used 6 times"
+        );
+        assert_eq!(note_meta_line("run", None, 1), "by Sentinel · used 1 time");
+    }
+
+    #[test]
+    fn a_proven_lesson_offers_retire_and_reject_but_not_approve() {
+        assert!(!review_offered(LessonState::Proven, LessonReview::Approve));
+        assert!(review_offered(LessonState::Proven, LessonReview::Reject));
+        assert!(review_offered(LessonState::Proven, LessonReview::Retire));
+    }
+
+    #[test]
+    fn a_rejected_lesson_offers_only_retire() {
+        assert!(!review_offered(
+            LessonState::Rejected,
+            LessonReview::Approve
+        ));
+        assert!(!review_offered(LessonState::Rejected, LessonReview::Reject));
+        assert!(review_offered(LessonState::Rejected, LessonReview::Retire));
     }
 
     #[test]
