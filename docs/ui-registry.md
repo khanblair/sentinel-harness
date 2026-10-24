@@ -87,7 +87,7 @@ Every UI component. If it is not here, it does not exist yet.
 
 | Name | Purpose | Props | States | Phase | Status |
 |---|---|---|---|---|---|
-| SettingsModal | Eleven settings pages | page | open, closed | P6 | planned |
+| SettingsModal | Thirteen settings pages | page | open, closed | P6 | planned |
 | AppearanceForm | Theme, accent, tint, fonts, size, density, radius, width | prefs | default, changed | P6 | planned |
 | AccentPicker | Six round swatches, a labeled Custom color box, and a Reset to default button | accent | selected, custom | P6 | planned |
 | FontSelect | Choose interface or code font | role, value | default | P6 | planned |
@@ -182,6 +182,20 @@ Every UI component. If it is not here, it does not exist yet.
 | QualityNoteList | Quality notes for a task | notes | empty, populated | P6 | planned |
 | CompactionNote | Inline note in the agent panel | before, after | default | P6 | planned |
 | CeilingNote | Task stopped at its cost ceiling | cost, ceiling | default | P6 | planned |
+
+## Skills and Routines
+
+| Component | Purpose | Props | States | Phase | Status |
+|---|---|---|---|---|---|
+| SkillsPage | Settings page: the skills Sentinel has, the ones found on this computer, and New skill | skills | empty, listed | P16 | planned |
+| SkillRow | One skill: name, description, scope, and the Off, Auto, Always switch | skill | off, auto, always, locked on phone | P16 | planned |
+| SkillEditor | Dialog to add or edit a skill: name, description, body | skill | new, editing, error | P16 | planned |
+| SkillImportList | Skills found in `.claude`, `.agents`, `.agent`, and `.codex` folders, each with an Import button | found | empty, listed, importing | P16 | planned |
+| SkillChip | A skill added to the next message | name | default | P16 | planned |
+| RoutinesPage | Settings page: the routines, their times, and the last briefs | routines | empty, listed | P17 | planned |
+| RoutineRow | One routine: name, kind, time, days, switch, destination, last run, Send now | routine | on, off, locked on phone | P17 | planned |
+| RoutineEditor | Dialog to add or edit a routine: kind, time, days, text or backlog, destination | routine | new, editing, error | P17 | planned |
+| BriefCard | One brief as text, with its kind and time | brief | default, sent to Telegram | P17 | planned |
 
 ## Telegram
 

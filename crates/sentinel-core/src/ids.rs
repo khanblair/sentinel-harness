@@ -36,6 +36,11 @@ macro_rules! string_id {
 }
 
 string_id!(
+    /// A routine, such as `morning`.
+    RoutineId
+);
+
+string_id!(
     /// A backlog task, such as `T-04`.
     TaskId
 );

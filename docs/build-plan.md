@@ -277,6 +277,36 @@ Goal: a simple GitHub Pages site that shows all of this.
 | P15-05 | Slop check and link check on the site | Both pass in CI |
 | P15-06 | Publish and link from the README. **M10** | The public URL works |
 
+## Phase 16: Skills
+
+Goal: add skills once, and agents use them.
+
+| ID | Task | Done when |
+|---|---|---|
+| P16-01 | Skill files: parse `SKILL.md`, list project and personal skills, enforce the limits | A bad name, a long description, and a big folder are refused. The project skill wins on a name clash |
+| P16-02 | Switches and API: list, create, read, edit, delete, import, found | A phone may read and move a switch toward Off. The rest needs the computer |
+| P16-03 | Skills in task prompts: Always, then Auto by word match, 1,500 token cap, stream line | The prompt holds the chosen skills and stays under the cap. The stream says which were loaded |
+| P16-04 | Import from `.claude`, `.agents`, `.agent`, and `.codex` folders | A skill from each folder is listed, and import copies it without touching the original |
+| P16-05 | Skills page in Settings, the `/skill` command, and the skill chip | Matches the prototype. A chip adds the skill to the next message |
+| P16-06 | MCP tools `skill_list` and `skill_read` | An MCP client lists and reads a skill. It cannot write one |
+
+Dependencies: P3, P6. See F24 in [product-scope.md](product-scope.md).
+
+## Phase 17: Routines
+
+Goal: timed jobs and briefs, in the app and in Telegram.
+
+| ID | Task | Done when |
+|---|---|---|
+| P17-01 | Routine store and the scheduler: 30 second tick, local time, days, last fired, missed-run rule | A fake clock fires a routine once a day. A miss under 2 hours fires at start. An older miss is skipped and logged |
+| P17-02 | Brief builders for the Morning brief and the Sundown wrap-up | The text is built from fixture state, holds no code or note text, and shows counts only in hackathon mode |
+| P17-03 | Delivery: `briefs` rows, `BriefReady`, Telegram send, `/brief`, `/wrapup`, `/daily` | A brief reaches the fake Bot API when the chat has the Reports level and not otherwise. Quiet hours do not hold it |
+| P17-04 | Reminder and backlog run kinds | A reminder is sent at its time. A backlog run starts in the current mode, is refused in Bypass, and is skipped while a run is live |
+| P17-05 | Routines page in Settings, the sidebar row, and the brief card | Matches the prototype. Send now works |
+| P17-06 | Phone and security rules, route access rows | A phone may read, send now, and turn off. Everything else needs the computer. The access matrix test covers every new route |
+
+Dependencies: P5, P13. See F25 in [product-scope.md](product-scope.md).
+
 ## Testing Approach per Phase
 
 | Phase | Method |
@@ -294,6 +324,8 @@ Goal: a simple GitHub Pages site that shows all of this.
 | 13 | Fake Bot API server: connect, notify, buttons, replay, level limits, `/task` and `/run` |
 | 14 | Kill and restart the service. Fake clock for the heartbeat gap |
 | 15 | Build the book. Check slop and links |
+| 16 | Fixture skills: limits, selection under the cap, import leaves the original alone |
+| 17 | Fake clock: one fire per day, missed-run rule, brief text from fixture state, no private text in a brief |
 
 ## Quality and Slop Tooling Tasks
 

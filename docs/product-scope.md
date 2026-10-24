@@ -325,6 +325,36 @@ Plan: 2 files (src/limits/rate.ts, src/api/transfer.ts). No conflicts.
 - **Why:** People already know this shape from Claude. A coding tool you talk to needs chats you can keep, name, and clean up, and a plus button for the things you want to hand it. A backlog file is one way to say what you want, not the only way.
 - **Limits:** A chat is not a Q&A thread with a model. Every message either starts work, steers running work, or is a slash command. Questions about the code go to an agent through the send-to chip.
 
+### F24. Skills
+
+- **What:** A skill is a folder with a `SKILL.md` file that teaches agents one thing the way you want it done: a house style, a release checklist, how to write a migration. The format is the one Claude, Codex, and Antigravity use (front matter with `name` and `description`, then a markdown body), so a skill written for one of them works here.
+- **How:**
+  1. **Where they live.** Project skills are in `<repo>/.sentinel/skills/NAME/SKILL.md`. Personal skills, shared by every project, are in `~/.sentinel/skills/NAME/SKILL.md`. A skill folder may hold more files (templates, examples, scripts) next to `SKILL.md`. Files are the source of truth.
+  2. **Found on this computer.** Settings, Skills lists the skills Sentinel has, and under "Found on this computer" the skills it sees in the folders other tools use: `.claude/skills`, `.agents/skills`, `.agent/skills`, `.codex/skills` in the repository, and `~/.claude/skills`, `~/.agents/skills`, `~/.codex/skills`. **Import** copies the folder into Sentinel's own. Sentinel never edits the originals.
+  3. **Add and edit.** New skill takes a name, one sentence on what it does and when to use it, and the body. Names are lowercase letters, digits, and dashes, up to 48 characters. The description is required, up to 300 characters. `SKILL.md` is at most 20 KB and a folder at most 200 KB. A skill can be edited and deleted from the page. Adding, editing, importing, and deleting need the computer.
+  4. **Three switches.** Each skill is **Off**, **Auto** (the default), or **Always**. Always puts the skill in every task prompt. Auto lets Sentinel pick it when the words of its name and description match the task's title, text, and file names, the same way Brain search matches (at most 3 skills per task). Off never uses it.
+  5. **In the prompt.** Chosen skills go in a `## Skills` section after the task and its files and before the rules, within 1,500 tokens: Always skills first, then the best matches. A skill that does not fit is left out whole, never cut. The stream says `Skills loaded: name, name.`
+  6. **By hand.** `/skill NAME` in the composer, or a skill in the plus menu, adds a chip. That skill goes with the next message, even when it is Off.
+  7. **Agents can ask.** The Sentinel MCP server (F12 and `architecture.md`) has read-only tools `skill_list` and `skill_read`, so a CLI that speaks MCP can fetch a skill by name.
+  8. **Safety.** A skill is text for an agent. Sentinel never runs a file in a skill folder. A skill cannot change reservations, the cap, or the permission mode: it only adds words to the prompt, and the guard works the same as before. A phone may read skills and move a switch toward Off. Skill text never goes to Telegram.
+- **Why:** Teams repeat the same instructions in every prompt. A skill writes it down once, in a format the other tools already read, and Sentinel hands it to whichever agent needs it.
+
+### F25. Routines (timed jobs and briefs)
+
+- **What:** A routine is a job that runs at a set time, like a cron job but set up in plain words. Two are built in: the **Morning brief** gets you ready for the day, and the **Sundown wrap-up** tells you how the day went. You can add reminders and a timed backlog run. The result shows in the app and can arrive in Telegram.
+- **How:**
+  1. **The list.** Settings, Routines shows each routine with its name, kind, time (HH:MM, this computer's local time), days (every day, weekdays, or chosen days), an on or off switch, where it goes (this app, Telegram), the last run, and a Send now button. The sidebar shows a Routines row under Scheduled, next to Brain care.
+  2. **Morning brief.** Off until you turn it on. Default 08:00 on weekdays. It says what is waiting: open tasks in the backlog, tasks left Blocked or Partial by the last run and why, approvals, decisions, and Brain proposals waiting. It says what you have: spend this week and what is left of the cap, agents ready, host and Tailscale state. It ends with the first thing to do. About 12 lines.
+  3. **Sundown wrap-up.** Off until you turn it on. Default 18:00 every day. It says what Sentinel did today: runs, tasks verified, partial, and blocked, and the spend. It says what is stuck and why, what is waiting for you, and what to start tomorrow. It ends with one honest line of status.
+  4. **Reminder.** Your own text at a time, for example "Review the plan before standup".
+  5. **Backlog run.** Starts a run of `backlog.md` (or a backlog file you pick) at the time, in the current permission mode and under the usual cap. It is refused in Bypass permissions, and skipped, with a message to you, when a run is already live.
+  6. **No agent, no cost.** Brief text is built from facts in the store. It never holds code, whole files, keys, environment values, or Brain note text. Task titles are included only when hackathon mode is off; in hackathon mode a brief holds counts only.
+  7. **Delivery.** Every brief is kept in the Routines page (the last 14) and raises an attention dot. When Telegram is paired and the chat has the Reports level, it is also sent there through the usual formatter: redaction, the 4096 limit, one-time buttons. A routine you set is sent at its time, so quiet hours do not hold it.
+  8. **Timing.** The scheduler checks every 30 seconds while the daemon runs (all day on an always-on host). A routine fires when local time passes its time on an allowed day and it has not fired that day. A routine missed while the daemon was off still fires at start when the miss is under 2 hours old, because a morning brief at 3 pm helps nobody. Older misses are skipped and logged.
+  9. **From Telegram.** `/brief` sends the Morning brief now. `/wrapup` sends the Sundown wrap-up now. `/daily` gives the same text as the wrap-up. All three need the Reports level.
+  10. **Phone.** A phone may read routines, press Send now, and turn a routine off. Creating, editing times, turning on, and deleting need the computer. Telegram cannot change routines.
+- **Why:** The days a person works with agents have a shape: plan in the morning, check in the evening. A routine hands you that shape without opening the app, and a scheduled run lets work start before you sit down.
+
 ## User Flow
 
 How to use Sentinel properly. The in-app guide walks through the same steps with a try-it button on each.
@@ -432,4 +462,7 @@ Open questions live in [progress-tracker.md](progress-tracker.md).
 | Brain care | A scheduled run that refreshes, merges, and prunes notes and proposes improvements |
 | Quality note | Smell or slop warning on agent code |
 | Task ceiling | Per-task cost limit that kills a runaway task |
+| Skill | A folder with a `SKILL.md` that teaches agents one thing. Off, Auto, or Always |
+| Routine | A job that runs at a set time: a brief, a reminder, or a backlog run |
+| Brief | The text a routine builds from the store: the Morning brief or the Sundown wrap-up |
 | Easy, normal, hard tasks | The words the UI uses for the cheap, mid, and smart tiers |

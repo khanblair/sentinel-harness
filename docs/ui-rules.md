@@ -66,7 +66,7 @@ On phone the panel icons move to the bottom tab bar and the More tab.
 | Telegram | Settings page and a panel | Settings: token, pairing, levels, detail, events, quiet hours, activity. Panel: a simulated chat with working buttons | Send test message |
 | Agents | Panel | Detected CLIs with status and tier | Rescan |
 | Permissions | Panel | Mode list and capability matrix | Pick a mode |
-| Settings | Modal | General, Appearance, Agents and tools, Connections, Integrations, Permissions, Brain, Budget, Devices, Shortcuts, About | Change a setting |
+| Settings | Modal | General, Appearance, Agents and tools, Connections, Integrations, Permissions, Skills, Routines, Brain, Budget, Devices, Shortcuts, About | Change a setting |
 | Setup | Full screen | Install check, then five onboarding steps | Continue |
 | Guide | Modal | 13-step user flow with try-it buttons | Try it |
 

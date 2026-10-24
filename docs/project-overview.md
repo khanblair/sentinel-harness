@@ -85,10 +85,13 @@ Sentinel is the **outer loop** around agents. Each worker CLI runs its own inner
 - F20. Telegram
 - F21. Always-On Host
 - F22. How-To Site
+- F23. Chats, Projects, and Attachments
+- F24. Skills
+- F25. Routines (timed jobs and briefs)
 
 ## v1 Scope
 
-In: features F1 to F22 in product-scope.md, Linux/macOS/Windows daemon, web UI served as an installable PWA.
+In: features F1 to F25 in product-scope.md, Linux/macOS/Windows daemon, web UI served as an installable PWA.
 
 Out: native mobile app, cloud hosting, multi-user teams, non-git repos, fine-tuning, any use of git worktrees.
 

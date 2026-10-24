@@ -8,10 +8,11 @@ use time::OffsetDateTime;
 use crate::chat::{AttachmentRef, ChatChange};
 use crate::cost::Cost;
 use crate::dry_run::{DryRunStage, StageState};
-use crate::ids::{ApprovalId, ChatId, DeviceId, NoteId, RunId, TaskId, ToolId};
+use crate::ids::{ApprovalId, ChatId, DeviceId, NoteId, RoutineId, RunId, TaskId, ToolId};
 use crate::note::LessonState;
 use crate::permission::{Approval, ApprovalState, PermissionMode};
 use crate::quality::QualityNote;
+use crate::routines::RoutineKind;
 use crate::state::{ConnectionState, Decision, HarnessState, TailscaleState};
 use crate::task::TaskStatus;
 use crate::tool::{ToolInfo, ToolStatus};
@@ -187,6 +188,22 @@ pub enum Event {
         verified: u32,
         total: u32,
     },
+    /// A routine fired.
+    RoutineFired {
+        routine: RoutineId,
+        routine_kind: RoutineKind,
+    },
+    /// A routine did not run, and why.
+    RoutineSkipped {
+        routine: RoutineId,
+        why: String,
+    },
+    /// A brief was built. `text` is what the app and Telegram show.
+    BriefReady {
+        routine_kind: RoutineKind,
+        title: String,
+        text: String,
+    },
 }
 
 impl Event {
@@ -328,5 +345,19 @@ mod tests {
         };
         let back: Event = serde_json::from_str(&serde_json::to_string(&e).unwrap()).unwrap();
         assert_eq!(back, e);
+    }
+
+    #[test]
+    fn a_brief_event_round_trips_with_snake_case_names() {
+        let event = Event::BriefReady {
+            routine_kind: RoutineKind::Sundown,
+            title: "Sundown wrap-up".to_owned(),
+            text: "2 of 3 tasks verified.".to_owned(),
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(
+            json.contains(r#""kind":"BriefReady""#) && json.contains(r#""routine_kind":"sundown""#)
+        );
+        assert_eq!(serde_json::from_str::<Event>(&json).unwrap(), event);
     }
 }

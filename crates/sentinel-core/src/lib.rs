@@ -12,7 +12,9 @@ pub mod note;
 pub mod permission;
 pub mod quality;
 pub mod reservation;
+pub mod routines;
 pub mod scope;
+pub mod skills;
 pub mod snapshot;
 pub mod state;
 pub mod task;
@@ -24,8 +26,8 @@ pub use cost::Cost;
 pub use error::CoreError;
 pub use event::{Event, EventRecord};
 pub use ids::{
-    ApprovalId, AttachmentId, ChatId, DecisionId, DeviceId, NoteId, ReservationId, RunId, TaskId,
-    ToolId,
+    ApprovalId, AttachmentId, ChatId, DecisionId, DeviceId, NoteId, ReservationId, RoutineId,
+    RunId, TaskId, ToolId,
 };
 pub use note::{BrainMode, LessonState, NoteType, ProposalKind};
 pub use permission::{Approval, ApprovalKind, ApprovalState, Capability, PermissionMode};

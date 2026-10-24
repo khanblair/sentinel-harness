@@ -188,6 +188,9 @@ Running -> Crashed -> Resuming -> Running
 | `telegram_chats` | id, telegram_user_id (one row), level flags (notify, control, code, reports), detail (status, summary, detail), events_json, quiet_hours, connected_at, revoked_at |
 | `telegram_outbox` | id, chat_id, kind, payload_hash, state (queued, sent, failed), tries, created_at |
 | `quality_notes` | task_id, kind, location, detail_code, created_at |
+| `skills` | name, scope (project, personal), mode (off, auto, always). The skill text is in the files, not here |
+| `routines` | id, name, kind (morning, sundown, reminder, backlog_run), minute_of_day, days_mask, enabled, to_telegram, text, backlog, last_fired_on, created_at |
+| `briefs` | id, routine_id, kind, title, body, created_at, sent_to_telegram |
 | `permissions` | agent_id, capability (read, write, ext, tests, shell, net), allowed |
 | `approvals` | id, kind (extension, wave, plan, decision), task_id, agent_id, path, state (pending, allowed, denied, defaulted), decided_by (device or default), decided_at |
 
@@ -247,6 +250,13 @@ Money is stored as integer micro-dollars.
 | `POST /api/tools/:id/fix` | Log in or save a command template for a tool |
 | `POST /api/doctor` | Run the install check and return the result |
 | `GET /api/host`, `POST /api/host/check` | Host state, last heartbeat, and a check now |
+| `GET /api/skills`, `POST /api/skills` | List skills with their switch, and create one. Create needs the computer |
+| `GET /api/skills/found`, `POST /api/skills/import` | Skills in other tools' folders, and copy one into Sentinel |
+| `GET /api/skills/:name`, `PUT /api/skills/:name`, `DELETE /api/skills/:name` | Read a skill. Edit text or move its switch. Delete. A phone may read and move a switch toward Off |
+| `GET /api/routines`, `POST /api/routines` | List routines, and create one. Create needs the computer |
+| `PUT /api/routines/:id`, `DELETE /api/routines/:id` | Edit or delete a routine. A phone may only turn one off |
+| `POST /api/routines/:id/run` | Send now: build the brief or start the run at once |
+| `GET /api/briefs?limit=` | The last briefs, newest first |
 | `GET /api/telegram`, `PUT /api/telegram` | Bot state, levels, events, detail, quiet hours |
 | `POST /api/telegram/token` | Save a bot token to the keychain and check it |
 | `POST /api/telegram/connect` | Save the token and user ID, check the bot, and wait for `/start` |
@@ -266,7 +276,7 @@ Server sends `Event` frames. Client sends `Subscribe{topics}` and `Ping`. No con
 
 ### Events
 
-`ChatChanged` (created, renamed, pinned, archived, deleted), `RunStarted`, `PlanReady`, `WaveStarted`, `Verdict`, `RunFinished`, `ReportReady`, `Message`, `TaskStatus`, `FilesReserved`, `FilesReleased`, `WriteBlocked`, `Checkpoint`, `BarrierStart`, `BarrierEnd`, `CostUpdate`, `BudgetThreshold`, `ToolDetected`, `AgentOutput`, `DecisionRequested`, `HarnessState`, `DeviceAction`, `NoteWritten`, `LessonStateChanged`, `ProposalCreated`, `CareFinished`, `QualityNote`, `ContextCompacted`, `TaskCeilingHit`, `ApprovalRequested`, `ApprovalResolved`, `PermissionChanged`, `ToolStatusChanged`, `ConnectionChanged`, `TailscaleChanged`, `TelegramPaired`, `TelegramSent`, `TelegramReceived`, `HostHeartbeat`, `HostBackOnline`, `DryRunStage`, `DryRunFinished`.
+`ChatChanged` (created, renamed, pinned, archived, deleted), `RunStarted`, `PlanReady`, `WaveStarted`, `Verdict`, `RunFinished`, `ReportReady`, `Message`, `TaskStatus`, `FilesReserved`, `FilesReleased`, `WriteBlocked`, `Checkpoint`, `BarrierStart`, `BarrierEnd`, `CostUpdate`, `BudgetThreshold`, `ToolDetected`, `AgentOutput`, `DecisionRequested`, `HarnessState`, `DeviceAction`, `NoteWritten`, `LessonStateChanged`, `ProposalCreated`, `CareFinished`, `QualityNote`, `ContextCompacted`, `TaskCeilingHit`, `ApprovalRequested`, `ApprovalResolved`, `PermissionChanged`, `ToolStatusChanged`, `ConnectionChanged`, `TailscaleChanged`, `TelegramPaired`, `TelegramSent`, `TelegramReceived`, `HostHeartbeat`, `HostBackOnline`, `DryRunStage`, `DryRunFinished`, `RoutineFired`, `RoutineSkipped`, `BriefReady`.
 
 ### Shared Types
 
@@ -285,6 +295,8 @@ Defined once in `sentinel-core` and used by both daemon and UI (same Rust types,
 | `<repo>/.sentinel/chats/<chat>/attachments/` | Files uploaded into a chat. Removed when the chat is deleted |
 | `<repo>/.sentinel/brain/` | The Brain vault: markdown notes, `_proposals/` for open proposals. Open it in Obsidian |
 | `<repo>/.sentinel/brain.db` | Search and graph index. Rebuildable from the vault |
+| `<repo>/.sentinel/skills/NAME/SKILL.md` | A project skill, with any files beside it |
+| `~/.sentinel/skills/NAME/SKILL.md` | A personal skill, shared by every project |
 | Browser storage on each device | Appearance preferences and color token overrides. Not stored on the daemon |
 
 `.sentinel/` is git-ignored. No other folder is created in or next to the repo.
@@ -334,6 +346,32 @@ Defined once in `sentinel-core` and used by both daemon and UI (same Rust types,
 4. Improve: read recent run, task, and fix notes. Create proposals.
 5. Prune: lower strength of unused Sentinel-written notes. Propose retirement.
 6. Write proposals as files in `_proposals/` and rows in `proposals`. Emit `ProposalCreated` and `CareFinished`. The sidebar shows the care run under Scheduled.
+## Skills
+
+| Part | Detail |
+|---|---|
+| Format | A folder with `SKILL.md`. Front matter holds `name` and `description`. The body is markdown. Extra keys are kept and ignored. The same file works for Claude, Codex, and Antigravity |
+| Sources | Sentinel's own two folders (project and personal), read at start and when a file changes. Other tools' folders are only listed, and import copies the folder |
+| Limits | Name: lowercase letters, digits, dashes, at most 48. Description: at most 300 characters. `SKILL.md` at most 20 KB. Folder at most 200 KB. A name that exists in both places: the project skill wins |
+| Switch | Off, Auto, Always per skill, in the `skills` table. A new skill is Auto |
+| Selection | Per task: every Always skill, then the Auto skills ranked by word overlap between name plus description and the task's title, body, and file names. At most 3 Auto skills. All inside 1,500 tokens. A skill that does not fit is skipped whole |
+| Prompt | A `## Skills` section between the task block and the rules. The stream gets `Skills loaded: ...` |
+| Hand pick | `/skill NAME` adds a chip, stored as an attachment of kind `skill`. It goes with the next message |
+| MCP | `skill_list` and `skill_read`, read only |
+| Never | Sentinel never runs a file from a skill folder. A skill never changes reservations, the cap, or the mode |
+
+## Routines
+
+| Part | Detail |
+|---|---|
+| Scheduler | One task in the daemon wakes every 30 seconds, converts now to local time (the computer's offset, as for Telegram quiet hours), and fires each enabled routine whose time has passed on an allowed day and whose `last_fired_on` is not today |
+| Missed runs | At start, a routine whose time passed less than 2 hours ago fires once. Older ones are skipped with `RoutineSkipped` |
+| Kinds | `morning` and `sundown` build a brief. `reminder` sends its text. `backlog_run` starts a run through the same path as a chat message, as a phone caller, and is refused in Bypass permissions or when a run is live |
+| Brief builder | A pure function of the store: tasks, the last run, approvals and decisions pending, Brain proposals open, cost this week and today, tools ready, host status, and the hackathon flag. No model call |
+| Privacy | A brief never holds code, files, keys, environment values, or note text. With hackathon mode on it holds counts only |
+| Delivery | A `briefs` row, then the `BriefReady` event. The Telegram notifier sends it when the chat has the Reports level, with redaction and the length cut, and quiet hours do not hold it |
+| Telegram | `/brief`, `/wrapup`, and `/daily` (same text as the wrap-up) |
+
 ## Always-On Host
 
 | Part | Detail |

@@ -46,6 +46,8 @@ The live status of the project. Update at the start and end of every work sessio
 | P13 | Telegram | doing |
 | P14 | Always-On Host | doing |
 | P15 | How-To Site | review |
+| P16 | Skills | doing |
+| P17 | Routines | doing |
 
 Hackathon cut line: end of P7.
 
@@ -108,6 +110,8 @@ Hackathon cut line: end of P7.
 | P11-01 to P11-10 | Brain: vault, index, search, graph, memory selection in prompts, run journal, lessons, modes, daemon routes, panel | Haiku, Claude | review |
 | P12-01 to P12-05 | Brain care: schedule, care run, proposals, settings | Haiku, Claude | review |
 | P13-01 to P13-08 | Telegram: crate, poller, router, notifier, settings routes (UI card and panel are U-I) | Haiku, Claude | review |
+| P16-01 to P16-06 | Skills: files, switches and API, prompts, import, Settings page and chip, MCP tools | Haiku (CLI), Claude | doing |
+| P17-01 to P17-06 | Routines: scheduler, brief builders, delivery, reminder and backlog run, Routines page, phone rules | Haiku (CLI), Claude | doing |
 | P14-01 to P14-05 | Always-on host: heartbeat, back online, `sentinel service`, headless (card is U-K) | Haiku, Claude | review |
 
 Add the rows for later phases when a phase starts. Copy IDs from [build-plan.md](build-plan.md).
@@ -221,6 +225,8 @@ Paths listed in [project-structure.md](project-structure.md) that do not exist y
 | D83 | (autopilot, review) OpenRouter is offered as a tool (`openrouter`, adapter `openrouter-loop`, tier cheap, last in the scan list so first-scan defaults never pick it over a real CLI). Ready when a key exists. The model comes from `[models] openrouter`, default `openrouter/auto` | P3-07 wired. Free models share one daily quota per account, so a free reviewer can answer 429 |
 | D84 | (autopilot, review) Real-agent smoke on the sample backlog, with Claude Haiku as author: it plans scopes, writes code, and the suite passes. No task reaches Verified yet because VERIFIED needs a second, different agent to approve the diff and none was reachable on this computer (Gemini CLI has a broken keychain module, OpenRouter free quota was used up, Ornith was not serving). Found and fixed on the way: the claude profile's JSON output broke the planner (now unwrapped), the per-task ceiling used the task tier while the clock estimate used the tool tier (ceiling now follows the higher), the planner listed existing test files in scopes (rule added and a filter drops them), and a model flag is now passed to claude, codex, and gemini | P5-05 stays open until a run verifies with two tools |
 | D85 | Owner rule (2026-10-25): ship working with every section implemented. Test the essential parts only (core behavior, security guards, crash paths). Test depth comes later, as features land | Owner message |
+| D86 | (autopilot, review, owner request) **Skills** (F24): a skill is a folder with `SKILL.md` (front matter `name` and `description`, then markdown), the same format Claude, Codex, and Antigravity read. Project skills live in `.sentinel/skills/`, personal ones in `~/.sentinel/skills/`. Sentinel lists, and can import by copy, skills from `.claude/skills`, `.agents/skills`, `.agent/skills`, `.codex/skills` (repo and home). Each skill is Off, Auto (default), or Always. Chosen skills go into the task prompt under `## Skills`, within 1,500 tokens, and the stream names them. `/skill NAME` adds one by hand. A skill is text: Sentinel never runs its files and a skill never changes reservations, the cap, or the mode. Phone: read and move a switch toward Off | Owner message 2026-10-25. Docs: F24, architecture (Skills), P16 |
+| D87 | (autopilot, review, owner request) **Routines** (F25): jobs at a set local time with plain words. Built in: **Morning brief** (default 08:00 weekdays) and **Sundown wrap-up** (default 18:00 daily), both off until turned on. Also **Reminder** and **Backlog run** (refused in Bypass, skipped while a run is live). Briefs are built from the store with no agent call and no cost, hold no code or note text, and show counts only in hackathon mode. They are kept in the app (last 14) and sent to Telegram when the chat has the Reports level, and quiet hours do not hold them. The scheduler ticks every 30 seconds. A routine missed while the daemon was off fires at start only if the miss is under 2 hours old. Telegram: `/brief`, `/wrapup`, `/daily`. Phone: read, Send now, turn off. Named Routines (not cron) and Sundown wrap-up (not just "evening") for plain meaning | Owner message 2026-10-25 ("morning briefs, evening sundown ... crons ... sent to telegram"). Docs: F25, architecture (Routines), P17 |
 
 ## Open Questions
 
