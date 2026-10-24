@@ -1,5 +1,6 @@
-//! Brain panel logic: link parsing, labels, strength classes, the phone rule, the graph layout, and
-//! the care form values. Plain functions only, so the tests run on the host.
+//! Brain panel logic: link parsing, strength classes, the phone rule, the graph layout, and the care
+//! form values. The labels and copy live in `brain_text.rs`. Plain functions only, so the tests run
+//! on the host.
 
 use std::f64::consts::{FRAC_PI_2, TAU};
 use std::fmt::Write;
@@ -274,8 +275,6 @@ pub fn frequency_from_value(value: &str) -> CareFrequency {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::brain_text::author_label;
-    use sentinel_core::ProposalKind;
 
     fn node(id: &str, note_type: NoteType, backlinks: u32) -> GraphNodeView {
         GraphNodeView {
@@ -396,33 +395,6 @@ mod tests {
     }
 
     #[test]
-    fn author_lines_name_the_writer() {
-        assert_eq!(author_label("you"), "by you");
-        assert_eq!(author_label("care"), "by Brain care");
-        assert_eq!(author_label("run"), "by Sentinel");
-    }
-
-    #[test]
-    fn a_lesson_state_has_a_label_and_a_color() {
-        assert_eq!(lesson_state_label(LessonState::Proven), "Proven");
-        assert_eq!(lesson_state_color(LessonState::Rejected), "danger");
-        assert_eq!(proposal_kind_label(ProposalKind::Merge), "Merge");
-    }
-
-    #[test]
-    fn the_proposals_tab_shows_the_open_count_only_when_there_are_some() {
-        assert_eq!(proposals_tab_label(0), "Proposals");
-        assert_eq!(proposals_tab_label(3), "Proposals 3");
-    }
-
-    #[test]
-    fn a_budget_must_be_a_positive_dollar_amount() {
-        assert_eq!(budget_error("0.10"), None);
-        assert!(budget_error("0").is_some());
-        assert!(budget_error("ten").is_some());
-    }
-
-    #[test]
     fn a_care_schedule_value_round_trips() {
         assert_eq!(frequency_value(frequency_from_value("runs")), "runs");
         assert_eq!(
@@ -430,15 +402,6 @@ mod tests {
             CareFrequency::AfterRuns(CARE_RUNS)
         );
         assert_eq!(frequency_from_value("unknown"), CareFrequency::Off);
-    }
-
-    #[test]
-    fn the_meta_line_names_the_author_date_and_uses() {
-        assert_eq!(
-            note_meta_line("you", Some("Oct 20"), 6),
-            "by you · confirmed Oct 20 · used 6 times"
-        );
-        assert_eq!(note_meta_line("run", None, 1), "by Sentinel · used 1 time");
     }
 
     #[test]
@@ -456,12 +419,6 @@ mod tests {
         ));
         assert!(!review_offered(LessonState::Rejected, LessonReview::Reject));
         assert!(review_offered(LessonState::Rejected, LessonReview::Retire));
-    }
-
-    #[test]
-    fn a_new_note_needs_a_title() {
-        assert!(new_note_error("   ").is_some());
-        assert_eq!(new_note_error("Fees"), None);
     }
 
     #[test]

@@ -160,3 +160,50 @@ pub fn budget_error(text: &str) -> Option<&'static str> {
         Ok(_) => None,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn author_lines_name_the_writer() {
+        assert_eq!(author_label("you"), "by you");
+        assert_eq!(author_label("care"), "by Brain care");
+        assert_eq!(author_label("run"), "by Sentinel");
+    }
+
+    #[test]
+    fn a_lesson_state_has_a_label_and_a_color() {
+        assert_eq!(lesson_state_label(LessonState::Proven), "Proven");
+        assert_eq!(lesson_state_color(LessonState::Rejected), "danger");
+        assert_eq!(proposal_kind_label(ProposalKind::Merge), "Merge");
+    }
+
+    #[test]
+    fn the_proposals_tab_shows_the_open_count_only_when_there_are_some() {
+        assert_eq!(proposals_tab_label(0), "Proposals");
+        assert_eq!(proposals_tab_label(3), "Proposals 3");
+    }
+
+    #[test]
+    fn a_budget_must_be_a_positive_dollar_amount() {
+        assert_eq!(budget_error("0.10"), None);
+        assert!(budget_error("0").is_some());
+        assert!(budget_error("ten").is_some());
+    }
+
+    #[test]
+    fn the_meta_line_names_the_author_date_and_uses() {
+        assert_eq!(
+            note_meta_line("you", Some("Oct 20"), 6),
+            "by you · confirmed Oct 20 · used 6 times"
+        );
+        assert_eq!(note_meta_line("run", None, 1), "by Sentinel · used 1 time");
+    }
+
+    #[test]
+    fn a_new_note_needs_a_title() {
+        assert!(new_note_error("   ").is_some());
+        assert_eq!(new_note_error("Fees"), None);
+    }
+}
