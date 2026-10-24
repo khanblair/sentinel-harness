@@ -1,4 +1,5 @@
 say starting T-05 (this agent also writes a file another task holds)
+sleep 2
 write src/limits.rs::pub const TRANSFERS_PER_MINUTE: u32 = 30;
 write src/api.rs::pub fn transfer_allowed(count_this_minute: u32) -> bool {\n    count_this_minute < 30\n}
 cost 0.03

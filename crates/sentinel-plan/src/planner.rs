@@ -27,8 +27,11 @@ pub struct PlanRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PlannedTask {
     pub id: TaskId,
+    #[serde(default)]
     pub scope: Vec<String>,
+    #[serde(default)]
     pub depends_on: Vec<TaskId>,
+    #[serde(default)]
     pub read_after_write: Vec<TaskId>,
     pub tier: Tier,
     #[serde(default)]

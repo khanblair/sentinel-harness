@@ -344,3 +344,36 @@ fn file_store_keeps_data_across_reopen() {
     let reopened = Store::open(&path).unwrap();
     assert_eq!(reopened.get_task(&task.id).unwrap(), Some(task));
 }
+
+#[test]
+fn last_event_id_and_recent_stream_events_skip_agent_output() {
+    let store = Store::open_in_memory().unwrap();
+    assert_eq!(store.last_event_id().unwrap(), 0);
+    let at = time::OffsetDateTime::UNIX_EPOCH;
+    store
+        .append_event(&sentinel_core::Event::BarrierStart { wave: 1 }, at)
+        .unwrap();
+    store
+        .append_event(
+            &sentinel_core::Event::AgentOutput {
+                task: sentinel_core::TaskId::new("T-01"),
+                agent: sentinel_core::ToolId::new("a"),
+                line: "x".into(),
+            },
+            at,
+        )
+        .unwrap();
+    store
+        .append_event(
+            &sentinel_core::Event::BarrierEnd {
+                wave: 1,
+                passed: true,
+            },
+            at,
+        )
+        .unwrap();
+    assert_eq!(store.last_event_id().unwrap(), 3);
+    let recent = store.recent_stream_events(10).unwrap();
+    let kinds: Vec<_> = recent.iter().map(|r| r.event.kind()).collect();
+    assert_eq!(kinds, ["BarrierStart", "BarrierEnd"]);
+}

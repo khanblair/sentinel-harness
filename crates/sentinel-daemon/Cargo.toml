@@ -1,0 +1,36 @@
+[package]
+name = "sentinel-daemon"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[dependencies]
+sentinel-core = { path = "../sentinel-core" }
+sentinel-plan = { path = "../sentinel-plan" }
+sentinel-reserve = { path = "../sentinel-reserve" }
+sentinel-store = { path = "../sentinel-store" }
+sentinel-tree = { path = "../sentinel-tree" }
+sentinel-workers = { path = "../sentinel-workers" }
+futures = { workspace = true }
+hex = { workspace = true }
+keyring = { workspace = true, features = ["v1"] }
+qrcode = { workspace = true }
+reqwest = { workspace = true }
+rfd = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+thiserror = { workspace = true }
+time = { workspace = true }
+tokio = { workspace = true }
+toml = { workspace = true }
+uuid = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+wiremock = { workspace = true }
+
+[lints]
+workspace = true

@@ -2,18 +2,11 @@
 
 use rusqlite::{OptionalExtension, Row, params};
 use sentinel_core::DeviceId;
-use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 
 use crate::{Result, Store, StoreError, enum_from_text, enum_text, time_from_text, time_text};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
-pub enum DeviceKind {
-    Phone,
-    Desktop,
-    Telegram,
-}
+pub use sentinel_core::DeviceKind;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Device {

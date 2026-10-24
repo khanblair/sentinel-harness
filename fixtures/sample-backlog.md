@@ -26,3 +26,6 @@ Write an audit export of all ledger entries. It is expected to take a long time.
 
 ## T-09 Add a failing integration
 Connect the ledger to a payment partner. This task is expected to fail in the sample run.
+
+## T-10 Tidy the ledger tests
+Rename the test helpers in the ledger tests so they read better. Nothing else changes.

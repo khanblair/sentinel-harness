@@ -12,15 +12,26 @@ use serde::de::DeserializeOwned;
 use time::format_description::well_known::Rfc3339;
 use time::{OffsetDateTime, UtcOffset};
 
+pub mod approvals;
+pub mod barriers;
+pub mod capabilities;
+pub mod checkpoints;
+pub mod decisions;
 pub mod devices;
 pub mod events;
+pub mod quality;
 pub mod reservations;
 pub mod runs;
 pub mod settings;
 pub mod tasks;
+pub mod tools;
+pub mod verifications;
 
+pub use barriers::BarrierRecord;
+pub use checkpoints::CheckpointRecord;
 pub use devices::{Device, DeviceKind};
 pub use runs::RunRecord;
+pub use verifications::VerificationRecord;
 
 #[derive(Debug, thiserror::Error)]
 pub enum StoreError {
@@ -76,7 +87,10 @@ fn configure(connection: &Connection) -> Result<()> {
 }
 
 fn migrations() -> Migrations<'static> {
-    Migrations::new(vec![M::up(include_str!("migrations/0001_init.sql"))])
+    Migrations::new(vec![
+        M::up(include_str!("migrations/0001_init.sql")),
+        M::up(include_str!("migrations/0002_extras.sql")),
+    ])
 }
 
 /// The serde `snake_case` name of an enum, stored as text.

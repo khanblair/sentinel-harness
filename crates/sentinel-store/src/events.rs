@@ -35,6 +35,36 @@ impl Store {
         };
         rows.into_iter().map(event_from_row).collect()
     }
+
+    /// The newest event id, or 0 when there are no events.
+    pub fn last_event_id(&self) -> Result<i64> {
+        let connection = self.connection()?;
+        Ok(
+            connection.query_row("SELECT COALESCE(MAX(id), 0) FROM events", [], |row| {
+                row.get(0)
+            })?,
+        )
+    }
+
+    /// The newest `limit` events that are not agent output, oldest first. The stream and the
+    /// snapshot use this so a chatty agent cannot push real events out of view.
+    pub fn recent_stream_events(&self, limit: u32) -> Result<Vec<EventRecord>> {
+        let connection = self.connection()?;
+        let rows = {
+            let mut statement = connection.prepare(
+                "SELECT id, ts, payload_json FROM events WHERE kind != 'AgentOutput' \
+                 ORDER BY id DESC LIMIT ?1",
+            )?;
+            let mapped = statement.query_map(params![i64::from(limit)], read_event_row)?;
+            mapped.collect::<rusqlite::Result<Vec<EventRow>>>()?
+        };
+        let mut records = rows
+            .into_iter()
+            .map(event_from_row)
+            .collect::<Result<Vec<_>>>()?;
+        records.reverse();
+        Ok(records)
+    }
 }
 
 type EventRow = (i64, String, String);
