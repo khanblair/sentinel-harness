@@ -189,6 +189,7 @@ Paths listed in [project-structure.md](project-structure.md) that do not exist y
 | D62 | (autopilot, review) smell-check: code in `#[cfg(test)]` modules and in `tests/` does not count toward the 400-line file limit, and `#[tokio::test]` counts as a test. Long functions and nesting limits still apply to non-test code | Test modules sit at the bottom of files by rule, so counting them punishes thorough tests |
 | D63 | (autopilot, review) A desktop browser gets its token from `sentinel open`, which opens `http://HOST:PORT/#t=TOKEN`. The UI reads the fragment, stores it on the device, and removes it from the address bar. The token is never in a query string | Fragments are not sent to the server |
 | D64 | (autopilot, review) Free worker quota is shared and small. After it runs out, Haiku subagents do mechanical UI ports from the same briefs, and Ornith writes single files by direct completion | Keeps the build moving without paid Opus tokens |
+| D65 | (autopilot, review) Fonts: only Inter and JetBrains Mono are bundled (woff2, latin, Open Font License, from the fontsource packages). The other families in Settings fall back to system fonts. Answers Q14 | Keeps the UI bundle small. Licenses are in `crates/sentinel-ui/assets/fonts` |
 
 ## Open Questions
 
@@ -207,7 +208,7 @@ Paths listed in [project-structure.md](project-structure.md) that do not exist y
 | Q11 | Duplicate detection: own tool or external | P0-06 |
 | Q12 | Smell checks on agent code when the target language is unknown | P4-07 |
 | Q13 | Add an Antigravity-style Agent Manager home across all runs? | After v1 |
-| Q14 | Which fonts to bundle, and license check | P6-02 |
+| Q14 | Which fonts to bundle, and license check. Answered: Inter and JetBrains Mono (D65) | Done |
 | Q15 | Phone opens on Stream or Board? | P7-03 |
 | Q16 | Obsidian-style Brain. Answered: all four uses plus scheduled care | Done |
 | Q17 | A plainer name for leases. Answered: Reserved files | Done |
