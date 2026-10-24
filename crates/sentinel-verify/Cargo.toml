@@ -1,0 +1,20 @@
+[package]
+name = "sentinel-verify"
+version = { workspace = true }
+edition = { workspace = true }
+rust-version = { workspace = true }
+license = { workspace = true }
+publish = false
+
+[dependencies]
+sentinel-core = { path = "../sentinel-core" }
+futures = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+time = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "process", "sync", "time", "fs", "signal", "io-util", "io-std"] }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+insta = { workspace = true }

@@ -18,11 +18,17 @@ pub struct Caller {
 
 impl Caller {
     pub fn pc(name: impl Into<String>) -> Self {
-        Self { name: name.into(), from_pc: true }
+        Self {
+            name: name.into(),
+            from_pc: true,
+        }
     }
 
     pub fn phone(name: impl Into<String>) -> Self {
-        Self { name: name.into(), from_pc: false }
+        Self {
+            name: name.into(),
+            from_pc: false,
+        }
     }
 }
 
@@ -48,10 +54,15 @@ impl Engine {
         }
         self.update_config(|c| c.cap_usd = usd_text(new_cap))?;
         if let Some(budget) = lock(&self.inner.live).budget.clone() {
-            budget.lower_cap(new_cap).map_err(|e| EngineError::Refused(e.to_string()))?;
+            budget
+                .lower_cap(new_cap)
+                .map_err(|e| EngineError::Refused(e.to_string()))?;
         }
         let total = self.total_cost(&self.live_summary().spent)?;
-        self.emit(Event::CostUpdate { total, cap: new_cap })?;
+        self.emit(Event::CostUpdate {
+            total,
+            cap: new_cap,
+        })?;
         self.emit(Event::DeviceAction {
             device: sentinel_core::DeviceId::new(&caller.name),
             action: format!("lowered the cap to {new_cap}"),
@@ -77,11 +88,15 @@ impl Engine {
         for row in update.capabilities.iter().flatten() {
             for capability in ALL_CAPABILITIES {
                 let allowed = row.allowed.contains(&capability);
-                self.inner.store.set_capability(&row.agent, capability, allowed)?;
+                self.inner
+                    .store
+                    .set_capability(&row.agent, capability, allowed)?;
             }
         }
         if update.capabilities.is_some() {
-            self.emit(Event::PermissionChanged { mode: self.config().permission_mode })?;
+            self.emit(Event::PermissionChanged {
+                mode: self.config().permission_mode,
+            })?;
         }
         Ok(())
     }
@@ -99,8 +114,17 @@ impl Engine {
                 c.enabled_tools.push(id.clone());
             }
         })?;
-        if let Some(tool) = self.inner.store.list_tools()?.into_iter().find(|t| &t.id == id) {
-            self.emit(Event::ToolStatusChanged { tool: tool.id, status: tool.status })?;
+        if let Some(tool) = self
+            .inner
+            .store
+            .list_tools()?
+            .into_iter()
+            .find(|t| &t.id == id)
+        {
+            self.emit(Event::ToolStatusChanged {
+                tool: tool.id,
+                status: tool.status,
+            })?;
         }
         Ok(())
     }
@@ -110,7 +134,8 @@ impl Engine {
         let current = self.config().brain_mode;
         if !caller.from_pc && !current.phone_may_set(mode) {
             return Err(EngineError::Refused(
-                "A phone can only make the Brain stricter. Loosening it needs the computer.".to_owned(),
+                "A phone can only make the Brain stricter. Loosening it needs the computer."
+                    .to_owned(),
             ));
         }
         if self.config().hackathon_mode && mode == BrainMode::Learn {
@@ -123,7 +148,12 @@ impl Engine {
     }
 
     /// Answer a decision, such as two contradicting tasks. `answer` is a task id or `skip_both`.
-    pub fn answer_decision(&self, id: &DecisionId, answer: &str, caller: &Caller) -> Result<Decision> {
+    pub fn answer_decision(
+        &self,
+        id: &DecisionId,
+        answer: &str,
+        caller: &Caller,
+    ) -> Result<Decision> {
         let pending = self.inner.store.list_decisions(&[DecisionState::Pending])?;
         let decision = pending
             .into_iter()
@@ -131,7 +161,9 @@ impl Engine {
             .ok_or_else(|| EngineError::NotFound(format!("pending decision {id}")))?;
         let valid = answer == "skip_both" || decision.tasks.iter().any(|t| t.as_str() == answer);
         if !valid {
-            return Err(EngineError::Invalid(format!("{answer} is not one of the choices")));
+            return Err(EngineError::Invalid(format!(
+                "{answer} is not one of the choices"
+            )));
         }
         let saved = self.inner.store.answer_decision(
             id,
@@ -152,9 +184,21 @@ impl Engine {
     }
 
     /// Allow or deny an approval card.
-    pub fn answer_approval(&self, id: &ApprovalId, allow: bool, caller: &Caller) -> Result<Approval> {
-        let state = if allow { ApprovalState::Allowed } else { ApprovalState::Denied };
-        let saved = self.inner.store.answer_approval(id, state, &caller.name, self.now())?;
+    pub fn answer_approval(
+        &self,
+        id: &ApprovalId,
+        allow: bool,
+        caller: &Caller,
+    ) -> Result<Approval> {
+        let state = if allow {
+            ApprovalState::Allowed
+        } else {
+            ApprovalState::Denied
+        };
+        let saved = self
+            .inner
+            .store
+            .answer_approval(id, state, &caller.name, self.now())?;
         if let Some(waiter) = lock(&self.inner.live).approvals.remove(id) {
             let _ = waiter.send(allow);
         }
@@ -172,7 +216,11 @@ impl Engine {
         if text.trim().is_empty() {
             return Err(EngineError::Invalid("The message is empty.".to_owned()));
         }
-        self.emit(Event::Message { from: caller.name.clone(), to, text: text.trim().to_owned() })?;
+        self.emit(Event::Message {
+            from: caller.name.clone(),
+            to,
+            text: text.trim().to_owned(),
+        })?;
         Ok(())
     }
 }

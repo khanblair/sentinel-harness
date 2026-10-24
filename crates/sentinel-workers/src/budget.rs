@@ -43,6 +43,8 @@ struct State {
     ceilings: HashMap<TaskId, Cost>,
     fired_70: bool,
     fired_95: bool,
+    /// Events not yet read by `drain_events`, so the engine can turn them into stream events.
+    pending: Vec<BudgetEvent>,
 }
 
 pub struct Budget {
@@ -61,6 +63,7 @@ impl Budget {
             ceilings: HashMap::new(),
             fired_70: false,
             fired_95: false,
+            pending: Vec::new(),
         };
         (
             Arc::new(Budget {
@@ -152,7 +155,14 @@ impl Budget {
                 ceiling,
             });
         }
+        state.pending.extend(events.iter().cloned());
         events
+    }
+
+    /// Every event since the last call. The engine polls this to emit `BudgetThreshold` and
+    /// `TaskCeilingHit`, because the supervisor records spend without knowing about the stream.
+    pub fn drain_events(&self) -> Vec<BudgetEvent> {
+        std::mem::take(&mut self.lock().pending)
     }
 }
 
@@ -213,6 +223,14 @@ mod tests {
             budget.record(&task(), usd("0.05")),
             Vec::<BudgetEvent>::new()
         );
+    }
+
+    #[test]
+    fn drain_events_returns_each_event_once() {
+        let (budget, _kill) = Budget::new(usd("1.00"));
+        budget.record(&task(), usd("0.75"));
+        assert_eq!(budget.drain_events(), vec![BudgetEvent::Threshold70]);
+        assert_eq!(budget.drain_events(), Vec::<BudgetEvent>::new());
     }
 
     #[test]

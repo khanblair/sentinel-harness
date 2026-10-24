@@ -22,6 +22,8 @@ const TOP_LEVEL_KEYS: &[&str] = &[
     "dev_loopback",
     "max_parallel",
     "task_timeout_seconds",
+    "decision_timeout_seconds",
+    "approval_timeout_seconds",
     "telegram",
 ];
 const ROUTING_KEYS: &[&str] = &["cheap", "mid", "smart"];
@@ -42,6 +44,10 @@ pub struct Config {
     pub dev_loopback: bool,
     pub max_parallel: u32,
     pub task_timeout_seconds: u64,
+    /// A contradiction nobody answers in this time skips both tasks.
+    pub decision_timeout_seconds: u64,
+    /// An approval card nobody answers in this time is denied.
+    pub approval_timeout_seconds: u64,
     pub telegram: TelegramConfig,
 }
 
@@ -67,6 +73,8 @@ impl Default for Config {
             dev_loopback: false,
             max_parallel: 3,
             task_timeout_seconds: 900,
+            decision_timeout_seconds: 120,
+            approval_timeout_seconds: 300,
             telegram: TelegramConfig::default(),
         }
     }
@@ -209,6 +217,8 @@ mod tests {
             dev_loopback: true,
             max_parallel: 2,
             task_timeout_seconds: 300,
+            decision_timeout_seconds: 60,
+            approval_timeout_seconds: 90,
             telegram: TelegramConfig {
                 enabled: true,
                 detail: "Status".to_owned(),

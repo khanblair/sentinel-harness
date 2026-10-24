@@ -4,7 +4,8 @@
 use std::path::{Path, PathBuf};
 
 use sentinel_core::api::{
-    DoctorReport, FolderEntry, PairResult, PairStart, PairSubmit, RepoCheckResponse, TailscaleStatus,
+    DoctorReport, FolderEntry, PairResult, PairStart, PairSubmit, RepoCheckResponse,
+    TailscaleStatus,
 };
 use sentinel_core::{DeviceId, DeviceInfo, Event, OnboardingState};
 
@@ -27,7 +28,9 @@ impl Engine {
             changed
         };
         if changed {
-            self.emit_quiet(Event::TailscaleChanged { state: status.state });
+            self.emit_quiet(Event::TailscaleChanged {
+                state: status.state,
+            });
         }
         status
     }
@@ -81,7 +84,10 @@ impl Engine {
 
     pub fn revoke_device(&self, id: &DeviceId, by: &str) -> Result<()> {
         self.inner.store.revoke_device(id, self.now())?;
-        self.emit(Event::DeviceAction { device: id.clone(), action: format!("revoked by {by}") })?;
+        self.emit(Event::DeviceAction {
+            device: id.clone(),
+            action: format!("revoked by {by}"),
+        })?;
         Ok(())
     }
 
@@ -109,7 +115,8 @@ impl Engine {
     /// Browse folders on a phone. Always inside the home folder.
     pub fn list_folders(&self, path: Option<&str>) -> Result<Vec<FolderEntry>> {
         let target = path.map_or_else(|| self.inner.home.clone(), PathBuf::from);
-        folders::list_folders(&self.inner.home, &target).map_err(|e| EngineError::Refused(e.to_string()))
+        folders::list_folders(&self.inner.home, &target)
+            .map_err(|e| EngineError::Refused(e.to_string()))
     }
 
     /// The computer's own folder dialog. Blocks, so the caller runs it off the async threads.
@@ -118,7 +125,8 @@ impl Engine {
     }
 
     pub fn create_starter_backlog(&self, path: &str) -> Result<()> {
-        folders::create_starter_backlog(Path::new(path)).map_err(|e| EngineError::Refused(e.to_string()))?;
+        folders::create_starter_backlog(Path::new(path))
+            .map_err(|e| EngineError::Refused(e.to_string()))?;
         self.refresh_repo();
         Ok(())
     }
@@ -127,7 +135,9 @@ impl Engine {
     pub fn set_repo(&self, path: &str) -> Result<RepoCheckResponse> {
         let check = folders::check_repo(Path::new(path));
         if !check.usable {
-            return Err(EngineError::Invalid(format!("{path} is not ready: fix the rows shown")));
+            return Err(EngineError::Invalid(format!(
+                "{path} is not ready: fix the rows shown"
+            )));
         }
         self.update_config(|c| c.repo_path = Some(path.to_owned()))?;
         self.refresh_repo();
@@ -160,10 +170,17 @@ fn tailscale_connection(status: &TailscaleStatus) -> ConnectionStatus {
     let (state, detail) = match status.state {
         TailscaleState::Running => (
             ConnectionState::Connected,
-            status.address.clone().unwrap_or_else(|| "running".to_owned()),
+            status
+                .address
+                .clone()
+                .unwrap_or_else(|| "running".to_owned()),
         ),
         TailscaleState::SignedOut => (ConnectionState::NeedsLogin, "Signed out".to_owned()),
         TailscaleState::NotInstalled => (ConnectionState::Missing, "Not installed".to_owned()),
     };
-    ConnectionStatus { name: "Tailscale".to_owned(), state, detail }
+    ConnectionStatus {
+        name: "Tailscale".to_owned(),
+        state,
+        detail,
+    }
 }

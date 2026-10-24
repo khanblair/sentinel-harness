@@ -470,3 +470,26 @@ fn migration_2_applies_on_migration_1_db() {
     let listed = store.list_tools().unwrap();
     assert!(listed[0].enabled);
 }
+
+#[test]
+fn reset_for_new_run_clears_tasks_but_keeps_events_and_settings() {
+    let store = Store::open_in_memory().unwrap();
+    store
+        .upsert_task(&sentinel_core::Task::new(
+            sentinel_core::TaskId::new("T-01"),
+            "t",
+            "b",
+        ))
+        .unwrap();
+    store.set_setting("k", "v").unwrap();
+    store
+        .append_event(
+            &sentinel_core::Event::ReportReady,
+            time::OffsetDateTime::UNIX_EPOCH,
+        )
+        .unwrap();
+    store.reset_for_new_run().unwrap();
+    assert!(store.list_tasks().unwrap().is_empty());
+    assert_eq!(store.get_setting("k").unwrap().as_deref(), Some("v"));
+    assert_eq!(store.last_event_id().unwrap(), 1);
+}

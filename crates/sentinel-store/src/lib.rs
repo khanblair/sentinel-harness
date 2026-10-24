@@ -21,6 +21,7 @@ pub mod devices;
 pub mod events;
 pub mod quality;
 pub mod reservations;
+pub mod reset;
 pub mod runs;
 pub mod settings;
 pub mod tasks;

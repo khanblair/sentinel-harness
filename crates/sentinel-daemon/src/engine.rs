@@ -17,9 +17,9 @@ use tokio::sync::broadcast;
 
 use crate::cmd::CommandRunner;
 use crate::config::{self, Config, ConfigError};
+use crate::live::LiveRun;
 use crate::onboarding::{self, OnboardingError};
 use crate::pairing::PairingManager;
-use crate::live::LiveRun;
 use crate::secrets::SecretStore;
 
 /// Events kept in a snapshot for the stream. Agent output lines are left out: the Terminal panel
@@ -170,8 +170,12 @@ impl Engine {
 
     fn append_log(&self, record: &EventRecord) {
         let path = self.inner.repo_root.join(".sentinel/log.jsonl");
-        let Ok(line) = serde_json::to_string(record) else { return };
-        let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path) else { return };
+        let Ok(line) = serde_json::to_string(record) else {
+            return;
+        };
+        let Ok(mut file) = OpenOptions::new().create(true).append(true).open(path) else {
+            return;
+        };
         // The log is a record, not state of record: a failed append never stops a run.
         let _ = writeln!(file, "{line}");
     }
@@ -185,11 +189,14 @@ impl Engine {
         let root = self.repo_path();
         let check = crate::folders::check_repo(&root);
         let backlog = root.join(self.config().backlog);
-        let backlog_tasks = fs::read_to_string(&backlog)
-            .map_or(0, |text| text.lines().filter(|l| l.starts_with("## ")).count());
+        let backlog_tasks = fs::read_to_string(&backlog).map_or(0, |text| {
+            text.lines().filter(|l| l.starts_with("## ")).count()
+        });
         let status = |name: &str| check.rows.iter().find(|r| r.name == name).map(|r| r.status);
         let info = RepoInfo {
-            name: root.file_name().map_or_else(String::new, |n| n.to_string_lossy().into_owned()),
+            name: root
+                .file_name()
+                .map_or_else(String::new, |n| n.to_string_lossy().into_owned()),
             path: root.to_string_lossy().into_owned(),
             is_git: status("Git repository") == Some(sentinel_core::api::CheckStatus::Ok),
             has_backlog: status("backlog.md") == Some(sentinel_core::api::CheckStatus::Ok),
@@ -225,7 +232,10 @@ impl Engine {
         snapshot.permission_mode = config.permission_mode;
         snapshot.capabilities = store.list_capabilities()?;
         snapshot.brain_mode = config.brain_mode;
-        snapshot.cost = CostSnapshot { total: self.total_cost(&live.spent)?, cap: self.cap(&config) };
+        snapshot.cost = CostSnapshot {
+            total: self.total_cost(&live.spent)?,
+            cap: self.cap(&config),
+        };
         snapshot.per_agent_cost = self.per_agent_cost()?;
         snapshot.approvals = store.list_approvals(&[])?.into_iter().take(50).collect();
         snapshot.decisions = store.list_decisions(&[])?;
@@ -268,7 +278,10 @@ impl Engine {
                 None => totals.push((run.tool, run.cost)),
             }
         }
-        Ok(totals.into_iter().map(|(agent, cost)| AgentCost { agent, cost }).collect())
+        Ok(totals
+            .into_iter()
+            .map(|(agent, cost)| AgentCost { agent, cost })
+            .collect())
     }
 
     pub fn harness_state(&self) -> HarnessState {
@@ -282,7 +295,10 @@ fn settings_for_ui(config: &Config) -> std::collections::BTreeMap<String, String
     map.insert("test_command".to_owned(), config.test_command.join(" "));
     map.insert("backlog".to_owned(), config.backlog.clone());
     map.insert("max_parallel".to_owned(), config.max_parallel.to_string());
-    map.insert("task_timeout_seconds".to_owned(), config.task_timeout_seconds.to_string());
+    map.insert(
+        "task_timeout_seconds".to_owned(),
+        config.task_timeout_seconds.to_string(),
+    );
     map.insert("telegram_detail".to_owned(), config.telegram.detail.clone());
     map
 }
@@ -294,5 +310,7 @@ fn tracing_error(error: &EngineError) {
 /// Lock a mutex and keep going if another thread panicked while holding it: every guarded value is
 /// replaced whole, so it is never half written.
 pub(crate) fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
-    mutex.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+    mutex
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
 }

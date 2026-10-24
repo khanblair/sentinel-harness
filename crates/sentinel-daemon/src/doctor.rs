@@ -203,6 +203,7 @@ mod tests {
     }
 
     #[tokio::test]
+    #[allow(clippy::too_many_lines)]
     async fn a_missing_tool_names_the_install_command_for_the_operating_system() {
         let runner = FakeRunner::new();
         for (os, rust_text, git_text, tailscale_text) in [
