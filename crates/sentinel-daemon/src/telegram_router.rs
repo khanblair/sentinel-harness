@@ -7,7 +7,7 @@ use sentinel_core::{Event, PermissionMode, TaskId, ToolId};
 use sentinel_telegram::Button;
 use sentinel_telegram::buttons::{ButtonAction, ButtonError};
 use sentinel_telegram::command::{self, Command, ParseProblem, help_text};
-use sentinel_telegram::levels::{allowed, refusal_text};
+use sentinel_telegram::levels::{Detail, allowed, refusal_text};
 use sentinel_telegram::redact::redact;
 
 use crate::controls::{Caller, usd_text};
@@ -22,7 +22,6 @@ const BRAIN_LIMIT: usize = 10;
 const NOT_PAIRED: &str = "Send /start to connect this chat first.";
 const BYPASS_OFF: &str =
     "Runs from Telegram are off in Bypass permissions. Change the mode at the computer.";
-const NOT_YET: &str = "That is not available from Telegram yet.";
 
 /// A button press as Telegram sends it: the callback id to answer, and the one-time token.
 pub(crate) struct Press<'a> {
@@ -155,6 +154,13 @@ fn phone_caller() -> Caller {
     Caller::phone(CALLER_NAME)
 }
 
+fn text_reply(result: Result<String>) -> Reply {
+    match result {
+        Ok(text) => Reply::text(text),
+        Err(error) => Reply::text(error.to_string()),
+    }
+}
+
 impl Turn<'_> {
     fn is_paired(&self) -> bool {
         telegram_store::is_paired(self.engine).unwrap_or(false)
@@ -204,7 +210,9 @@ impl Turn<'_> {
             Command::Kill(agent) => self.kill_confirm(agent),
             Command::Cap(cost) => self.lower_cap(&usd_text(cost), &caller),
             Command::Agent { tool, text } => self.message_agent(&tool, &text, &caller),
-            Command::Diff(_) | Command::Daily | Command::Task(_) => Reply::text(NOT_YET),
+            Command::Diff(task) => self.diff(task.as_ref(), self.row.settings.detail),
+            Command::Daily => text_reply(self.engine.daily_summary()),
+            Command::Task(text) => self.task_confirm(&text),
             Command::Run(task) => self.run_confirm(task),
             Command::Report => self.report(),
             Command::Brain(search) => self.brain(&search),
@@ -233,7 +241,39 @@ impl Turn<'_> {
             }
             ButtonAction::Report => self.report(),
             ButtonAction::StartRun { task } => self.start_run(task).await,
-            ButtonAction::DiffSummary { .. } | ButtonAction::AddTask { .. } => Reply::text(NOT_YET),
+            ButtonAction::DiffSummary { task } => self.diff(task.as_ref(), Detail::Summary),
+            ButtonAction::AddTask { text } => self.add_task(&text, &caller),
+        }
+    }
+
+    fn diff(&self, task: Option<&TaskId>, detail: Detail) -> Reply {
+        text_reply(self.engine.diff_summary(task, detail))
+    }
+
+    /// Shows the text and a Confirm button. The text stays in the server-side token. In hackathon
+    /// mode the chat sees only the question.
+    fn task_confirm(&self, text: &str) -> Reply {
+        if let Err(error) = self.engine.check_new_task(text) {
+            return Reply::text(error.to_string());
+        }
+        let shown = if self.engine.config().hackathon_mode {
+            "Add this task to the backlog?".to_owned()
+        } else {
+            format!("Add this task to the backlog?\n\n{text}")
+        };
+        let action = ButtonAction::AddTask {
+            text: text.to_owned(),
+        };
+        self.confirm(&shown, "Confirm task", &action)
+    }
+
+    fn add_task(&self, text: &str, caller: &Caller) -> Reply {
+        match self.engine.add_backlog_task(text, caller) {
+            Ok(added) => Reply::text(format!(
+                "Added as {}. It is planned when you start the next run.",
+                added.id
+            )),
+            Err(error) => Reply::text(error.to_string()),
         }
     }
 
