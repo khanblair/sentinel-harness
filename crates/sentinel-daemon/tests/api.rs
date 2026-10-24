@@ -11,40 +11,20 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use base64::Engine as _;
-use futures::future::BoxFuture;
 use reqwest::StatusCode;
 use reqwest::header::{AUTHORIZATION, ORIGIN};
 use sentinel_core::api::TailscaleStatus;
 use sentinel_core::snapshot::Snapshot;
 use sentinel_core::state::TailscaleState;
-use sentinel_daemon::cmd::{CmdOutput, CommandRunner, SystemRunner};
 use sentinel_daemon::controls::Caller;
 use sentinel_daemon::engine::Engine;
 
 mod common;
-use common::sample_repo_with;
+use common::{TailnetRunner, sample_repo_with};
 use sentinel_daemon::server::{self, ServerOptions};
 use sentinel_daemon::tailscale::{self, BindError, BindMode};
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
-
-const RUNNING_STATUS: &str =
-    r#"{"BackendState":"Running","Self":{"TailscaleIPs":["100.64.0.5"],"HostName":"test-pc"}}"#;
-
-/// Answers `tailscale` as a running tailnet and runs every other program for real.
-struct TailnetRunner;
-
-impl CommandRunner for TailnetRunner {
-    fn run<'a>(&'a self, program: &'a str, args: &'a [&'a str]) -> BoxFuture<'a, CmdOutput> {
-        Box::pin(async move {
-            if program == "tailscale" {
-                CmdOutput::ok(RUNNING_STATUS)
-            } else {
-                SystemRunner.run(program, args).await
-            }
-        })
-    }
-}
 
 fn engine_in(repo: &Path) -> Engine {
     let engine = common::engine_with_runner(repo, Arc::new(TailnetRunner));

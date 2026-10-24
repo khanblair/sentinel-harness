@@ -14,12 +14,10 @@ use std::process::Command;
 use std::sync::Arc;
 use std::time::Duration;
 
-use futures::future::BoxFuture;
 use reqwest::StatusCode;
 use reqwest::header::AUTHORIZATION;
 use sentinel_core::dry_run::{DryRunStage, StageState};
 use sentinel_core::{Event, EventRecord};
-use sentinel_daemon::cmd::{CmdOutput, CommandRunner, SystemRunner};
 use sentinel_daemon::engine::Engine;
 use sentinel_daemon::server;
 use serde_json::{Value, json};
@@ -27,26 +25,9 @@ use tokio::net::TcpListener;
 use tokio::sync::broadcast::{self, error::RecvError};
 
 mod common;
-use common::{engine_with_runner, fake_engine, sample_repo};
+use common::{TailnetRunner, engine_with_runner, fake_engine, sample_repo};
 
-const RUNNING_STATUS: &str =
-    r#"{"BackendState":"Running","Self":{"TailscaleIPs":["100.64.0.5"],"HostName":"test-pc"}}"#;
 const SAMPLE_PREFIX: &str = "sentinel-dry-run-";
-
-/// Answers `tailscale` as a running tailnet, so a phone can pair. Other programs run for real.
-struct TailnetRunner;
-
-impl CommandRunner for TailnetRunner {
-    fn run<'a>(&'a self, program: &'a str, args: &'a [&'a str]) -> BoxFuture<'a, CmdOutput> {
-        Box::pin(async move {
-            if program == "tailscale" {
-                CmdOutput::ok(RUNNING_STATUS)
-            } else {
-                SystemRunner.run(program, args).await
-            }
-        })
-    }
-}
 
 /// Serves the router on a free loopback port and returns its base URL.
 async fn serve(engine: Engine) -> String {

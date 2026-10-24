@@ -9,7 +9,6 @@
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use futures::future::BoxFuture;
 use reqwest::{Method, StatusCode, header::AUTHORIZATION};
 use sentinel_brain::Vault;
 use sentinel_brain::lesson::new_lesson;
@@ -18,32 +17,13 @@ use sentinel_brain::proposal::{Proposal, ProposalState, write_proposal};
 use sentinel_brain::replace_generated;
 use sentinel_brain::schedule::Date;
 use sentinel_core::{NoteId, NoteType, ProposalKind};
-use sentinel_daemon::cmd::{CmdOutput, CommandRunner, SystemRunner};
 use sentinel_daemon::engine::Engine;
 use sentinel_daemon::server;
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
 
-pub const RUNNING_STATUS: &str =
-    r#"{"BackendState":"Running","Self":{"TailscaleIPs":["100.64.0.5"],"HostName":"test-pc"}}"#;
-
-/// Answers `tailscale` as a running tailnet so pairing works, and runs every other program for real.
-pub struct TailnetRunner;
-
-impl CommandRunner for TailnetRunner {
-    fn run<'a>(&'a self, program: &'a str, args: &'a [&'a str]) -> BoxFuture<'a, CmdOutput> {
-        Box::pin(async move {
-            if program == "tailscale" {
-                CmdOutput::ok(RUNNING_STATUS)
-            } else {
-                SystemRunner.run(program, args).await
-            }
-        })
-    }
-}
-
 pub fn engine_in(repo: &Path) -> Engine {
-    crate::common::engine_with_runner(repo, Arc::new(TailnetRunner))
+    crate::common::engine_with_runner(repo, Arc::new(crate::common::TailnetRunner))
 }
 
 /// Serves the router on a free loopback port and returns its base URL.

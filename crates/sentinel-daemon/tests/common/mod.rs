@@ -15,9 +15,28 @@ use std::time::{Duration, Instant};
 use sentinel_core::HarnessState;
 use std::sync::Arc;
 
-use sentinel_daemon::cmd::{CommandRunner, SystemRunner};
+use futures::future::BoxFuture;
+use sentinel_daemon::cmd::{CmdOutput, CommandRunner, SystemRunner};
 use sentinel_daemon::engine::{Engine, EngineOptions, FakeAgents};
 use sentinel_daemon::secrets::MemoryStore;
+
+pub const RUNNING_STATUS: &str =
+    r#"{"BackendState":"Running","Self":{"TailscaleIPs":["100.64.0.5"],"HostName":"test-pc"}}"#;
+
+/// Answers `tailscale` as a running tailnet so pairing works, and runs every other program for real.
+pub struct TailnetRunner;
+
+impl CommandRunner for TailnetRunner {
+    fn run<'a>(&'a self, program: &'a str, args: &'a [&'a str]) -> BoxFuture<'a, CmdOutput> {
+        Box::pin(async move {
+            if program == "tailscale" {
+                CmdOutput::ok(RUNNING_STATUS)
+            } else {
+                SystemRunner.run(program, args).await
+            }
+        })
+    }
+}
 
 pub fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
