@@ -42,6 +42,7 @@ mod run_source;
 pub mod secrets;
 pub mod server;
 mod settings;
+mod skills;
 pub mod tailscale;
 pub mod telegram;
 mod telegram_code;

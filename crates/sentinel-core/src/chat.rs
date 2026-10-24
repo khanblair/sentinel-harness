@@ -74,6 +74,8 @@ pub enum AttachmentKind {
     Note,
     /// A file uploaded from the device, kept under `.sentinel/chats/`.
     Upload,
+    /// A skill picked by name. Its text goes into the prompts of the run. It has no file.
+    Skill,
 }
 
 /// Something added with the composer plus button. It goes with the next message.

@@ -33,6 +33,7 @@ pub mod reservations;
 pub mod reset;
 pub mod runs;
 pub mod settings;
+pub mod skills;
 pub mod tasks;
 pub mod telegram;
 pub mod tools;

@@ -23,6 +23,8 @@ const INLINE_TOTAL_BYTES: usize = 12_000;
 const FOLDER_NAMES: usize = 30;
 /// The longest chip name for a note.
 const NOTE_NAME_CHARS: usize = 24;
+/// The most skill text one skill chip keeps.
+pub(crate) const SKILL_TEXT_MAX: usize = 8 * 1024;
 
 impl Engine {
     /// Add an attachment to a chat. It goes with the next message.
@@ -87,10 +89,24 @@ impl Engine {
                 self.path_parts(request.kind, request.path.as_deref(), false)
             }
             AttachmentKind::Folder => self.path_parts(request.kind, request.path.as_deref(), true),
+            AttachmentKind::Skill => self.skill_parts(request.name.as_deref()),
             AttachmentKind::Upload => Err(EngineError::Invalid(
                 "An upload needs its bytes in content_base64.".to_owned(),
             )),
         }
+    }
+
+    /// A skill chip. Its path is the skill name, and its text is the skill body, cut to 8 KB.
+    fn skill_parts(&self, name: Option<&str>) -> Result<Parts> {
+        let detail = self.skill_detail(name.unwrap_or_default())?;
+        let text = cut_at_char(&detail.body, SKILL_TEXT_MAX).to_owned();
+        Ok(Parts {
+            kind: AttachmentKind::Skill,
+            name: detail.info.name.clone(),
+            path: Some(detail.info.name),
+            size: text.len() as u64,
+            text: Some(text),
+        })
     }
 
     fn path_parts(
@@ -127,7 +143,10 @@ impl Engine {
         let kind = match request.kind {
             AttachmentKind::Backlog => AttachmentKind::Backlog,
             AttachmentKind::Upload => AttachmentKind::Upload,
-            AttachmentKind::File | AttachmentKind::Folder | AttachmentKind::Note => {
+            AttachmentKind::File
+            | AttachmentKind::Folder
+            | AttachmentKind::Note
+            | AttachmentKind::Skill => {
                 return Err(EngineError::Invalid(
                     "An upload is an upload or a backlog.".to_owned(),
                 ));
@@ -243,6 +262,15 @@ fn is_upload_path(path: &str) -> bool {
     path.starts_with(".sentinel/chats/")
 }
 
+/// The longest prefix of `text` that is at most `max` bytes and ends on a character boundary.
+pub(crate) fn cut_at_char(text: &str, max: usize) -> &str {
+    let mut end = text.len().min(max);
+    while !text.is_char_boundary(end) {
+        end -= 1;
+    }
+    &text[..end]
+}
+
 /// The text that goes into every task of a run: paths, small files, folder listings, and notes.
 /// Backlogs are the source of the tasks, so they are not context.
 pub(crate) fn context_text(repo: &Path, attachments: &[Attachment]) -> String {
@@ -250,7 +278,8 @@ pub(crate) fn context_text(repo: &Path, attachments: &[Attachment]) -> String {
     let mut inlined = 0_usize;
     for attachment in attachments {
         let line = match attachment.kind {
-            AttachmentKind::Backlog => continue,
+            // Skills reach the prompt through `skill_text`, which also caps them.
+            AttachmentKind::Backlog | AttachmentKind::Skill => continue,
             AttachmentKind::Note => format!("- Note: {}", attachment.text.as_deref().unwrap_or("")),
             AttachmentKind::Folder => folder_line(repo, attachment),
             AttachmentKind::File | AttachmentKind::Upload => {

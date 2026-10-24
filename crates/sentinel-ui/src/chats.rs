@@ -238,7 +238,8 @@ pub fn chip_label(attachment: &Attachment) -> String {
         AttachmentKind::File
         | AttachmentKind::Folder
         | AttachmentKind::Backlog
-        | AttachmentKind::Upload => attachment.name.as_str(),
+        | AttachmentKind::Upload
+        | AttachmentKind::Skill => attachment.name.as_str(),
     };
     shorten(full, CHIP_NAME_CHARS)
 }
@@ -251,6 +252,7 @@ pub fn chip_icon(kind: AttachmentKind) -> &'static str {
         AttachmentKind::Backlog => "list",
         AttachmentKind::Note => "edit",
         AttachmentKind::Upload => "upload",
+        AttachmentKind::Skill => "book",
     }
 }
 
