@@ -22,14 +22,26 @@ const MAX_STREAM_LINES: usize = 2000;
 pub(crate) async fn run_attempt(ctx: &Arc<RunCtx>, task_id: TaskId) {
     if let Err(error) = try_attempt(ctx, &task_id).await {
         // A failure of Sentinel itself (a store error, a missing agent) ends the attempt, not the run.
-        fail_task(ctx, &task_id, &format!("Sentinel could not run this attempt: {error}"), "");
+        fail_task(
+            ctx,
+            &task_id,
+            &format!("Sentinel could not run this attempt: {error}"),
+            "",
+        );
     }
 }
 
 async fn try_attempt(ctx: &Arc<RunCtx>, task_id: &TaskId) -> Result<()> {
     let engine = &ctx.engine;
-    let task = engine.store().get_task(task_id)?.ok_or_else(|| EngineError::NotFound(task_id.to_string()))?;
-    let tier = lock(&ctx.memory).tiers.get(task_id).copied().unwrap_or(task.tier);
+    let task = engine
+        .store()
+        .get_task(task_id)?
+        .ok_or_else(|| EngineError::NotFound(task_id.to_string()))?;
+    let tier = lock(&ctx.memory)
+        .tiers
+        .get(task_id)
+        .copied()
+        .unwrap_or(task.tier);
     let router = engine.router()?;
     let Some(agent) = router.pick(tier) else {
         fail_task(ctx, task_id, "No agent is ready for this kind of task.", "");
@@ -57,21 +69,36 @@ async fn try_attempt(ctx: &Arc<RunCtx>, task_id: &TaskId) -> Result<()> {
 
 fn start(ctx: &RunCtx, task: &Task, tool: &ToolInfo) -> Result<()> {
     let engine = &ctx.engine;
-    lock(&ctx.scheduler).start_task(&task.id).map_err(|e| EngineError::Invalid(e.to_string()))?;
-    lock(&ctx.memory).agents.insert(task.id.clone(), tool.id.clone());
-    lock(&engine.inner.live).agent_task.insert(tool.id.clone(), task.id.clone());
+    lock(&ctx.scheduler)
+        .start_task(&task.id)
+        .map_err(|e| EngineError::Invalid(e.to_string()))?;
+    lock(&ctx.memory)
+        .agents
+        .insert(task.id.clone(), tool.id.clone());
+    lock(&engine.inner.live)
+        .agent_task
+        .insert(tool.id.clone(), task.id.clone());
     engine.emit(Event::FilesReserved {
         task: task.id.clone(),
         paths: task.scope.entries().map(str::to_owned).collect(),
     })?;
-    engine.emit(Event::TaskStatus { task: task.id.clone(), status: TaskStatus::Running })?;
+    engine.emit(Event::TaskStatus {
+        task: task.id.clone(),
+        status: TaskStatus::Running,
+    })?;
     engine.emit(Event::Message {
         from: "sentinel".to_owned(),
         to: Some(tool.id.clone()),
-        text: format!("{} goes to {} ({} task).", task.id, tool.name, task.tier.ui_label()),
+        text: format!(
+            "{} goes to {} ({} task).",
+            task.id,
+            tool.name,
+            task.tier.ui_label()
+        ),
     })?;
     let guard_dir = engine.repo_path().join(".sentinel/guard");
-    write_guard_files(&guard_dir, &task.id, &task.scope).map_err(|e| EngineError::Invalid(e.to_string()))?;
+    write_guard_files(&guard_dir, &task.id, &task.scope)
+        .map_err(|e| EngineError::Invalid(e.to_string()))?;
     ctx.budget.set_ceiling(&task.id, default_ceiling(task.tier));
     Ok(())
 }
@@ -80,7 +107,12 @@ fn build_spec(ctx: &RunCtx, task: &Task, tool: &ToolInfo) -> (RunSpec, RunId) {
     let memory = lock(&ctx.memory);
     let failure = memory.failures.get(&task.id).cloned();
     drop(memory);
-    let retry = failure.as_ref().map(|text| Retry { failure: text, diff_stat: "", notes: &[], lessons: &[] });
+    let retry = failure.as_ref().map(|text| Retry {
+        failure: text,
+        diff_stat: "",
+        notes: &[],
+        lessons: &[],
+    });
     let prompt = task_prompt(task, retry.as_ref(), &ctx.limits);
     let spec = RunSpec {
         task: task.id.clone(),
@@ -117,31 +149,52 @@ async fn run_worker(
         eprintln!("sentinel: could not record the run: {error}");
     }
     let (task_kill, task_kill_rx) = watch::channel(false);
-    lock(&engine.inner.live).task_kills.insert(task.id.clone(), task_kill);
+    lock(&engine.inner.live)
+        .task_kills
+        .insert(task.id.clone(), task_kill);
     let kill = merge_kill(vec![ctx.stop.clone(), ctx.budget.receiver(), task_kill_rx]);
     let (lines, forwarded) = mpsc::unbounded_channel();
     let forwarder = tokio::spawn(forward_lines(ctx.engine.clone(), forwarded));
-    let control = RunControl { kill, lines, budget: ctx.budget.clone() };
+    let control = RunControl {
+        kill,
+        lines,
+        budget: ctx.budget.clone(),
+    };
     let outcome = worker.run(spec, control).await;
     // The sender is gone once the worker returns, so the forwarder drains and ends.
     let _ = forwarder.await;
     outcome
 }
 
-async fn forward_lines(engine: crate::engine::Engine, mut lines: mpsc::UnboundedReceiver<OutputLine>) {
+async fn forward_lines(
+    engine: crate::engine::Engine,
+    mut lines: mpsc::UnboundedReceiver<OutputLine>,
+) {
     let mut sent = 0;
     while let Some(line) = lines.recv().await {
         sent += 1;
         if sent <= MAX_STREAM_LINES {
-            engine.emit_quiet(Event::AgentOutput { task: line.task, agent: line.agent, line: line.text });
+            engine.emit_quiet(Event::AgentOutput {
+                task: line.task,
+                agent: line.agent,
+                line: line.text,
+            });
         }
     }
 }
 
-fn finish_bookkeeping(ctx: &RunCtx, task: &Task, tool: &ToolInfo, run_id: &RunId, outcome: &RunOutcome) -> Result<()> {
+fn finish_bookkeeping(
+    ctx: &RunCtx,
+    task: &Task,
+    tool: &ToolInfo,
+    run_id: &RunId,
+    outcome: &RunOutcome,
+) -> Result<()> {
     let engine = &ctx.engine;
     let code = outcome.exit_code.unwrap_or(-1);
-    engine.store().finish_run(run_id, engine.now(), code, outcome.cost)?;
+    engine
+        .store()
+        .finish_run(run_id, engine.now(), code, outcome.cost)?;
     let mut live = lock(&engine.inner.live);
     live.agent_task.remove(&tool.id);
     live.task_kills.remove(&task.id);
@@ -155,8 +208,14 @@ fn reason_for(ctx: &RunCtx, outcome: &RunOutcome) -> String {
     use sentinel_workers::EndKind;
     match outcome.end {
         EndKind::Completed => "The agent finished.".to_owned(),
-        EndKind::Failed => format!("The agent stopped with an error (exit {}).", outcome.exit_code.unwrap_or(-1)),
-        EndKind::TimedOut => format!("The agent ran past {} seconds.", ctx.config.task_timeout_seconds),
+        EndKind::Failed => format!(
+            "The agent stopped with an error (exit {}).",
+            outcome.exit_code.unwrap_or(-1)
+        ),
+        EndKind::TimedOut => format!(
+            "The agent ran past {} seconds.",
+            ctx.config.task_timeout_seconds
+        ),
         EndKind::Killed if ctx.stopped() => "The run was stopped.".to_owned(),
         EndKind::Killed => "The agent was stopped (killed, or the 95% budget guard).".to_owned(),
         EndKind::CostCeiling => "The agent hit the cost ceiling for one task.".to_owned(),
@@ -166,8 +225,14 @@ fn reason_for(ctx: &RunCtx, outcome: &RunOutcome) -> String {
 /// The agent finished cleanly: commit the files of its scope that changed.
 fn finish_success(ctx: &RunCtx, task: &Task, outcome: &RunOutcome) -> Result<()> {
     let engine = &ctx.engine;
-    let changed = ctx.git.changed_paths().map_err(|e| EngineError::Invalid(e.to_string()))?;
-    let mine: Vec<String> = changed.into_iter().filter(|path| task.scope.covers(path)).collect();
+    let changed = ctx
+        .git
+        .changed_paths()
+        .map_err(|e| EngineError::Invalid(e.to_string()))?;
+    let mine: Vec<String> = changed
+        .into_iter()
+        .filter(|path| task.scope.covers(path))
+        .collect();
     let message = format!("{}: {}", task.id, task.title);
     let made = if mine.is_empty() {
         None
@@ -175,7 +240,12 @@ fn finish_success(ctx: &RunCtx, task: &Task, outcome: &RunOutcome) -> Result<()>
         checkpoint(&ctx.git, &mine, &message).map_err(|e| EngineError::Invalid(e.to_string()))?
     };
     let Some(made) = made else {
-        fail_task(ctx, &task.id, "The agent finished but changed none of the files of its task.", &outcome.output_tail.join("\n"));
+        fail_task(
+            ctx,
+            &task.id,
+            "The agent finished but changed none of the files of its task.",
+            &outcome.output_tail.join("\n"),
+        );
         return Ok(());
     };
     engine.store().insert_checkpoint(&CheckpointRecord {
@@ -184,11 +254,25 @@ fn finish_success(ctx: &RunCtx, task: &Task, outcome: &RunOutcome) -> Result<()>
         paths: made.paths.clone(),
         at: engine.now(),
     })?;
-    lock(&ctx.memory).checkpoints.insert(task.id.clone(), made.clone());
-    lock(&ctx.scheduler).on_checkpoint(&task.id, engine.now()).map_err(|e| EngineError::Invalid(e.to_string()))?;
-    engine.emit(Event::Checkpoint { task: task.id.clone(), commit: made.commit, paths: made.paths.clone() })?;
-    engine.emit(Event::FilesReleased { task: task.id.clone(), paths: made.paths })?;
-    engine.emit(Event::TaskStatus { task: task.id.clone(), status: TaskStatus::Checkpointed })?;
+    lock(&ctx.memory)
+        .checkpoints
+        .insert(task.id.clone(), made.clone());
+    lock(&ctx.scheduler)
+        .on_checkpoint(&task.id, engine.now())
+        .map_err(|e| EngineError::Invalid(e.to_string()))?;
+    engine.emit(Event::Checkpoint {
+        task: task.id.clone(),
+        commit: made.commit,
+        paths: made.paths.clone(),
+    })?;
+    engine.emit(Event::FilesReleased {
+        task: task.id.clone(),
+        paths: made.paths,
+    })?;
+    engine.emit(Event::TaskStatus {
+        task: task.id.clone(),
+        status: TaskStatus::Checkpointed,
+    })?;
     Ok(())
 }
 
@@ -197,7 +281,11 @@ pub(crate) fn fail_task(ctx: &RunCtx, task_id: &TaskId, reason: &str, output: &s
     let engine = &ctx.engine;
     undo_partial_writes(ctx, task_id);
     let summary = failure_summary(
-        &FailureInput { failing_tests: &[], error_blocks: &[reason.to_owned()], output },
+        &FailureInput {
+            failing_tests: &[],
+            error_blocks: &[reason.to_owned()],
+            output,
+        },
         &ctx.limits,
     );
     lock(&ctx.memory).failures.insert(task_id.clone(), summary);
@@ -214,7 +302,10 @@ pub(crate) fn fail_task(ctx: &RunCtx, task_id: &TaskId, reason: &str, output: &s
         return;
     }
     escalate(ctx, task_id);
-    engine.emit_quiet(Event::TaskStatus { task: task_id.clone(), status });
+    engine.emit_quiet(Event::TaskStatus {
+        task: task_id.clone(),
+        status,
+    });
     engine.emit_quiet(Event::Message {
         from: "sentinel".to_owned(),
         to: None,
@@ -237,28 +328,43 @@ pub(crate) fn record_end(ctx: &RunCtx, task_id: &TaskId, status: TaskStatus, rea
     if let Err(error) = ctx.engine.store().upsert_verification(&record) {
         eprintln!("sentinel: could not record the end of {task_id}: {error}");
     }
-    ctx.engine.emit_quiet(Event::TaskStatus { task: task_id.clone(), status });
-    ctx.engine.emit_quiet(Event::Verdict { task: task_id.clone(), status, reason: reason.to_owned() });
+    ctx.engine.emit_quiet(Event::TaskStatus {
+        task: task_id.clone(),
+        status,
+    });
+    ctx.engine.emit_quiet(Event::Verdict {
+        task: task_id.clone(),
+        status,
+        reason: reason.to_owned(),
+    });
 }
 
 /// A failed agent may leave half-written files inside its own scope. Put them back so the next
 /// attempt and the next wave start from a clean tree.
 fn undo_partial_writes(ctx: &RunCtx, task_id: &TaskId) {
-    let Ok(Some(task)) = ctx.engine.store().get_task(task_id) else { return };
-    let Ok(changed) = ctx.git.changed_paths() else { return };
+    let Ok(Some(task)) = ctx.engine.store().get_task(task_id) else {
+        return;
+    };
+    let Ok(changed) = ctx.git.changed_paths() else {
+        return;
+    };
     for path in changed.into_iter().filter(|p| task.scope.covers(p)) {
         let _ = restore_path(&ctx.git, &path, "HEAD");
     }
 }
 
 fn escalate(ctx: &RunCtx, task_id: &TaskId) {
-    let Ok(router) = ctx.engine.router() else { return };
+    let Ok(router) = ctx.engine.router() else {
+        return;
+    };
     let (tier, agent) = {
         let memory = lock(&ctx.memory);
         let tier = memory.tiers.get(task_id).copied();
         (tier, memory.agents.get(task_id).cloned())
     };
-    let Ok(Some(task)) = ctx.engine.store().get_task(task_id) else { return };
+    let Ok(Some(task)) = ctx.engine.store().get_task(task_id) else {
+        return;
+    };
     let current = tier.unwrap_or(task.tier);
     if let Some(agent) = agent {
         if let Some((next, _)) = router.escalate(current, &agent) {

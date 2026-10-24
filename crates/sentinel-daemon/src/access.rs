@@ -184,3 +184,83 @@ fn tailscale_connection(status: &TailscaleStatus) -> ConnectionStatus {
         detail,
     }
 }
+
+impl Engine {
+    /// The token of "This computer", created on first use. It is saved in `.sentinel/desktop.token`
+    /// (readable by this user only) so the CLI and `sentinel open` can reach the daemon. The
+    /// daemon stores only its hash.
+    pub fn ensure_desktop_token(&self) -> Result<String> {
+        let path = self.repo_root().join(".sentinel/desktop.token");
+        let known = self
+            .inner
+            .store
+            .list_devices()?
+            .into_iter()
+            .any(|d| d.kind == sentinel_core::DeviceKind::Desktop && d.revoked_at.is_none());
+        if known {
+            if let Ok(token) = std::fs::read_to_string(&path) {
+                return Ok(token.trim().to_owned());
+            }
+        }
+        let token = crate::hashing::new_token();
+        self.inner.store.insert_device(&sentinel_store::Device {
+            id: DeviceId::new(uuid::Uuid::new_v4().to_string()),
+            name: "This computer".to_owned(),
+            kind: sentinel_core::DeviceKind::Desktop,
+            token_hash: crate::hashing::hash_token(&token),
+            created_at: self.now(),
+            revoked_at: None,
+        })?;
+        write_private(&path, &token)?;
+        Ok(token)
+    }
+
+    /// Who owns this token, if it is a valid, unrevoked device token.
+    pub fn authenticate(&self, token: &str) -> Option<sentinel_store::Device> {
+        let hash = crate::hashing::hash_token(token);
+        self.inner.store.device_by_token_hash(&hash).ok().flatten()
+    }
+
+    /// Output lines of one task, for the Terminal panel.
+    pub fn task_output(
+        &self,
+        task: &sentinel_core::TaskId,
+        after: i64,
+        limit: usize,
+    ) -> Result<Vec<sentinel_core::EventRecord>> {
+        let mut found = Vec::new();
+        let mut cursor = after;
+        while found.len() < limit {
+            let page = self.inner.store.events_after(cursor, 2000)?;
+            let Some(last) = page.last() else { break };
+            cursor = last.id;
+            found.extend(
+                page.into_iter().filter(
+                    |r| matches!(&r.event, Event::AgentOutput { task: t, .. } if t == task),
+                ),
+            );
+        }
+        found.truncate(limit);
+        Ok(found)
+    }
+}
+
+#[cfg(unix)]
+fn write_private(path: &Path, text: &str) -> Result<()> {
+    use std::io::Write;
+    use std::os::unix::fs::OpenOptionsExt;
+    let mut file = std::fs::OpenOptions::new()
+        .create(true)
+        .write(true)
+        .truncate(true)
+        .mode(0o600)
+        .open(path)?;
+    file.write_all(text.as_bytes())?;
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn write_private(path: &Path, text: &str) -> Result<()> {
+    std::fs::write(path, text)?;
+    Ok(())
+}

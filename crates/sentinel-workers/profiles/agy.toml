@@ -1,0 +1,14 @@
+id = "agy"
+name = "Agy"
+binary = "agy"
+version_args = ["--version"]
+tier = "mid"
+prompt_via = "arg"
+args = ["-p", "{prompt}"]
+default_model = ""
+verified = false
+needs_template = true
+cost_prefix = ""
+[login]
+kind = "none"
+value = ""

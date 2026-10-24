@@ -1,0 +1,14 @@
+id = "gemini"
+name = "Gemini"
+binary = "gemini"
+version_args = ["--version"]
+tier = "mid"
+prompt_via = "arg"
+args = ["-p", "{prompt}"]
+default_model = ""
+verified = false
+needs_template = false
+cost_prefix = ""
+[login]
+kind = "dir"
+value = "~/.gemini"

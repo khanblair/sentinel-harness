@@ -1,0 +1,14 @@
+id = "opencode"
+name = "OpenCode"
+binary = "opencode"
+version_args = ["--version"]
+tier = "cheap"
+prompt_via = "arg"
+args = ["run", "--auto", "-m", "{model}", "{prompt}"]
+default_model = "opencode/glm-5.3-flash-free"
+verified = true
+needs_template = false
+cost_prefix = ""
+[login]
+kind = "none"
+value = ""

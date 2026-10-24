@@ -1,0 +1,14 @@
+id = "pi"
+name = "Pi"
+binary = "pi"
+version_args = ["--version"]
+tier = "cheap"
+prompt_via = "arg"
+args = ["-p", "--no-session", "--no-context-files", "{prompt}"]
+default_model = ""
+verified = true
+needs_template = false
+cost_prefix = ""
+[login]
+kind = "none"
+value = ""

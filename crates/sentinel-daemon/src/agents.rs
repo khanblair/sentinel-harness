@@ -9,7 +9,10 @@ use std::time::Duration;
 use futures::future::BoxFuture;
 use sentinel_core::{Capability, Event, Tier, ToolId, ToolInfo, ToolStatus};
 use sentinel_gate::policy::default_capabilities;
-use sentinel_plan::planner::{HeuristicPlanner, Plan, PlanRequest, PlannerBackend, parse_plan_json, planner_prompt, validate_plan};
+use sentinel_plan::planner::{
+    HeuristicPlanner, Plan, PlanRequest, PlannerBackend, parse_plan_json, planner_prompt,
+    validate_plan,
+};
 use sentinel_workers::adapter_cli::CliWorker;
 use sentinel_workers::detect::{DetectOptions, detect_all};
 use sentinel_workers::profile::{Profile, builtin_profiles};
@@ -45,12 +48,18 @@ impl Worker for FakeWorker {
                 env: vec![
                     ("SENTINEL_TASK_ID".to_owned(), spec.task.to_string()),
                     ("SENTINEL_AGENT".to_owned(), spec.agent.to_string()),
-                    ("FAKE_PLANS_DIR".to_owned(), self.plans_dir.to_string_lossy().into_owned()),
+                    (
+                        "FAKE_PLANS_DIR".to_owned(),
+                        self.plans_dir.to_string_lossy().into_owned(),
+                    ),
                 ],
                 stdin: None,
                 workdir: spec.workdir.clone(),
             };
-            let source = CostSource { tier: self.tier, reported_prefix: Some("Total cost: $".to_owned()) };
+            let source = CostSource {
+                tier: self.tier,
+                reported_prefix: Some("Total cost: $".to_owned()),
+            };
             run_command(command, &spec, ctrl, &source).await
         })
     }
@@ -80,7 +89,10 @@ impl Engine {
 
     async fn detect_real(&self) -> Result<Vec<ToolInfo>> {
         let profiles = builtin_profiles().map_err(|e| EngineError::Invalid(e.to_string()))?;
-        let options = DetectOptions { home: Some(self.home().to_path_buf()), ..DetectOptions::default() };
+        let options = DetectOptions {
+            home: Some(self.home().to_path_buf()),
+            ..DetectOptions::default()
+        };
         Ok(detect_all(&profiles, &options).await)
     }
 
@@ -90,7 +102,11 @@ impl Engine {
             self.toggle_tool(&tool.id, true)?;
         }
         let for_tier = |tier: Tier| {
-            ready.iter().find(|t| t.tier == tier).or_else(|| ready.first()).map(|t| t.id.clone())
+            ready
+                .iter()
+                .find(|t| t.tier == tier)
+                .or_else(|| ready.first())
+                .map(|t| t.id.clone())
         };
         self.set_routing(sentinel_core::Routing {
             cheap: for_tier(Tier::Cheap),
@@ -135,7 +151,10 @@ impl Engine {
         }
         let profile = profile_for(&tool.adapter)?;
         if tool.path.is_empty() {
-            return Err(EngineError::Invalid(format!("{} has no known location", tool.name)));
+            return Err(EngineError::Invalid(format!(
+                "{} has no known location",
+                tool.name
+            )));
         }
         Ok(Arc::new(CliWorker::new(profile, tool.path.clone().into())))
     }
@@ -172,7 +191,8 @@ pub(crate) async fn make_plan(ctx: &RunCtx, request: &PlanRequest) -> Result<Pla
     if let Some(fake) = &engine.inner.fake_agents {
         let text = std::fs::read_to_string(fake.plans_dir.join("plan.json"))
             .map_err(|e| EngineError::Invalid(format!("fake plan.json: {e}")))?;
-        let plan: Plan = serde_json::from_str(&text).map_err(|e| EngineError::Invalid(e.to_string()))?;
+        let plan: Plan =
+            serde_json::from_str(&text).map_err(|e| EngineError::Invalid(e.to_string()))?;
         return restrict_plan(plan, request);
     }
     if let Some(plan) = ask_agent_for_plan(ctx, request).await {
@@ -183,7 +203,10 @@ pub(crate) async fn make_plan(ctx: &RunCtx, request: &PlanRequest) -> Result<Pla
         to: None,
         text: "No agent gave a usable plan, so Sentinel used its offline planner. Scopes may be empty.".to_owned(),
     });
-    HeuristicPlanner.plan(request).await.map_err(|e| EngineError::Invalid(e.to_string()))
+    HeuristicPlanner
+        .plan(request)
+        .await
+        .map_err(|e| EngineError::Invalid(e.to_string()))
 }
 
 /// Keep only what is in the request: a run of one task must not name tasks that are not in it.
@@ -205,9 +228,22 @@ async fn ask_agent_for_plan(ctx: &RunCtx, request: &PlanRequest) -> Option<Plan>
     let mut tier = Tier::Cheap;
     for _ in 0..2 {
         let agent = router.pick(tier)?;
-        let tool = engine.store().list_tools().ok()?.into_iter().find(|t| t.id == agent)?;
+        let tool = engine
+            .store()
+            .list_tools()
+            .ok()?
+            .into_iter()
+            .find(|t| t.id == agent)?;
         let worker = engine.worker_for(&tool).ok()?;
-        let text = run_for_text(engine, ctx.stop.clone(), ctx.budget.clone(), worker.as_ref(), &tool, planner_prompt(request)).await;
+        let text = run_for_text(
+            engine,
+            ctx.stop.clone(),
+            ctx.budget.clone(),
+            worker.as_ref(),
+            &tool,
+            planner_prompt(request),
+        )
+        .await;
         if let Ok(plan) = parse_plan_json(&text, request) {
             return Some(plan);
         }
@@ -226,7 +262,11 @@ pub(crate) async fn run_for_text(
     prompt: String,
 ) -> String {
     let (lines, _receiver) = mpsc::unbounded_channel();
-    let control = RunControl { kill: stop, lines, budget };
+    let control = RunControl {
+        kill: stop,
+        lines,
+        budget,
+    };
     let spec = RunSpec {
         task: sentinel_core::TaskId::new("PLAN"),
         agent: tool.id.clone(),

@@ -1,0 +1,14 @@
+id = "claude"
+name = "Claude"
+binary = "claude"
+version_args = ["--version"]
+tier = "smart"
+prompt_via = "arg"
+args = ["-p", "{prompt}", "--permission-mode", "acceptEdits"]
+default_model = ""
+verified = false
+needs_template = false
+cost_prefix = ""
+[login]
+kind = "dir"
+value = "~/.claude"

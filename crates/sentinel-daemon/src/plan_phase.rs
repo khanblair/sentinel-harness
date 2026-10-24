@@ -8,9 +8,11 @@ use std::sync::Arc;
 use sentinel_core::api::RunRequest;
 use sentinel_core::{DecisionState, Event, Task, TaskId, TaskStatus};
 use sentinel_gate::policy::{next_mode_after_plan_approval, plan_gate};
-use sentinel_plan::contradiction::{ContradictionPair, Resolution, apply_answer, decision_for, find_contradictions};
-use sentinel_plan::planner::{build_tasks, PlanRequest};
-use sentinel_plan::{parse_backlog, BacklogItem};
+use sentinel_plan::backlog::{BacklogItem, parse_backlog};
+use sentinel_plan::contradiction::{
+    ContradictionPair, Resolution, apply_answer, decision_for, find_contradictions,
+};
+use sentinel_plan::planner::{PlanRequest, build_tasks};
 use sentinel_store::VerificationRecord;
 
 use crate::ask::{ask_approval, ask_decision};
@@ -26,9 +28,13 @@ pub(crate) struct PlanOutcome {
 
 pub(crate) async fn plan_phase(ctx: &Arc<RunCtx>, request: &RunRequest) -> Result<PlanOutcome> {
     let items = read_items(ctx, request)?;
-    let plan_request = PlanRequest { items, repo_files: repo_files(ctx) };
+    let plan_request = PlanRequest {
+        items,
+        repo_files: repo_files(ctx),
+    };
     let plan = crate::agents::make_plan(ctx, &plan_request).await?;
-    let (tasks, dependencies) = build_tasks(&plan_request, &plan).map_err(|e| EngineError::Invalid(e.to_string()))?;
+    let (tasks, dependencies) =
+        build_tasks(&plan_request, &plan).map_err(|e| EngineError::Invalid(e.to_string()))?;
     let pairs = find_contradictions(&plan);
     let store = ctx.engine.store();
     for task in &tasks {
@@ -46,7 +52,10 @@ pub(crate) async fn plan_phase(ctx: &Arc<RunCtx>, request: &RunRequest) -> Resul
     settle_contradictions(ctx, &pairs, &tasks).await?;
     mark_ready(ctx)?;
     let approved = approve_plan(ctx).await;
-    Ok(PlanOutcome { total: count(tasks.len()), approved })
+    Ok(PlanOutcome {
+        total: count(tasks.len()),
+        approved,
+    })
 }
 
 fn count(n: usize) -> u32 {
@@ -55,10 +64,17 @@ fn count(n: usize) -> u32 {
 
 fn read_items(ctx: &RunCtx, request: &RunRequest) -> Result<Vec<BacklogItem>> {
     let engine = &ctx.engine;
-    let name = request.backlog.clone().unwrap_or_else(|| ctx.config.backlog.clone());
+    let name = request
+        .backlog
+        .clone()
+        .unwrap_or_else(|| ctx.config.backlog.clone());
     let path = resolve(&engine.repo_path(), &name);
-    let text = fs::read_to_string(&path)
-        .map_err(|e| EngineError::Invalid(format!("Could not read the backlog {}: {e}", path.display())))?;
+    let text = fs::read_to_string(&path).map_err(|e| {
+        EngineError::Invalid(format!(
+            "Could not read the backlog {}: {e}",
+            path.display()
+        ))
+    })?;
     let mut items = parse_backlog(&text).map_err(|e| EngineError::Invalid(e.to_string()))?;
     if let Some(only) = &request.task {
         items.retain(|item| &item.id == only);
@@ -71,7 +87,11 @@ fn read_items(ctx: &RunCtx, request: &RunRequest) -> Result<Vec<BacklogItem>> {
 
 fn resolve(repo: &Path, name: &str) -> PathBuf {
     let path = Path::new(name);
-    if path.is_absolute() { path.to_path_buf() } else { repo.join(path) }
+    if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        repo.join(path)
+    }
 }
 
 /// Files of the repository, for the planner to choose scopes from.
@@ -86,14 +106,24 @@ fn repo_files(ctx: &RunCtx) -> Vec<String> {
 fn skip_claimed_done(ctx: &RunCtx, tasks: &[Task]) -> Result<u32> {
     let mut skipped = 0;
     for task in tasks.iter().filter(|t| t.flags.already_done) {
-        finish_without_work(ctx, &task.id, TaskStatus::Skipped, "The backlog says this is already done, so there was nothing to verify.")?;
+        finish_without_work(
+            ctx,
+            &task.id,
+            TaskStatus::Skipped,
+            "The backlog says this is already done, so there was nothing to verify.",
+        )?;
         skipped += 1;
     }
     Ok(skipped)
 }
 
 /// Move a task to an end status that no worker produced, and record why.
-pub(crate) fn finish_without_work(ctx: &RunCtx, task: &TaskId, status: TaskStatus, reason: &str) -> Result<()> {
+pub(crate) fn finish_without_work(
+    ctx: &RunCtx,
+    task: &TaskId,
+    status: TaskStatus,
+    reason: &str,
+) -> Result<()> {
     let store = ctx.engine.store();
     store.set_task_status(task, status)?;
     store.upsert_verification(&VerificationRecord {
@@ -106,25 +136,53 @@ pub(crate) fn finish_without_work(ctx: &RunCtx, task: &TaskId, status: TaskStatu
         reason: reason.to_owned(),
         receipt_json: "null".to_owned(),
     })?;
-    ctx.engine.emit(Event::TaskStatus { task: task.clone(), status })?;
-    ctx.engine.emit(Event::Verdict { task: task.clone(), status, reason: reason.to_owned() })?;
+    ctx.engine.emit(Event::TaskStatus {
+        task: task.clone(),
+        status,
+    })?;
+    ctx.engine.emit(Event::Verdict {
+        task: task.clone(),
+        status,
+        reason: reason.to_owned(),
+    })?;
     Ok(())
 }
 
-async fn settle_contradictions(ctx: &Arc<RunCtx>, pairs: &[ContradictionPair], tasks: &[Task]) -> Result<()> {
-    let title = |id: &TaskId| tasks.iter().find(|t| &t.id == id).map_or_else(String::new, |t| t.title.clone());
+async fn settle_contradictions(
+    ctx: &Arc<RunCtx>,
+    pairs: &[ContradictionPair],
+    tasks: &[Task],
+) -> Result<()> {
+    let title = |id: &TaskId| {
+        tasks
+            .iter()
+            .find(|t| &t.id == id)
+            .map_or_else(String::new, |t| t.title.clone())
+    };
     for pair in pairs {
         let decision = decision_for(pair, &title);
         let answer = ask_decision(ctx, &decision).await;
-        let answered = if answer.is_some() { DecisionState::Answered } else { DecisionState::Defaulted };
-        let resolved = sentinel_core::Decision { state: answered, answer: answer.clone(), ..decision.clone() };
+        let answered = if answer.is_some() {
+            DecisionState::Answered
+        } else {
+            DecisionState::Defaulted
+        };
+        let resolved = sentinel_core::Decision {
+            state: answered,
+            answer: answer.clone(),
+            ..decision.clone()
+        };
         match apply_answer(&resolved, answer.as_deref()) {
             Resolution::Keep { chosen, skipped } => {
                 let reason = format!("You chose {chosen} instead, so this task was skipped.");
                 finish_without_work(ctx, &skipped, TaskStatus::Skipped, &reason)?;
             }
             Resolution::SkipBoth { a, b } => {
-                let why = if answer.is_some() { "You skipped both tasks." } else { "Nobody answered, so both tasks were skipped." };
+                let why = if answer.is_some() {
+                    "You skipped both tasks."
+                } else {
+                    "Nobody answered, so both tasks were skipped."
+                };
                 let reason = format!("{a} and {b} contradict each other. {why}");
                 finish_without_work(ctx, &a, TaskStatus::Contradiction, &reason)?;
                 finish_without_work(ctx, &b, TaskStatus::Contradiction, &reason)?;
@@ -139,7 +197,10 @@ fn mark_ready(ctx: &RunCtx) -> Result<()> {
     for task in store.list_tasks()? {
         if task.status == TaskStatus::Planned {
             store.set_task_status(&task.id, TaskStatus::Ready)?;
-            ctx.engine.emit(Event::TaskStatus { task: task.id, status: TaskStatus::Ready })?;
+            ctx.engine.emit(Event::TaskStatus {
+                task: task.id,
+                status: TaskStatus::Ready,
+            })?;
         }
     }
     Ok(())
@@ -156,7 +217,8 @@ async fn approve_plan(ctx: &Arc<RunCtx>) -> bool {
     if allowed {
         let next = next_mode_after_plan_approval(mode);
         *lock(&ctx.mode) = next;
-        ctx.engine.emit_quiet(Event::PermissionChanged { mode: next });
+        ctx.engine
+            .emit_quiet(Event::PermissionChanged { mode: next });
         ctx.engine.emit_quiet(Event::Message {
             from: "sentinel".to_owned(),
             to: None,

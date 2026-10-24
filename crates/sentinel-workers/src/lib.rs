@@ -10,4 +10,8 @@ pub mod supervisor;
 pub mod worker;
 
 pub use budget::{Budget, BudgetError, BudgetEvent};
+pub use detect::{DetectOptions, detect_all};
+pub use profile::{
+    GENERIC_ID, LoginCheck, LoginKind, Profile, ProfileError, PromptVia, builtin_profiles,
+};
 pub use worker::{CommandLine, EndKind, OutputLine, RunControl, RunOutcome, RunSpec, Worker};

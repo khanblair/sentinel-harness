@@ -8,10 +8,12 @@ license.workspace = true
 
 [dependencies]
 sentinel-core = { path = "../sentinel-core" }
+sentinel-gate = { path = "../sentinel-gate" }
 sentinel-plan = { path = "../sentinel-plan" }
 sentinel-reserve = { path = "../sentinel-reserve" }
 sentinel-store = { path = "../sentinel-store" }
 sentinel-tree = { path = "../sentinel-tree" }
+sentinel-verify = { path = "../sentinel-verify" }
 sentinel-workers = { path = "../sentinel-workers" }
 futures = { workspace = true }
 hex = { workspace = true }

@@ -1,0 +1,14 @@
+id = "goose"
+name = "Goose"
+binary = "goose"
+version_args = ["--version"]
+tier = "cheap"
+prompt_via = "arg"
+args = ["run", "--no-session", "-t", "{prompt}"]
+default_model = ""
+verified = true
+needs_template = false
+cost_prefix = ""
+[login]
+kind = "none"
+value = ""

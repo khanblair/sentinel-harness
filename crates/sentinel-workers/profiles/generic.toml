@@ -1,0 +1,14 @@
+id = "generic"
+name = "Generic"
+binary = ""
+version_args = ["--version"]
+tier = "cheap"
+prompt_via = "arg"
+args = ["{prompt}"]
+default_model = ""
+verified = false
+needs_template = true
+cost_prefix = ""
+[login]
+kind = "none"
+value = ""

@@ -15,11 +15,19 @@ use crate::run_ctx::RunCtx;
 pub(crate) async fn ask_approval(ctx: &Arc<RunCtx>, approval: Approval) -> bool {
     let engine = &ctx.engine;
     let (sender, receiver) = oneshot::channel();
-    if engine.store().insert_approval(&approval, engine.now()).is_err() {
+    if engine
+        .store()
+        .insert_approval(&approval, engine.now())
+        .is_err()
+    {
         return false;
     }
-    lock(&engine.inner.live).approvals.insert(approval.id.clone(), sender);
-    engine.emit_quiet(Event::ApprovalRequested { approval: approval.clone() });
+    lock(&engine.inner.live)
+        .approvals
+        .insert(approval.id.clone(), sender);
+    engine.emit_quiet(Event::ApprovalRequested {
+        approval: approval.clone(),
+    });
     let timeout = Duration::from_secs(ctx.config.approval_timeout_seconds);
     let mut stop = ctx.stop.clone();
     let answer = tokio::select! {
@@ -31,7 +39,12 @@ pub(crate) async fn ask_approval(ctx: &Arc<RunCtx>, approval: Approval) -> bool 
         return allow;
     }
     lock(&engine.inner.live).approvals.remove(&approval.id);
-    let saved = engine.store().answer_approval(&approval.id, ApprovalState::Defaulted, "default", engine.now());
+    let saved = engine.store().answer_approval(
+        &approval.id,
+        ApprovalState::Defaulted,
+        "default",
+        engine.now(),
+    );
     if saved.is_ok() {
         engine.emit_quiet(Event::ApprovalResolved {
             approval: approval.id.clone(),
@@ -47,9 +60,16 @@ pub(crate) async fn ask_approval(ctx: &Arc<RunCtx>, approval: Approval) -> bool 
 pub(crate) async fn ask_decision(ctx: &Arc<RunCtx>, decision: &Decision) -> Option<String> {
     let engine = &ctx.engine;
     let (sender, receiver) = oneshot::channel();
-    engine.store().insert_decision(decision, engine.now()).ok()?;
-    lock(&engine.inner.live).decisions.insert(decision.id.clone(), sender);
-    engine.emit_quiet(Event::DecisionRequested { decision: decision.clone() });
+    engine
+        .store()
+        .insert_decision(decision, engine.now())
+        .ok()?;
+    lock(&engine.inner.live)
+        .decisions
+        .insert(decision.id.clone(), sender);
+    engine.emit_quiet(Event::DecisionRequested {
+        decision: decision.clone(),
+    });
     let timeout = Duration::from_secs(ctx.config.decision_timeout_seconds);
     let mut stop = ctx.stop.clone();
     let answer = tokio::select! {
@@ -60,7 +80,13 @@ pub(crate) async fn ask_decision(ctx: &Arc<RunCtx>, decision: &Decision) -> Opti
     if answer.is_none() {
         lock(&engine.inner.live).decisions.remove(&decision.id);
         // The decision may have been answered a moment ago: then the store refuses and that is fine.
-        let _ = engine.store().answer_decision(&decision.id, DecisionState::Defaulted, None, "default", engine.now());
+        let _ = engine.store().answer_decision(
+            &decision.id,
+            DecisionState::Defaulted,
+            None,
+            "default",
+            engine.now(),
+        );
     }
     answer
 }

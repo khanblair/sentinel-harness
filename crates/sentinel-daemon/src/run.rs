@@ -1,0 +1,409 @@
+//! Starting, steering, and finishing a run. The work itself lives in `plan_phase`, `wave`,
+//! `attempt`, and `verify_phase`.
+
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+
+use sentinel_core::api::RunRequest;
+use sentinel_core::{Event, HarnessState, RunId, RunInfo, TaskId, TaskStatus, ToolId};
+use sentinel_gate::ApprovalBook;
+use sentinel_reserve::Scheduler;
+use sentinel_tree::{Git, GuardOptions, start_guard};
+use sentinel_verify::verifier::DiffReviewer;
+use sentinel_workers::Budget;
+use sentinel_workers::budget::BudgetEvent;
+use sentinel_workers::context::ContextLimits;
+use tokio::sync::{mpsc, watch};
+
+use crate::attempt::record_end;
+use crate::engine::{Engine, EngineError, Result, lock};
+use crate::plan_phase::plan_phase;
+use crate::reviewer::{AgentReviewer, ScopeReviewer};
+use crate::run_ctx::{RunCtx, RunMemory, RunPolicy};
+use crate::wave::{WaveEnd, run_wave};
+
+/// A run longer than this many waves is a bug, not a big backlog.
+const MAX_WAVES: u32 = 200;
+const PUMP_INTERVAL: Duration = Duration::from_millis(500);
+
+impl Engine {
+    /// Start a run in the background. Returns as soon as it is started: the stream and the
+    /// snapshot show the rest.
+    pub async fn start_run(&self, request: RunRequest) -> Result<RunInfo> {
+        let state = self.harness_state();
+        if matches!(
+            state,
+            HarnessState::Running
+                | HarnessState::Paused
+                | HarnessState::Stopping
+                | HarnessState::Resuming
+        ) {
+            return Err(EngineError::Refused("A run is already live.".to_owned()));
+        }
+        if self.store().list_tools()?.is_empty() {
+            self.scan_tools().await?;
+        }
+        if !self
+            .store()
+            .list_tools()?
+            .iter()
+            .any(|t| t.enabled && t.status.is_ready())
+        {
+            return Err(EngineError::Refused(
+                "No agent is ready. Turn one on in Settings, Agents and tools.".to_owned(),
+            ));
+        }
+        let (ctx, stop_tx, guard_events) = self.prepare_run(&request)?;
+        let info = lock(&self.inner.live)
+            .run
+            .clone()
+            .ok_or_else(|| EngineError::Invalid("run not registered".to_owned()))?;
+        self.emit(Event::RunStarted {
+            run: info.id.clone(),
+            backlog: info.backlog.clone(),
+        })?;
+        self.set_state(HarnessState::Running);
+        let guard = start_guard(
+            ctx.git.clone(),
+            Arc::new(RunPolicy {
+                scheduler: ctx.scheduler.clone(),
+            }),
+            guard_events.0,
+            GuardOptions::default(),
+        )
+        .map_err(|e| EngineError::Invalid(e.to_string()))?;
+        tokio::spawn(forward_guard_events(self.clone(), guard_events.1));
+        tokio::spawn(budget_pump(
+            self.clone(),
+            ctx.budget.clone(),
+            ctx.stop.clone(),
+        ));
+        tokio::spawn(run_main(ctx, request, guard, stop_tx));
+        Ok(info)
+    }
+
+    #[allow(
+        clippy::type_complexity,
+        reason = "one private helper; a named type would only be used here"
+    )]
+    fn prepare_run(
+        &self,
+        request: &RunRequest,
+    ) -> Result<(
+        Arc<RunCtx>,
+        watch::Sender<bool>,
+        (mpsc::UnboundedSender<Event>, mpsc::UnboundedReceiver<Event>),
+    )> {
+        let config = self.config();
+        let repo = self.repo_path();
+        let git = Git::new(&repo, repo.join(".sentinel/index"))
+            .map_err(|e| EngineError::Invalid(e.to_string()))?;
+        git.reset_private_index()
+            .map_err(|e| EngineError::Invalid(e.to_string()))?;
+        if !git
+            .is_clean()
+            .map_err(|e| EngineError::Invalid(e.to_string()))?
+        {
+            return Err(EngineError::Refused(
+                "The working tree has uncommitted changes. Commit or stash them, then start the run.".to_owned(),
+            ));
+        }
+        self.store().reset_for_new_run()?;
+        let (budget, _kill) = Budget::new(config.cap()?);
+        let retry_limit = self.router()?.retry_limit();
+        let scheduler = Scheduler::new(self.store().clone())
+            .map_err(|e| EngineError::Invalid(e.to_string()))?
+            .with_retry_limit(retry_limit);
+        let (pause_tx, pause_rx) = watch::channel(false);
+        let (stop_tx, stop_rx) = watch::channel(false);
+        let memory = Arc::new(Mutex::new(RunMemory::default()));
+        let reviewer: Arc<dyn DiffReviewer> = if self.is_fake() {
+            Arc::new(ScopeReviewer {
+                store: self.store().clone(),
+            })
+        } else {
+            Arc::new(AgentReviewer {
+                engine: self.clone(),
+                memory: memory.clone(),
+                stop: stop_rx.clone(),
+                budget: budget.clone(),
+            })
+        };
+        let info = RunInfo {
+            id: RunId::generate(),
+            backlog: request
+                .backlog
+                .clone()
+                .unwrap_or_else(|| config.backlog.clone()),
+            wave: 0,
+            started_at: self.now(),
+        };
+        let ctx = Arc::new(RunCtx {
+            engine: self.clone(),
+            run_id: info.id.clone(),
+            git,
+            scheduler: Arc::new(Mutex::new(scheduler)),
+            budget: budget.clone(),
+            stop: stop_rx,
+            pause: pause_rx,
+            limits: ContextLimits::default(),
+            mode: Mutex::new(config.permission_mode),
+            config,
+            book: Mutex::new(ApprovalBook::new()),
+            memory,
+            reviewer,
+            suite_dir: repo.join(".sentinel/logs"),
+        });
+        let mut live = lock(&self.inner.live);
+        live.run = Some(info);
+        live.budget = Some(budget);
+        live.pause = Some(pause_tx);
+        live.stop = Some(stop_tx.clone());
+        Ok((ctx, stop_tx, mpsc::unbounded_channel()))
+    }
+
+    pub fn pause_run(&self) -> Result<()> {
+        self.signal(|live| live.pause.as_ref(), true)?;
+        self.set_state(HarnessState::Paused);
+        Ok(())
+    }
+
+    pub fn resume_run(&self) -> Result<()> {
+        self.signal(|live| live.pause.as_ref(), false)?;
+        self.set_state(HarnessState::Running);
+        Ok(())
+    }
+
+    /// Stop the run: every worker is killed, checkpoints stay.
+    pub fn stop_run(&self) -> Result<()> {
+        self.signal(|live| live.stop.as_ref(), true)?;
+        self.set_state(HarnessState::Stopping);
+        Ok(())
+    }
+
+    fn signal(
+        &self,
+        pick: impl Fn(&crate::live::LiveRun) -> Option<&watch::Sender<bool>>,
+        value: bool,
+    ) -> Result<()> {
+        let live = lock(&self.inner.live);
+        let sender =
+            pick(&live).ok_or_else(|| EngineError::Refused("No run is live.".to_owned()))?;
+        sender.send_replace(value);
+        Ok(())
+    }
+
+    /// Kill the agent that is working on a task. The task goes back for another try, one tier up.
+    pub fn kill_task(&self, task: &TaskId) -> Result<()> {
+        let live = lock(&self.inner.live);
+        let sender = live
+            .task_kills
+            .get(task)
+            .ok_or_else(|| EngineError::NotFound(format!("a running agent for {task}")))?;
+        sender.send_replace(true);
+        Ok(())
+    }
+
+    pub fn kill_agent(&self, agent: &ToolId) -> Result<()> {
+        let task = lock(&self.inner.live)
+            .agent_task
+            .get(agent)
+            .cloned()
+            .ok_or_else(|| EngineError::NotFound(format!("a running task for {agent}")))?;
+        self.kill_task(&task)
+    }
+}
+
+/// Events from the write guard thread become stream events.
+async fn forward_guard_events(engine: Engine, mut events: mpsc::UnboundedReceiver<Event>) {
+    while let Some(event) = events.recv().await {
+        engine.emit_quiet(event);
+    }
+}
+
+/// The supervisor records spend without knowing about the stream. This turns budget events and
+/// cost changes into events every half second.
+async fn budget_pump(engine: Engine, budget: Arc<Budget>, mut stop: watch::Receiver<bool>) {
+    let mut last = None;
+    while !*stop.borrow() {
+        for event in budget.drain_events() {
+            engine.emit_quiet(budget_event(event));
+        }
+        let spent = budget.spent();
+        if last != Some(spent) {
+            engine.emit_quiet(Event::CostUpdate {
+                total: spent,
+                cap: budget.cap(),
+            });
+            last = Some(spent);
+        }
+        tokio::select! {
+            () = tokio::time::sleep(PUMP_INTERVAL) => {}
+            _ = stop.changed() => {}
+        }
+    }
+    for event in budget.drain_events() {
+        engine.emit_quiet(budget_event(event));
+    }
+}
+
+fn budget_event(event: BudgetEvent) -> Event {
+    match event {
+        BudgetEvent::Threshold70 => Event::BudgetThreshold { percent: 70 },
+        BudgetEvent::Threshold95 => Event::BudgetThreshold { percent: 95 },
+        BudgetEvent::CeilingHit {
+            task,
+            cost,
+            ceiling,
+        } => Event::TaskCeilingHit {
+            task,
+            cost,
+            ceiling,
+        },
+    }
+}
+
+async fn run_main(
+    ctx: Arc<RunCtx>,
+    request: RunRequest,
+    guard: sentinel_tree::GuardHandle,
+    stop_tx: watch::Sender<bool>,
+) {
+    let result = drive(&ctx, &request).await;
+    if let Err(error) = &result {
+        ctx.engine.emit_quiet(Event::Message {
+            from: "sentinel".to_owned(),
+            to: None,
+            text: format!("The run ended because of an error: {error}"),
+        });
+    }
+    finish(&ctx).await;
+    drop(guard);
+    // Ends the helper tasks that watch the stop signal.
+    stop_tx.send_replace(true);
+}
+
+async fn drive(ctx: &Arc<RunCtx>, request: &RunRequest) -> Result<()> {
+    let plan = plan_phase(ctx, request).await?;
+    if !plan.approved {
+        ctx.engine.emit_quiet(Event::Message {
+            from: "sentinel".to_owned(),
+            to: None,
+            text: "The plan was not approved, so nothing ran.".to_owned(),
+        });
+        return Ok(());
+    }
+    for number in 1..=MAX_WAVES {
+        match run_wave(ctx, number).await? {
+            WaveEnd::Ran(_) => {}
+            WaveEnd::Empty | WaveEnd::Stop => break,
+        }
+    }
+    Ok(())
+}
+
+/// Close every task that has not reached an end, write the report, and mark the run done.
+async fn finish(ctx: &Arc<RunCtx>) {
+    let engine = &ctx.engine;
+    if let Err(error) = close_out(ctx) {
+        eprintln!("sentinel: could not close out the run: {error}");
+    }
+    let _ = lock(&ctx.scheduler).recover_after_crash(engine.now());
+    if let Err(error) = engine.write_report_file().await {
+        engine.emit_quiet(Event::Message {
+            from: "sentinel".to_owned(),
+            to: None,
+            text: format!("The report could not be written: {error}"),
+        });
+    }
+    let (verified, total) = count_verified(engine);
+    engine.emit_quiet(Event::RunFinished { verified, total });
+    {
+        let mut live = lock(&engine.inner.live);
+        live.budget = None;
+        live.run = None;
+        live.pause = None;
+        live.stop = None;
+        live.task_kills.clear();
+        live.agent_task.clear();
+    }
+    engine.set_state(HarnessState::Done);
+    engine.refresh_repo();
+}
+
+fn count_verified(engine: &Engine) -> (u32, u32) {
+    let tasks = engine.store().list_tasks().unwrap_or_default();
+    let verified = tasks
+        .iter()
+        .filter(|t| t.status == TaskStatus::Verified)
+        .count();
+    (
+        u32::try_from(verified).unwrap_or(0),
+        u32::try_from(tasks.len()).unwrap_or(0),
+    )
+}
+
+fn close_out(ctx: &RunCtx) -> Result<()> {
+    let store = ctx.engine.store();
+    let why = if ctx.stopped() {
+        "The run was stopped"
+    } else {
+        "The run ended"
+    };
+    for task in store.list_tasks()? {
+        let id = &task.id;
+        match task.status {
+            TaskStatus::Planned | TaskStatus::Ready | TaskStatus::Waiting => {
+                store.set_task_status(id, TaskStatus::Skipped)?;
+                record_end(
+                    ctx,
+                    id,
+                    TaskStatus::Skipped,
+                    &format!("{why} before this task started."),
+                );
+            }
+            TaskStatus::Reserved | TaskStatus::Running => {
+                store.set_task_status(id, TaskStatus::Failed)?;
+                store.set_task_status(id, TaskStatus::Blocked)?;
+                record_end(
+                    ctx,
+                    id,
+                    TaskStatus::Blocked,
+                    &format!("{why} while this task was running."),
+                );
+            }
+            TaskStatus::Failed => {
+                store.set_task_status(id, TaskStatus::Blocked)?;
+                record_end(
+                    ctx,
+                    id,
+                    TaskStatus::Blocked,
+                    &format!("{why} while this task was failing."),
+                );
+            }
+            TaskStatus::Checkpointed | TaskStatus::Verifying => {
+                store.set_task_status(id, TaskStatus::Verifying)?;
+                store.set_task_status(id, TaskStatus::Partial)?;
+                record_end(
+                    ctx,
+                    id,
+                    TaskStatus::Partial,
+                    &format!("{why} before this task was verified. Its commit is kept."),
+                );
+            }
+            TaskStatus::Verified
+            | TaskStatus::Blocked
+            | TaskStatus::Contradiction
+            | TaskStatus::Skipped
+            | TaskStatus::Partial => {}
+        }
+    }
+    Ok(())
+}
+
+/// The `.sentinel` folder of a repository.
+#[allow(dead_code, reason = "used by the CLI in P5-01")]
+pub fn sentinel_dir(repo: &std::path::Path) -> PathBuf {
+    repo.join(".sentinel")
+}

@@ -1,0 +1,14 @@
+id = "codex"
+name = "Codex"
+binary = "codex"
+version_args = ["--version"]
+tier = "mid"
+prompt_via = "arg"
+args = ["exec", "--full-auto", "{prompt}"]
+default_model = ""
+verified = false
+needs_template = false
+cost_prefix = ""
+[login]
+kind = "dir"
+value = "~/.codex"

@@ -38,7 +38,11 @@ pub fn task_prompt(task: &Task, retry: Option<&Retry<'_>>, limits: &ContextLimit
     let files = if scope.is_empty() {
         "(none: this task is read only)".to_owned()
     } else {
-        scope.iter().map(|p| format!("- {p}")).collect::<Vec<_>>().join("\n")
+        scope
+            .iter()
+            .map(|p| format!("- {p}"))
+            .collect::<Vec<_>>()
+            .join("\n")
     };
     format!(
         "You are one of several coding agents working in the same folder. Do this one task.\n\n\
@@ -56,7 +60,11 @@ mod tests {
     use super::*;
 
     fn task() -> Task {
-        let mut task = Task::new(TaskId::new("T-02"), "Reject negative amounts", "Post fails for < 0.");
+        let mut task = Task::new(
+            TaskId::new("T-02"),
+            "Reject negative amounts",
+            "Post fails for < 0.",
+        );
         task.scope = Scope::from_paths(["src/ledger.rs", "tests/negative.rs"]).unwrap();
         task
     }
@@ -64,7 +72,12 @@ mod tests {
     #[test]
     fn first_prompt_names_the_task_the_files_and_the_rules() {
         let text = task_prompt(&task(), None, &ContextLimits::default());
-        for needle in ["Task T-02: Reject negative amounts", "- src/ledger.rs", "- tests/negative.rs", "Never edit an existing test"] {
+        for needle in [
+            "Task T-02: Reject negative amounts",
+            "- src/ledger.rs",
+            "- tests/negative.rs",
+            "Never edit an existing test",
+        ] {
             assert!(text.contains(needle), "{needle} missing in {text}");
         }
     }
@@ -78,7 +91,12 @@ mod tests {
 
     #[test]
     fn a_retry_carries_the_failure_summary_and_the_rules() {
-        let retry = Retry { failure: "Failing tests:\nnegative_amount_is_refused", diff_stat: "1 file", notes: &[], lessons: &[] };
+        let retry = Retry {
+            failure: "Failing tests:\nnegative_amount_is_refused",
+            diff_stat: "1 file",
+            notes: &[],
+            lessons: &[],
+        };
         let text = task_prompt(&task(), Some(&retry), &ContextLimits::default());
         assert!(text.contains("negative_amount_is_refused"));
         assert!(text.contains("retry"));

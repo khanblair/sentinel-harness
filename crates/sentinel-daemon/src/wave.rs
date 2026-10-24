@@ -44,7 +44,11 @@ pub(crate) async fn run_wave(ctx: &Arc<RunCtx>, number: u32) -> Result<WaveEnd> 
     }
     skip_unrunnable(ctx)?;
     let wave = lock(&ctx.scheduler)
-        .next_wave(number, usize::try_from(ctx.config.max_parallel).unwrap_or(1).max(1), ctx.engine.now())
+        .next_wave(
+            number,
+            usize::try_from(ctx.config.max_parallel).unwrap_or(1).max(1),
+            ctx.engine.now(),
+        )
         .map_err(|e| EngineError::Invalid(e.to_string()))?;
     if wave.tasks.is_empty() {
         return Ok(WaveEnd::Empty);
@@ -60,10 +64,19 @@ pub(crate) async fn run_wave(ctx: &Arc<RunCtx>, number: u32) -> Result<WaveEnd> 
 
 /// Tasks that wait on a task that ended badly can never run: say so and skip them.
 fn skip_unrunnable(ctx: &RunCtx) -> Result<()> {
-    let ids = lock(&ctx.scheduler).unrunnable_tasks().map_err(|e| EngineError::Invalid(e.to_string()))?;
+    let ids = lock(&ctx.scheduler)
+        .unrunnable_tasks()
+        .map_err(|e| EngineError::Invalid(e.to_string()))?;
     for id in ids {
-        ctx.engine.store().set_task_status(&id, TaskStatus::Skipped)?;
-        record_end(ctx, &id, TaskStatus::Skipped, "A task this one depends on did not finish, so it never started.");
+        ctx.engine
+            .store()
+            .set_task_status(&id, TaskStatus::Skipped)?;
+        record_end(
+            ctx,
+            &id,
+            TaskStatus::Skipped,
+            "A task this one depends on did not finish, so it never started.",
+        );
     }
     Ok(())
 }
@@ -77,7 +90,10 @@ async fn gate_wave(ctx: &Arc<RunCtx>, number: u32) -> bool {
 }
 
 async fn run_tasks(ctx: &Arc<RunCtx>, number: u32, tasks: &[TaskId]) -> Result<()> {
-    ctx.engine.emit(Event::WaveStarted { wave: number, tasks: tasks.to_vec() })?;
+    ctx.engine.emit(Event::WaveStarted {
+        wave: number,
+        tasks: tasks.to_vec(),
+    })?;
     if let Some(run) = lock(&ctx.engine.inner.live).run.as_mut() {
         run.wave = number;
     }
@@ -105,7 +121,10 @@ async fn barrier_and_verify(ctx: &Arc<RunCtx>, number: u32, tasks: &[TaskId]) ->
         return Ok(());
     }
     restore_strays(ctx);
-    let clean = ctx.git.is_clean().map_err(|e| EngineError::Invalid(e.to_string()))?;
+    let clean = ctx
+        .git
+        .is_clean()
+        .map_err(|e| EngineError::Invalid(e.to_string()))?;
     let engine = &ctx.engine;
     match barrier.decide(clean) {
         BarrierDecision::RunSuite => {}
@@ -113,7 +132,8 @@ async fn barrier_and_verify(ctx: &Arc<RunCtx>, number: u32, tasks: &[TaskId]) ->
             engine.emit(Event::Message {
                 from: "sentinel".to_owned(),
                 to: None,
-                text: "The barrier did not run: the tree is not clean. Look at the Changes panel.".to_owned(),
+                text: "The barrier did not run: the tree is not clean. Look at the Changes panel."
+                    .to_owned(),
             })?;
             return fail_wave(ctx, &checkpointed, "The tree was not clean at the barrier.");
         }
@@ -122,15 +142,28 @@ async fn barrier_and_verify(ctx: &Arc<RunCtx>, number: u32, tasks: &[TaskId]) ->
     let barrier_id = engine.store().start_barrier(number, engine.now())?;
     let suite = run_the_suite(ctx, number).await?;
     barrier.suite_finished(suite.passed);
-    engine.store().finish_barrier(barrier_id, engine.now(), suite.passed, &suite.log_ref.to_string_lossy())?;
-    engine.emit(Event::BarrierEnd { wave: number, passed: suite.passed })?;
+    engine.store().finish_barrier(
+        barrier_id,
+        engine.now(),
+        suite.passed,
+        &suite.log_ref.to_string_lossy(),
+    )?;
+    engine.emit(Event::BarrierEnd {
+        wave: number,
+        passed: suite.passed,
+    })?;
     verify_wave(ctx, &suite, &checkpointed).await
 }
 
 fn checkpointed(ctx: &RunCtx, tasks: &[TaskId]) -> Result<Vec<TaskId>> {
     let mut found = Vec::new();
     for id in tasks {
-        if ctx.engine.store().get_task(id)?.is_some_and(|t| t.status == TaskStatus::Checkpointed) {
+        if ctx
+            .engine
+            .store()
+            .get_task(id)?
+            .is_some_and(|t| t.status == TaskStatus::Checkpointed)
+        {
             found.push(id.clone());
         }
     }
@@ -139,10 +172,16 @@ fn checkpointed(ctx: &RunCtx, tasks: &[TaskId]) -> Result<Vec<TaskId>> {
 
 /// Files nobody holds any more but the tree still differs: put them back, and say so.
 fn restore_strays(ctx: &RunCtx) {
-    let Ok(changed) = ctx.git.changed_paths() else { return };
+    let Ok(changed) = ctx.git.changed_paths() else {
+        return;
+    };
     for path in changed {
         if restore_path(&ctx.git, &path, "HEAD").is_ok() {
-            ctx.engine.emit_quiet(Event::WriteBlocked { task: None, path, restored: true });
+            ctx.engine.emit_quiet(Event::WriteBlocked {
+                task: None,
+                path,
+                restored: true,
+            });
         }
     }
 }

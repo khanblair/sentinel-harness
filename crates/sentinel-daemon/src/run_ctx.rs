@@ -103,14 +103,19 @@ pub(crate) fn merge_kill(sources: Vec<watch::Receiver<bool>>) -> watch::Receiver
             if sources.is_empty() {
                 return;
             }
-            let waits = sources.iter_mut().map(|s| Box::pin(s.changed()));
-            tokio::select! {
-                (changed, index, _rest) = futures::future::select_all(waits) => {
-                    if changed.is_err() {
-                        sources.swap_remove(index);
-                    }
+            let outcome = {
+                let waits = sources.iter_mut().map(|s| Box::pin(s.changed()));
+                tokio::select! {
+                    (changed, index, _) = futures::future::select_all(waits) => Some((changed.is_err(), index)),
+                    () = sender.closed() => None,
                 }
-                () = sender.closed() => return,
+            };
+            match outcome {
+                None => return,
+                Some((true, index)) => {
+                    sources.swap_remove(index);
+                }
+                Some((false, _)) => {}
             }
         }
     });
