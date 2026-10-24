@@ -194,7 +194,10 @@ fn CapField() -> impl IntoView {
                     aria-label="Budget cap"
                     prop:value=move || wizard.cap_text.get()
                     readonly=move || wizard.cap_locked.get()
-                    on:input=move |ev| wizard.cap_text.set(event_target_value(&ev))
+                    on:input=move |ev| {
+                        wizard.touched.set(true);
+                        wizard.cap_text.set(event_target_value(&ev));
+                    }
                 />
             </span>
         </div>

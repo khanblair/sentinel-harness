@@ -69,6 +69,9 @@ pub struct Wizard {
     pub cap_text: RwSignal<String>,
     /// Set when the daemon refuses a cap change before the first run.
     pub cap_locked: RwSignal<bool>,
+    /// Set once the user acts. Until then the page follows the daemon's step and cap, because
+    /// the first snapshot can arrive after the wizard opens.
+    pub touched: RwSignal<bool>,
 }
 
 pub fn use_wizard() -> Wizard {
@@ -90,6 +93,7 @@ impl Wizard {
             dry_run_done: RwSignal::new(false),
             cap_text: RwSignal::new(dollars_text(cap)),
             cap_locked: RwSignal::new(false),
+            touched: RwSignal::new(false),
         }
     }
 
@@ -123,6 +127,7 @@ impl Wizard {
     }
 
     pub fn back(self) {
+        self.touched.set(true);
         let current = self.step.get_untracked();
         self.go(WizardStep::from_number(current.number().saturating_sub(1)));
     }
@@ -136,6 +141,7 @@ impl Wizard {
     /// Continue. Each step saves its choice first where it has one, and the last step
     /// finishes setup.
     pub fn next(self) {
+        self.touched.set(true);
         match self.step.get_untracked() {
             WizardStep::Repository => {
                 if let Some(path) = self.repo_path() {
@@ -168,6 +174,7 @@ impl Wizard {
     /// Skip for now. The install check only moves on. The other skippable steps tell the
     /// daemon, and skipping the last step finishes setup.
     pub fn skip(self) {
+        self.touched.set(true);
         let step = self.step.get_untracked();
         if step == WizardStep::Install {
             self.go(WizardStep::Repository);
@@ -185,6 +192,7 @@ impl Wizard {
 
     /// Ends setup. The host closes the wizard once the snapshot says it is complete.
     pub fn finish(self) {
+        self.touched.set(true);
         let ui = self.ui;
         spawn_local(async move {
             if post_or_toast(ui, COMPLETE_PATH).await {
@@ -257,6 +265,17 @@ pub fn SetupWizard() -> impl IntoView {
     let ui = use_ui();
     let wizard = Wizard::new(ui);
     provide_context(wizard);
+    // The first snapshot may still be the empty one, so follow the daemon until the user acts.
+    Effect::new(move |_| {
+        if wizard.touched.get() {
+            return;
+        }
+        let (step, cap) = ui
+            .snapshot
+            .with(|s| (s.onboarding.step, s.cost.cap.micro_usd()));
+        wizard.step.set(WizardStep::from_number(step));
+        wizard.cap_text.set(dollars_text(cap));
+    });
     view! {
         <div class="wiz-hd">
             <span class="lg">
