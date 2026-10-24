@@ -1,10 +1,14 @@
-//! Empty slots in Settings, Integrations. The Telegram card and the always-on host card are built
-//! by their own work items. Until then these render nothing, so the page keeps its layout.
+//! Empty slots in Settings, Integrations. The always-on host card is built by its own work item,
+//! so its slot still renders nothing and the page keeps its layout.
 
 use leptos::prelude::*;
 
+use crate::components::telegram_card::TelegramCard;
+
 #[component]
-pub fn TelegramSettingsSlot() -> impl IntoView {}
+pub fn TelegramSettingsSlot() -> impl IntoView {
+    view! { <TelegramCard /> }
+}
 
 #[component]
 pub fn HostCardSlot() -> impl IntoView {}

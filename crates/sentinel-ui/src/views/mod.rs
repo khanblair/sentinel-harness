@@ -26,8 +26,9 @@ pub mod settings;
 pub mod settings_pages;
 pub mod stream;
 pub mod stream_model;
+pub mod telegram_panel;
 pub mod telegram {
-    pub use super::panel_stubs::TelegramPanel;
+    pub use super::telegram_panel::TelegramPanel;
 }
 pub mod brain;
 pub mod brain_graph;

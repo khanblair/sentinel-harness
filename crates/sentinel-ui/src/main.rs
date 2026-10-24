@@ -16,6 +16,7 @@ mod palette;
 mod prefs;
 mod slash;
 mod state;
+mod telegram;
 mod theme;
 mod tour;
 mod tour_state;
