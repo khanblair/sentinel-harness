@@ -176,6 +176,14 @@ pub fn settings_of(state: &TelegramState) -> SettingsUpdate {
     }
 }
 
+/// Copies a changed update into the state, so the change shows before the daemon answers.
+pub fn apply_settings(state: &mut TelegramState, update: &SettingsUpdate) {
+    state.levels.clone_from(&update.levels);
+    state.events.clone_from(&update.events);
+    state.detail.clone_from(&update.detail);
+    state.quiet_hours = update.quiet_hours;
+}
+
 /// One line per Telegram event, oldest first, with the time in UTC. Other events give no line.
 pub fn activity_lines(events: &[EventRecord]) -> Vec<String> {
     events.iter().filter_map(activity_line).collect()

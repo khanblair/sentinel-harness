@@ -5,6 +5,7 @@
 use leptos::prelude::*;
 use sentinel_core::telegram_api::{SettingsUpdate, TelegramState};
 
+use crate::components::icon::Icon;
 use crate::components::telegram_card::TelegramCtx;
 use crate::telegram::{
     self, Choice, DEFAULT_QUIET, DETAILS, EVENTS, LEVELS, QuietEdge, minutes_to_time,
@@ -13,6 +14,16 @@ use crate::telegram::{
 
 const DETAIL_HINT: &str = "Telegram can read bot messages. Detail adds short diffs and agent snippets of at most 6 lines. File contents, keys, and Brain note text are never sent, and key-like text is hidden.";
 const QUIET_HINT: &str = "Holds everything except approvals and budget alerts.";
+
+/// Shown on a phone, where the settings can be read but not changed.
+#[component]
+pub fn LockedNote(ctx: TelegramCtx) -> impl IntoView {
+    view! {
+        <Show when=move || ctx.locked() fallback=|| ()>
+            <div class="note"><Icon name="info" size=14 /><span>"Needs the computer"</span></div>
+        </Show>
+    }
+}
 
 #[component]
 pub fn LevelToggles(ctx: TelegramCtx) -> impl IntoView {

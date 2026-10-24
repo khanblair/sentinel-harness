@@ -6,14 +6,17 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use sentinel_core::telegram_api::{SettingsUpdate, TelegramState};
 
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-
 use gloo_timers::future::TimeoutFuture;
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
 
 use crate::api::ApiFailure;
 use crate::components::icon::Icon;
-use crate::components::telegram_levels::{DetailRow, EventToggles, LevelToggles, QuietHours};
+use crate::components::telegram_levels::{
+    DetailRow, EventToggles, LevelToggles, LockedNote, QuietHours,
+};
 use crate::layout::{Layout, PanelId};
 use crate::state::{Modal, ToastKind, Ui, use_ui};
 use crate::telegram::{self, chip_label, valid_user_id};
@@ -61,6 +64,7 @@ fn CardHeader(ctx: TelegramCtx) -> impl IntoView {
         <div class="row sp wrap">
             <b class="row"><Icon name="send" size=16 /> "Telegram"</b>
             <span class="chip">{chip}</span>
+            <LockedNote ctx />
         </div>
     }
 }
@@ -322,8 +326,7 @@ impl TelegramCtx {
             .with_untracked(|state| state.as_ref().is_some_and(|s| s.waiting_for_start))
     }
 
-    /// Stores a fresh state. A failure shows its message, then the state is fetched again so the
-    /// page shows what the daemon really has.
+    /// Stores a fresh state. A failure shows its message, then the state is fetched again.
     pub fn apply(self, result: Result<TelegramState, ApiFailure>) {
         match result {
             Ok(state) => self.state.set(Some(state)),
@@ -354,10 +357,7 @@ impl TelegramCtx {
         change(&mut next);
         self.state.update(|state| {
             if let Some(state) = state {
-                state.levels.clone_from(&next.levels);
-                state.events.clone_from(&next.events);
-                state.detail.clone_from(&next.detail);
-                state.quiet_hours = next.quiet_hours;
+                telegram::apply_settings(state, &next);
             }
         });
         spawn_local(async move { self.apply(telegram::save_settings(&next).await) });
