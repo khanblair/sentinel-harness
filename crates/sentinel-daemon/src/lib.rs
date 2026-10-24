@@ -17,6 +17,7 @@ pub mod doctor;
 pub mod engine;
 pub mod folders;
 pub mod hashing;
+pub mod host;
 pub mod live;
 pub mod onboarding;
 pub mod pairing;

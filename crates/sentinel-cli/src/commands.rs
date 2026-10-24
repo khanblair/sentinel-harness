@@ -21,7 +21,7 @@ pub(crate) fn repo_or_current(repo: Option<PathBuf>) -> Result<PathBuf> {
         .with_context(|| format!("{} is not a folder", path.display()))
 }
 
-fn home() -> PathBuf {
+pub(crate) fn home_dir() -> PathBuf {
     std::env::var_os("HOME")
         .or_else(|| std::env::var_os("USERPROFILE"))
         .map_or_else(|| PathBuf::from("."), PathBuf::from)
@@ -61,7 +61,7 @@ pub(crate) fn open_engine(repo: &Path, fake: bool) -> Result<Engine> {
     };
     Engine::open(EngineOptions {
         repo_root: repo.to_path_buf(),
-        home: home(),
+        home: home_dir(),
         runner: Arc::new(SystemRunner),
         secrets: Arc::new(EnvFallback::new(KeychainStore)),
         fake_agents,

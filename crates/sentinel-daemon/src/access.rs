@@ -121,6 +121,10 @@ impl Engine {
 
     /// The computer's own folder dialog. Blocks, so the caller runs it off the async threads.
     pub fn pick_folder_blocking(&self) -> Option<PathBuf> {
+        if self.is_headless() {
+            // A host without a screen has no dialog. The folder browser does the job.
+            return None;
+        }
         folders::pick_native(Some(&self.inner.home))
     }
 

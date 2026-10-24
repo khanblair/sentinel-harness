@@ -22,6 +22,7 @@ pub(crate) struct DaemonArgs {
     pub port: u16,
     pub dev_bind: bool,
     pub fake_agents: bool,
+    pub headless: bool,
 }
 
 pub(crate) async fn daemon(args: DaemonArgs) -> Result<ExitCode> {
@@ -29,6 +30,8 @@ pub(crate) async fn daemon(args: DaemonArgs) -> Result<ExitCode> {
     let engine = open_engine(&repo, args.fake_agents)?;
     engine.scan_tools().await?;
     engine.ensure_desktop_token()?;
+    engine.set_headless(args.headless);
+    engine.start_host_loop();
     let bind = if args.dev_bind {
         BindMode::DevLoopback
     } else {

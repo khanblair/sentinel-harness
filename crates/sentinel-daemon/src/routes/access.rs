@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 use time::OffsetDateTime;
 
 use sentinel_core::DeviceInfo;
-use sentinel_core::api::{PairStart, PairSubmit, TailscaleStatus};
+use sentinel_core::api::{HostStatus, PairStart, PairSubmit, TailscaleStatus};
 use sentinel_core::ids::DeviceId;
 
 use super::{ApiFailure, ApiResult, blocking, okay, require_computer};
@@ -84,6 +84,8 @@ pub(super) fn routes() -> Router<Engine> {
         .route("/api/devices/{id}", delete(revoke_device))
         .route("/api/tailscale/status", get(tailscale_status))
         .route("/api/tailscale/signin", post(tailscale_sign_in))
+        .route("/api/host", get(host_status))
+        .route("/api/host/check", post(host_check))
         .route("/api/fs/pick", post(fs_pick))
         .route("/api/fs/list", get(fs_list))
 }
@@ -170,6 +172,18 @@ async fn revoke_device(
             .map(|()| okay())
     })
     .await
+}
+
+async fn host_status(State(engine): State<Engine>) -> ApiResult<HostStatus> {
+    Ok(Json(engine.host_status().await?))
+}
+
+/// Write a heartbeat now and say so in the stream, so the host card can show it.
+async fn host_check(State(engine): State<Engine>, caller: Caller) -> ApiResult<HostStatus> {
+    require_computer(&caller)?;
+    engine.beat()?;
+    engine.emit_quiet(&sentinel_core::Event::HostHeartbeat);
+    Ok(Json(engine.host_status().await?))
 }
 
 async fn tailscale_status(State(engine): State<Engine>) -> ApiResult<TailscaleStatus> {

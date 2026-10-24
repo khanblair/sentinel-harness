@@ -3,6 +3,7 @@
 
 mod commands;
 mod serve;
+mod service;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -61,6 +62,9 @@ enum Command {
         /// Use the scripted pretend agents from `fixtures/fake-cli`.
         #[arg(long)]
         fake_agents: bool,
+        /// Run as an always-on host: no native folder dialog, the folder browser instead.
+        #[arg(long)]
+        headless: bool,
     },
     /// Open the UI of the running daemon in the browser, signed in as this computer.
     Open {
@@ -75,11 +79,34 @@ enum Command {
         #[arg(long)]
         repo: Option<PathBuf>,
     },
+    /// Run the daemon at boot and restart it when it stops (launchd on macOS, systemd on Linux).
+    Service {
+        #[command(subcommand)]
+        action: ServiceCommand,
+    },
     /// Keep an API key in the system keychain. `set` reads the key from standard input.
     Keys {
         #[command(subcommand)]
         action: KeysCommand,
     },
+}
+
+#[derive(Subcommand)]
+enum ServiceCommand {
+    /// Write the service file and start it.
+    Install {
+        #[arg(long)]
+        repo: Option<PathBuf>,
+        #[arg(long, default_value_t = 7878)]
+        port: u16,
+        /// Only write the file. Do not start the service.
+        #[arg(long)]
+        no_start: bool,
+    },
+    /// Stop the service and remove its file.
+    Uninstall,
+    /// Say whether the service is installed.
+    Status,
 }
 
 #[derive(Subcommand)]
@@ -117,6 +144,7 @@ async fn dispatch(command: Command) -> anyhow::Result<ExitCode> {
         other @ (Command::Daemon { .. }
         | Command::Open { .. }
         | Command::Pair { .. }
+        | Command::Service { .. }
         | Command::Keys { .. }) => dispatch_serve(other).await,
     }
 }
@@ -129,15 +157,26 @@ async fn dispatch_serve(command: Command) -> anyhow::Result<ExitCode> {
             port,
             dev_bind,
             fake_agents,
+            headless,
         } => {
             serve::daemon(serve::DaemonArgs {
                 repo,
                 port,
                 dev_bind,
                 fake_agents,
+                headless,
             })
             .await
         }
+        Command::Service { action } => match action {
+            ServiceCommand::Install {
+                repo,
+                port,
+                no_start,
+            } => service::install(repo, port, !no_start),
+            ServiceCommand::Uninstall => service::uninstall(),
+            ServiceCommand::Status => service::status(),
+        },
         Command::Open { repo, print } => serve::open(repo, print),
         Command::Pair { repo } => serve::pair(repo).await,
         Command::Keys { action } => match action {

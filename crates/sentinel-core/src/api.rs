@@ -248,3 +248,27 @@ mod tests {
         assert_eq!(update.capabilities, None);
     }
 }
+
+/// Whether the always-on service is set up on this computer.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ServiceState {
+    Installed,
+    NotInstalled,
+}
+
+/// `GET /api/host`. What the host card in Settings shows.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HostStatus {
+    pub service: ServiceState,
+    /// True when the daemon runs without native dialogs.
+    pub headless: bool,
+    /// Seconds since the daemon started.
+    pub uptime_seconds: u64,
+    /// The last heartbeat, RFC 3339, when there is one.
+    pub last_heartbeat: Option<String>,
+    pub tailscale: TailscaleStatus,
+    pub agents_ready: u32,
+    pub agents_total: u32,
+    pub repo_path: Option<String>,
+}

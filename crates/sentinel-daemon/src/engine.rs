@@ -76,6 +76,10 @@ pub(crate) struct Inner {
     pub repo: Mutex<Option<RepoInfo>>,
     pub tailscale: Mutex<TailscaleState>,
     pub live: Mutex<LiveRun>,
+    /// True on an always-on host: no native dialogs.
+    pub headless: std::sync::atomic::AtomicBool,
+    /// When this daemon started.
+    pub started: OffsetDateTime,
 }
 
 #[derive(Clone)]
@@ -108,6 +112,8 @@ impl Engine {
                 repo: Mutex::new(None),
                 tailscale: Mutex::new(TailscaleState::NotInstalled),
                 live: Mutex::new(LiveRun::default()),
+                headless: std::sync::atomic::AtomicBool::new(false),
+                started: OffsetDateTime::now_utc(),
             }),
         };
         engine.refresh_repo();
