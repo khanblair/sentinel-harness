@@ -17,9 +17,7 @@ pub mod brain {
 
 pub mod changes;
 
-pub mod cost {
-    pub use super::panel_stubs::CostPanel;
-}
+pub mod cost;
 
 pub mod files;
 
@@ -31,9 +29,7 @@ pub mod remote {
     pub use super::panel_stubs::RemotePanel;
 }
 
-pub mod report {
-    pub use super::panel_stubs::ReportPanel;
-}
+pub mod report;
 
 pub mod reserved;
 
