@@ -2,7 +2,14 @@
 
 pub mod error;
 pub mod index;
+pub mod journal;
+pub mod lesson;
+pub mod mode;
 pub mod note;
+pub mod proposal;
+pub mod schedule;
+pub mod select;
+pub mod strength;
 pub mod vault;
 pub mod watcher;
 
