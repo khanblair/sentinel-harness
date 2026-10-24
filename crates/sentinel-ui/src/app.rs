@@ -20,7 +20,8 @@ use crate::layout::Layout;
 use crate::prefs::Prefs;
 use crate::state::{Modal, Ui, provide_ui, use_ui};
 use crate::theme;
-use crate::views::stream_slot::{ComposerSlot, StreamSlot};
+use crate::views::composer::Composer;
+use crate::views::stream::StreamView;
 use crate::ws;
 
 const PREFS_KEY: &str = "sentinel.prefs";
@@ -177,8 +178,8 @@ pub fn App() -> impl IntoView {
                 on:touchend=move |event| touch_ended(ui, touch_start, &event)>
                 <ConnectionBanner />
                 <FocusBar />
-                <div class="stream"><div class="stream-in" id="streamIn"><StreamSlot /></div></div>
-                <div class="comp-wrap" id="compWrap"><ComposerSlot /></div>
+                <div class="stream"><div class="stream-in" id="streamIn"><StreamView /></div></div>
+                <div class="comp-wrap" id="compWrap"><Composer /></div>
             </main>
             <PanelHost />
             <TabBar />
