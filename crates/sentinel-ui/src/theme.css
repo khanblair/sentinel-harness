@@ -378,19 +378,19 @@ input[type=color]{width:2.2em;height:1.8em;border:1px solid var(--border);border
 .app[data-layout="phone"] .tcard,.app[data-layout="phone"] .card{overflow-wrap:anywhere}
 
 /* overlays live in the frame, so they key off the frame's layout */
-.frame[data-layout="phone"] .set,.frame[data-layout="phone"] .guide{grid-template-columns:1fr;grid-template-rows:auto 1fr}
-.frame[data-layout="phone"] .set-nav,.frame[data-layout="phone"] .g-list{display:flex;gap:.2em;overflow-x:auto;border-right:0;border-bottom:1px solid var(--border);padding:.4em}
-.frame[data-layout="phone"] .set-nav button,.frame[data-layout="phone"] .g-list button{width:auto;white-space:nowrap}
-.frame[data-layout="phone"] .fld{flex-wrap:wrap}
-.frame[data-layout="phone"] .fld select,.frame[data-layout="phone"] .fld input[type=text],.frame[data-layout="phone"] .fld input[type=number]{max-width:100%}
-.frame[data-layout="phone"] .toast{bottom:8em}
-.frame[data-layout="phone"] .wiz-body{padding:1em .8em}
-.frame[data-layout="phone"] .toolrow{gap:.5em}
-.frame[data-layout="phone"] .modal{height:100%;border-radius:calc(var(--r)*1.4)}
-.frame[data-layout="phone"] .ov{padding:.5em}
-.frame[data-layout="phone"] .fd{grid-template-columns:1fr}
-.frame[data-layout="phone"] .fd-side{display:none}
-.frame[data-layout="phone"] .wiz-ft .btn{flex:1}
+.app[data-layout="phone"] .set,.app[data-layout="phone"] .guide{grid-template-columns:1fr;grid-template-rows:auto 1fr}
+.app[data-layout="phone"] .set-nav,.app[data-layout="phone"] .g-list{display:flex;gap:.2em;overflow-x:auto;border-right:0;border-bottom:1px solid var(--border);padding:.4em}
+.app[data-layout="phone"] .set-nav button,.app[data-layout="phone"] .g-list button{width:auto;white-space:nowrap}
+.app[data-layout="phone"] .fld{flex-wrap:wrap}
+.app[data-layout="phone"] .fld select,.app[data-layout="phone"] .fld input[type=text],.app[data-layout="phone"] .fld input[type=number]{max-width:100%}
+.app[data-layout="phone"] .toast{bottom:8em}
+.app[data-layout="phone"] .wiz-body{padding:1em .8em}
+.app[data-layout="phone"] .toolrow{gap:.5em}
+.app[data-layout="phone"] .modal{height:100%;border-radius:calc(var(--r)*1.4)}
+.app[data-layout="phone"] .ov{padding:.5em}
+.app[data-layout="phone"] .fd{grid-template-columns:1fr}
+.app[data-layout="phone"] .fd-side{display:none}
+.app[data-layout="phone"] .wiz-ft .btn{flex:1}
 .app[data-layout="desktop"].rp-wide{--rp-w:min(780px,62%)}
 .app[data-layout="desktop"].rp-wide .rp>*{min-width:0}
 
