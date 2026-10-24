@@ -18,6 +18,25 @@ struct CardEntry {
     created_at: OffsetDateTime,
 }
 
+/// What a new card is about. Only the kind is set on every card.
+struct NewCard {
+    kind: ApprovalKind,
+    task: Option<TaskId>,
+    agent: Option<ToolId>,
+    path: Option<String>,
+}
+
+impl NewCard {
+    fn unscoped(kind: ApprovalKind) -> Self {
+        Self {
+            kind,
+            task: None,
+            agent: None,
+            path: None,
+        }
+    }
+}
+
 impl ApprovalBook {
     pub fn new() -> Self {
         Self::default()
@@ -33,71 +52,41 @@ impl ApprovalBook {
         now: OffsetDateTime,
     ) -> Approval {
         let key = format!("ext:{}:{}", task.as_str(), path);
-        if let Some(entry) = self.cards.get(&key) {
-            return entry.approval.clone();
-        }
-        let id = ApprovalId::new(format!("A-{}", self.next_id));
-        self.next_id += 1;
-        let approval = Approval {
-            id: id.clone(),
+        let card = NewCard {
             kind: ApprovalKind::Extension,
             task: Some(task.clone()),
             agent: Some(agent.clone()),
             path: Some(path.to_owned()),
-            state: ApprovalState::Pending,
-            decided_by: None,
         };
-        self.cards.insert(
-            key,
-            CardEntry {
-                approval: approval.clone(),
-                created_at: now,
-            },
-        );
-        approval
+        self.open_card(key, card, now)
     }
 
     /// Request a wave card.
     pub fn request_wave(&mut self, wave: u32, now: OffsetDateTime) -> Approval {
-        let key = format!("wave:{wave}");
-        if let Some(entry) = self.cards.get(&key) {
-            return entry.approval.clone();
-        }
-        let id = ApprovalId::new(format!("A-{}", self.next_id));
-        self.next_id += 1;
-        let approval = Approval {
-            id: id.clone(),
-            kind: ApprovalKind::Wave,
-            task: None,
-            agent: None,
-            path: None,
-            state: ApprovalState::Pending,
-            decided_by: None,
-        };
-        self.cards.insert(
-            key,
-            CardEntry {
-                approval: approval.clone(),
-                created_at: now,
-            },
-        );
-        approval
+        let card = NewCard::unscoped(ApprovalKind::Wave);
+        self.open_card(format!("wave:{wave}"), card, now)
     }
 
     /// Request a plan card.
     pub fn request_plan(&mut self, now: OffsetDateTime) -> Approval {
-        let key = "plan".to_owned();
+        let card = NewCard::unscoped(ApprovalKind::Plan);
+        self.open_card("plan".to_owned(), card, now)
+    }
+
+    /// Return the card under `key`, or open a new pending one. The lookup comes
+    /// first so a repeat request does not use up an id.
+    fn open_card(&mut self, key: String, card: NewCard, now: OffsetDateTime) -> Approval {
         if let Some(entry) = self.cards.get(&key) {
             return entry.approval.clone();
         }
         let id = ApprovalId::new(format!("A-{}", self.next_id));
         self.next_id += 1;
         let approval = Approval {
-            id: id.clone(),
-            kind: ApprovalKind::Plan,
-            task: None,
-            agent: None,
-            path: None,
+            id,
+            kind: card.kind,
+            task: card.task,
+            agent: card.agent,
+            path: card.path,
             state: ApprovalState::Pending,
             decided_by: None,
         };

@@ -5,7 +5,7 @@ use rusqlite::{Connection, OptionalExtension, Row, params, params_from_iter};
 use sentinel_core::{Approval, ApprovalId, ApprovalState, CoreError, TaskId, ToolId};
 use time::OffsetDateTime;
 
-use crate::{Result, Store, StoreError, enum_from_text, enum_text, time_text};
+use crate::{Result, Store, StoreError, enum_from_text, enum_text, state_filter, time_text};
 
 const APPROVAL_COLUMNS: &str = "id, kind, task_id, agent_id, path, state, decided_by";
 
@@ -78,7 +78,10 @@ impl Store {
     /// An empty filter means every card, newest first.
     pub fn list_approvals(&self, states: &[ApprovalState]) -> Result<Vec<Approval>> {
         let connection = self.connection()?;
-        let (sql, filters) = approval_filter(states)?;
+        let (clause, filters) = state_filter("state", states)?;
+        let sql = format!(
+            "SELECT {APPROVAL_COLUMNS} FROM approvals{clause} ORDER BY created_at DESC, id DESC"
+        );
         let rows = {
             let mut statement = connection.prepare(&sql)?;
             let mapped =
@@ -118,30 +121,6 @@ fn approval_state_name(state: ApprovalState) -> &'static str {
         ApprovalState::Denied => "denied",
         ApprovalState::Defaulted => "defaulted",
     }
-}
-
-fn approval_filter(states: &[ApprovalState]) -> Result<(String, Vec<String>)> {
-    if states.is_empty() {
-        return Ok((
-            format!(
-                "SELECT {APPROVAL_COLUMNS} FROM approvals \
-                 ORDER BY created_at DESC, id DESC"
-            ),
-            Vec::new(),
-        ));
-    }
-    let placeholders = vec!["?"; states.len()].join(",");
-    let filters = states
-        .iter()
-        .map(enum_text)
-        .collect::<Result<Vec<String>>>()?;
-    Ok((
-        format!(
-            "SELECT {APPROVAL_COLUMNS} FROM approvals WHERE state IN ({placeholders}) \
-             ORDER BY created_at DESC, id DESC"
-        ),
-        filters,
-    ))
 }
 
 fn read_approval_row(row: &Row<'_>) -> rusqlite::Result<ApprovalRow> {

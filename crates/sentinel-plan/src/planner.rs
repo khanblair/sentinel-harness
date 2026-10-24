@@ -318,6 +318,22 @@ mod tests {
         }
     }
 
+    fn single_item_request() -> PlanRequest {
+        make_request(vec![make_item("T-01", "Task", "Body", false)], vec![])
+    }
+
+    fn planned_task(id: &str, depends_on: &[&str]) -> PlannedTask {
+        PlannedTask {
+            id: TaskId::new(id),
+            scope: vec![],
+            depends_on: depends_on.iter().map(|dep| TaskId::new(*dep)).collect(),
+            read_after_write: vec![],
+            tier: Tier::Cheap,
+            already_done: false,
+            contradicts: vec![],
+        }
+    }
+
     #[test]
     fn parse_plan_json_handles_prose_around_json() {
         let text = r#"Here is the plan:
@@ -366,15 +382,7 @@ That was the plan."#;
     #[test]
     fn validate_rejects_missing_task() {
         let plan = Plan {
-            tasks: vec![PlannedTask {
-                id: TaskId::new("T-01"),
-                scope: vec![],
-                depends_on: vec![],
-                read_after_write: vec![],
-                tier: Tier::Cheap,
-                already_done: false,
-                contradicts: vec![],
-            }],
+            tasks: vec![planned_task("T-01", &[])],
         };
         let request = make_request(
             vec![
@@ -390,17 +398,9 @@ That was the plan."#;
     #[test]
     fn validate_rejects_unknown_dependency() {
         let plan = Plan {
-            tasks: vec![PlannedTask {
-                id: TaskId::new("T-01"),
-                scope: vec![],
-                depends_on: vec![TaskId::new("T-99")],
-                read_after_write: vec![],
-                tier: Tier::Cheap,
-                already_done: false,
-                contradicts: vec![],
-            }],
+            tasks: vec![planned_task("T-01", &["T-99"])],
         };
-        let request = make_request(vec![make_item("T-01", "Task", "Body", false)], vec![]);
+        let request = single_item_request();
         let err = validate_plan(&plan, &request).unwrap_err();
         assert!(matches!(err, PlanError::Parse(s) if s.contains("unknown task")));
     }
@@ -408,17 +408,9 @@ That was the plan."#;
     #[test]
     fn validate_rejects_self_dependency() {
         let plan = Plan {
-            tasks: vec![PlannedTask {
-                id: TaskId::new("T-01"),
-                scope: vec![],
-                depends_on: vec![TaskId::new("T-01")],
-                read_after_write: vec![],
-                tier: Tier::Cheap,
-                already_done: false,
-                contradicts: vec![],
-            }],
+            tasks: vec![planned_task("T-01", &["T-01"])],
         };
-        let request = make_request(vec![make_item("T-01", "Task", "Body", false)], vec![]);
+        let request = single_item_request();
         let err = validate_plan(&plan, &request).unwrap_err();
         assert!(matches!(err, PlanError::Parse(s) if s.contains("depends on itself")));
     }
@@ -427,16 +419,11 @@ That was the plan."#;
     fn validate_rejects_scope_with_parent() {
         let plan = Plan {
             tasks: vec![PlannedTask {
-                id: TaskId::new("T-01"),
                 scope: vec!["src/../foo.rs".to_string()],
-                depends_on: vec![],
-                read_after_write: vec![],
-                tier: Tier::Cheap,
-                already_done: false,
-                contradicts: vec![],
+                ..planned_task("T-01", &[])
             }],
         };
-        let request = make_request(vec![make_item("T-01", "Task", "Body", false)], vec![]);
+        let request = single_item_request();
         let err = validate_plan(&plan, &request).unwrap_err();
         assert!(matches!(err, PlanError::InvalidScope(_)));
     }
@@ -445,24 +432,8 @@ That was the plan."#;
     fn validate_rejects_cycle() {
         let plan = Plan {
             tasks: vec![
-                PlannedTask {
-                    id: TaskId::new("T-01"),
-                    scope: vec![],
-                    depends_on: vec![TaskId::new("T-02")],
-                    read_after_write: vec![],
-                    tier: Tier::Cheap,
-                    already_done: false,
-                    contradicts: vec![],
-                },
-                PlannedTask {
-                    id: TaskId::new("T-02"),
-                    scope: vec![],
-                    depends_on: vec![TaskId::new("T-01")],
-                    read_after_write: vec![],
-                    tier: Tier::Cheap,
-                    already_done: false,
-                    contradicts: vec![],
-                },
+                planned_task("T-01", &["T-02"]),
+                planned_task("T-02", &["T-01"]),
             ],
         };
         let request = make_request(

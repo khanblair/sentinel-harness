@@ -4,7 +4,9 @@ use rusqlite::{OptionalExtension, Row, params, params_from_iter};
 use sentinel_core::{CoreError, Reservation, ReservationId, ReservationState, TaskId};
 use time::OffsetDateTime;
 
-use crate::{Result, Store, StoreError, enum_from_text, enum_text, time_from_text, time_text};
+use crate::{
+    Result, Store, StoreError, enum_from_text, enum_text, state_filter, time_from_text, time_text,
+};
 
 const RESERVATION_COLUMNS: &str = "id, task_id, path, state, reserved_at, released_at";
 
@@ -74,7 +76,8 @@ impl Store {
     /// An empty filter means every reservation.
     pub fn list_reservations(&self, states: &[ReservationState]) -> Result<Vec<Reservation>> {
         let connection = self.connection()?;
-        let (sql, filters) = reservation_filter(states)?;
+        let (clause, filters) = state_filter("state", states)?;
+        let sql = format!("SELECT {RESERVATION_COLUMNS} FROM reservations{clause} ORDER BY id");
         let rows = {
             let mut statement = connection.prepare(&sql)?;
             let mapped =
@@ -95,27 +98,6 @@ impl Store {
         };
         rows.into_iter().map(reservation_from_row).collect()
     }
-}
-
-fn reservation_filter(states: &[ReservationState]) -> Result<(String, Vec<String>)> {
-    if states.is_empty() {
-        return Ok((
-            format!("SELECT {RESERVATION_COLUMNS} FROM reservations ORDER BY id"),
-            Vec::new(),
-        ));
-    }
-    let placeholders = vec!["?"; states.len()].join(",");
-    let filters = states
-        .iter()
-        .map(enum_text)
-        .collect::<Result<Vec<String>>>()?;
-    Ok((
-        format!(
-            "SELECT {RESERVATION_COLUMNS} FROM reservations WHERE state IN ({placeholders}) \
-             ORDER BY id"
-        ),
-        filters,
-    ))
 }
 
 fn releases_hold(state: ReservationState) -> bool {
