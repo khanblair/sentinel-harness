@@ -170,8 +170,8 @@ Path, lock icon, holder task, state. Waiting tasks listed under the path.
 | Instead of | Write |
 |---|---|
 | "Oops! Something went wrong" | "Could not reach the daemon. Check Tailscale on this device." |
-| "Unlock the power of agents" | "Run agents together." |
-| "Seamless pairing" | "Scan the code to pair." |
+| "Take your agents to the next level" | "Run agents together." |
+| "Effortless pairing" | "Scan the code to pair." |
 | "Awesome, you're all set!" | "Setup complete." |
 
 ## Accessibility

@@ -82,7 +82,6 @@ Paths listed in [project-structure.md](project-structure.md) that do not exist y
 - `.github/`
 - `fixtures/`
 - `tests/`
-- `rust-toolchain.toml`
 
 ## Decisions Log
 

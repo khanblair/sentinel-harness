@@ -1,0 +1,22 @@
+# Words and phrases banned in docs, UI copy, and comments.
+# One entry per line. A word matches whole words; a phrase matches anywhere.
+delve
+leverage
+seamless
+robust
+cutting-edge
+game-changer
+unlock
+elevate
+streamline
+empower
+holistic
+tapestry
+testament
+it's worth noting
+in today's fast-paced world
+navigate the landscape
+at its core
+journey
+supercharge
+next-level

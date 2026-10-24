@@ -15,46 +15,46 @@
 
 | Crate | Version | Use | Reason |
 |---|---|---|---|
-| `tokio` | pin on add | Async runtime, processes, channels, timers | Standard, needed for many concurrent agents |
-| `tokio-util` | pin on add | Cancellation helpers, codecs | Small, pairs with tokio |
-| `axum` | pin on add | HTTP API, WebSocket | Fits tokio, small |
-| `tower-http` | pin on add | Static files, tracing, limits | Standard axum companion |
-| `futures` | pin on add | Stream helpers | Needed for event streams |
+| `tokio` | 1.54.1 | Async runtime, processes, channels, timers | Standard, needed for many concurrent agents |
+| `tokio-util` | 0.7.20 | Cancellation helpers, codecs | Small, pairs with tokio |
+| `axum` | 0.8.9 | HTTP API, WebSocket | Fits tokio, small |
+| `tower-http` | 0.7.1 | Static files, tracing, limits | Standard axum companion |
+| `futures` | 0.3.34 | Stream helpers | Needed for event streams |
 
 ### Data and Types
 
 | Crate | Version | Use | Reason |
 |---|---|---|---|
-| `rusqlite` (feature `bundled`) | pin on add | State store | No system SQLite needed |
-| `rusqlite_migration` | pin on add | Schema migrations | Small and simple |
-| `serde`, `serde_json` | pin on add | Types, API, JSONL log | Standard |
-| `toml` | pin on add | Config and adapter profiles | Human-editable config |
-| `uuid` | pin on add | Ids | Standard |
-| `time` | pin on add | Timestamps in UTC | Small, clear |
-| `petgraph` | pin on add | Task graph, cycle check | Mature graph code |
+| `rusqlite` (feature `bundled`) | 0.41.0 | State store | No system SQLite needed |
+| `rusqlite_migration` | 2.6.0 | Schema migrations | Small and simple |
+| `serde`, `serde_json` | 1.0.229, 1.0.154 | Types, API, JSONL log | Standard |
+| `toml` | 1.1.8 | Config and adapter profiles | Human-editable config |
+| `uuid` | 1.29.0 | Ids | Standard |
+| `time` | 0.3.55 | Timestamps in UTC | Small, clear |
+| `petgraph` | 0.8.3 | Task graph, cycle check | Mature graph code |
 
 ### Agents and System
 
 | Crate | Version | Use | Reason |
 |---|---|---|---|
-| `reqwest` (feature `rustls-tls`) | pin on add | OpenRouter and model APIs | No OpenSSL |
-| `which` | pin on add | Find CLIs on `PATH` | Cross-platform detection |
-| `notify` | pin on add | Filesystem watcher | Write guard backstop |
-| `keyring` | pin on add | OS keychain for API keys | Keeps secrets off disk |
-| `rmcp` (official Rust MCP SDK) | pin on add, confirm name at setup | MCP file server | Allowed by rules, avoids hand-written protocol |
-| `qrcode` | pin on add | Pairing QR as SVG | Small, no image stack |
-| `rfd` | pin on add | Native folder dialog on the PC | Cross-platform OS dialog, so nobody types a path |
-| `rust-embed` | pin on add | Embed UI assets in the binary | One-file release |
-| `globset` | pin on add | Scope path patterns | Fast, reliable matching |
+| `reqwest` (feature `rustls-tls`) | 0.13.5 | OpenRouter and model APIs | No OpenSSL |
+| `which` | 8.0.6 | Find CLIs on `PATH` | Cross-platform detection |
+| `notify` | 8.2.0 | Filesystem watcher | Write guard backstop |
+| `keyring` | 4.2.0 | OS keychain for API keys | Keeps secrets off disk |
+| `rmcp` (official Rust MCP SDK) | 3.7.0 (confirm at P3-08) | MCP file server | Allowed by rules, avoids hand-written protocol |
+| `qrcode` | 0.14.1 | Pairing QR as SVG | Small, no image stack |
+| `rfd` | 0.17.2 | Native folder dialog on the PC | Cross-platform OS dialog, so nobody types a path |
+| `rust-embed` | 8.13.0 | Embed UI assets in the binary | One-file release |
+| `globset` | 0.4.20 | Scope path patterns | Fast, reliable matching |
 
 ### CLI and Errors
 
 | Crate | Version | Use | Reason |
 |---|---|---|---|
-| `clap` | pin on add | Commands | Standard |
-| `thiserror` | pin on add | Library errors | Clear error types |
-| `anyhow` | pin on add | Binary errors only | Context in the top layer |
-| `tracing`, `tracing-subscriber` | pin on add | Logs | Structured, async friendly |
+| `clap` | 4.6.7 | Commands | Standard |
+| `thiserror` | 2.0.21 | Library errors | Clear error types |
+| `anyhow` | 1.0.104 | Binary errors only | Context in the top layer |
+| `tracing`, `tracing-subscriber` | 0.1.44, 0.3.23 | Logs | Structured, async friendly |
 
 ### UI
 
