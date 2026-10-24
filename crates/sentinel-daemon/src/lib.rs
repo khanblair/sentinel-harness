@@ -43,6 +43,8 @@ pub mod secrets;
 pub mod server;
 mod settings;
 mod skills;
+mod skills_found;
+mod skills_pick;
 pub mod tailscale;
 pub mod telegram;
 mod telegram_code;

@@ -3,7 +3,7 @@ use serde_json::json;
 use super::support::{exchange, request};
 
 #[test]
-fn initialize_then_tools_list_offers_the_seven_tools() {
+fn initialize_then_tools_list_offers_the_nine_tools() {
     let replies = exchange(
         &[],
         &[
@@ -29,6 +29,8 @@ fn initialize_then_tools_list_offers_the_seven_tools() {
             "brain_search",
             "brain_read",
             "brain_propose",
+            "skill_list",
+            "skill_read",
         ]
     );
 }

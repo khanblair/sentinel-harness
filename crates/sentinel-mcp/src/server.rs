@@ -12,10 +12,12 @@ use crate::protocol::{
     METHOD_NOT_FOUND, PARSE_ERROR, error_response, initialize_result, response, tool_definitions,
     tool_result,
 };
+use crate::skill_tools::{self, SkillTools};
 
 /// What the server needs from its environment. The agent CLI sets these when it starts the server.
 pub struct ServerConfig {
     workdir: PathBuf,
+    home: Option<PathBuf>,
     scope: Vec<String>,
     task_id: Option<String>,
     brain_root: Option<PathBuf>,
@@ -33,6 +35,9 @@ impl ServerConfig {
             workdir: lookup("SENTINEL_WORKDIR")
                 .filter(|path| !path.is_empty())
                 .map_or_else(|| PathBuf::from("."), PathBuf::from),
+            home: lookup("HOME")
+                .filter(|path| !path.is_empty())
+                .map(PathBuf::from),
             scope: lookup("SENTINEL_SCOPE")
                 .map(|text| scope_entries(&text))
                 .unwrap_or_default(),
@@ -57,13 +62,16 @@ fn scope_entries(text: &str) -> Vec<String> {
 struct Server {
     files: FileTools,
     brain: BrainTools,
+    skills: SkillTools,
 }
 
 impl Server {
     fn new(config: ServerConfig) -> Self {
+        let skills = SkillTools::new(&config.workdir, config.home.as_deref());
         Self {
             files: FileTools::new(config.workdir, config.scope),
             brain: BrainTools::new(config.brain_root, config.brain_mode, config.task_id),
+            skills,
         }
     }
 
@@ -97,6 +105,8 @@ impl Server {
             self.files.call(name, args)
         } else if brain_tools::TOOL_NAMES.contains(&name) {
             self.brain.call(name, args)
+        } else if skill_tools::TOOL_NAMES.contains(&name) {
+            self.skills.call(name, args)
         } else {
             Err(format!("Unknown tool: {name}."))
         };

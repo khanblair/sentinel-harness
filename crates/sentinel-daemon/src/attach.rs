@@ -140,18 +140,7 @@ impl Engine {
         id: &AttachmentId,
         request: &AddAttachment,
     ) -> Result<Parts> {
-        let kind = match request.kind {
-            AttachmentKind::Backlog => AttachmentKind::Backlog,
-            AttachmentKind::Upload => AttachmentKind::Upload,
-            AttachmentKind::File
-            | AttachmentKind::Folder
-            | AttachmentKind::Note
-            | AttachmentKind::Skill => {
-                return Err(EngineError::Invalid(
-                    "An upload is an upload or a backlog.".to_owned(),
-                ));
-            }
-        };
+        let kind = upload_kind(request.kind)?;
         let bytes = STANDARD
             .decode(request.content_base64.as_deref().unwrap_or_default())
             .map_err(|_| EngineError::Invalid("The file bytes are not valid base64.".to_owned()))?;
@@ -255,6 +244,20 @@ fn safe_name(name: &str) -> String {
         "upload".to_owned()
     } else {
         trimmed.to_owned()
+    }
+}
+
+/// An upload is either a backlog or a plain upload. Every other kind is refused.
+fn upload_kind(kind: AttachmentKind) -> Result<AttachmentKind> {
+    match kind {
+        AttachmentKind::Backlog => Ok(AttachmentKind::Backlog),
+        AttachmentKind::Upload => Ok(AttachmentKind::Upload),
+        AttachmentKind::File
+        | AttachmentKind::Folder
+        | AttachmentKind::Note
+        | AttachmentKind::Skill => Err(EngineError::Invalid(
+            "An upload is an upload or a backlog.".to_owned(),
+        )),
     }
 }
 

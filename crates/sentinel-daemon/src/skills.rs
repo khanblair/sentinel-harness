@@ -54,20 +54,25 @@ impl Engine {
     /// Write a new skill folder in one scope. Computer only.
     pub fn create_skill(&self, new: NewSkill, caller: &Caller) -> Result<SkillDetail> {
         require_pc(caller)?;
-        check_fields(&new.name, &new.description)?;
-        let text = render_skill_md(&new.name, &new.description, &new.body)?;
-        let dir = self.skill_dir(new.scope, &new.name);
+        let NewSkill {
+            name,
+            description,
+            body,
+            scope,
+        } = new;
+        check_fields(&name, &description)?;
+        let text = render_skill_md(&name, &description, &body)?;
+        let dir = self.skill_dir(scope, &name);
         if dir.exists() {
             return Err(EngineError::Conflict(format!(
-                "A skill named {} already exists here.",
-                new.name
+                "A skill named {name} already exists here."
             )));
         }
         fs::create_dir_all(&dir)?;
         fs::write(dir.join("SKILL.md"), text)?;
         // A switch left behind by a skill removed outside Sentinel must not apply to the new one.
-        self.store().delete_skill_mode(&new.name)?;
-        self.skill_detail_in(new.scope, &new.name)
+        self.store().delete_skill_mode(&name)?;
+        self.skill_detail_in(scope, &name)
     }
 
     /// Change a skill's switch, or its text. A phone may only move a switch toward Off.
@@ -113,17 +118,27 @@ impl Engine {
         let modes = self.store().get_skill_modes()?;
         let mut by_name: BTreeMap<String, LoadedSkill> = BTreeMap::new();
         for scope in [SkillScope::Project, SkillScope::Personal] {
-            for name in folder_names(&self.scope_dir(scope)) {
-                let mode = modes.get(&name).copied().unwrap_or_default();
-                match load_skill(&self.skill_dir(scope, &name), &name, scope, mode) {
-                    Ok(skill) => {
-                        by_name.entry(name).or_insert(skill);
-                    }
-                    Err(error) => eprintln!("sentinel: the skill {name} was skipped: {error}"),
-                }
-            }
+            self.load_scope(scope, &modes, &mut by_name);
         }
         Ok(by_name.into_values().collect())
+    }
+
+    /// Add the good skills of one scope. A name already present keeps its first copy.
+    fn load_scope(
+        &self,
+        scope: SkillScope,
+        modes: &BTreeMap<String, SkillMode>,
+        by_name: &mut BTreeMap<String, LoadedSkill>,
+    ) {
+        for name in folder_names(&self.scope_dir(scope)) {
+            let mode = modes.get(&name).copied().unwrap_or_default();
+            match load_skill(&self.skill_dir(scope, &name), &name, scope, mode) {
+                Ok(skill) => {
+                    by_name.entry(name).or_insert(skill);
+                }
+                Err(error) => eprintln!("sentinel: the skill {name} was skipped: {error}"),
+            }
+        }
     }
 
     /// The folder of a skill in one scope, which may not exist.
@@ -197,7 +212,7 @@ pub(crate) fn check_fields(name: &str, description: &str) -> Result<()> {
     Ok(())
 }
 
-fn valid_name(name: &str) -> bool {
+pub(crate) fn valid_name(name: &str) -> bool {
     (1..=NAME_MAX).contains(&name.len())
         && name
             .bytes()
@@ -224,7 +239,12 @@ fn escape(value: &str) -> String {
 }
 
 /// Read a folder into a skill. Every check here is a reason to skip the folder in a list.
-fn load_skill(dir: &Path, name: &str, scope: SkillScope, mode: SkillMode) -> Result<LoadedSkill> {
+pub(crate) fn load_skill(
+    dir: &Path,
+    name: &str,
+    scope: SkillScope,
+    mode: SkillMode,
+) -> Result<LoadedSkill> {
     if !valid_name(name) {
         return Err(EngineError::Invalid(format!(
             "The folder {name} is not a skill name."
@@ -237,7 +257,22 @@ fn load_skill(dir: &Path, name: &str, scope: SkillScope, mode: SkillMode) -> Res
             "The skill folder is over 200 KB.".to_owned(),
         ));
     }
-    let text = read_skill_md(dir, &files)?;
+    let parsed = checked_skill_md(dir, name, &files)?;
+    Ok(LoadedSkill {
+        info: SkillInfo {
+            name: name.to_owned(),
+            description: parsed.description.trim().to_owned(),
+            scope,
+            mode,
+            bytes,
+        },
+        body: parsed.body,
+    })
+}
+
+/// The parsed `SKILL.md` of a folder, with its name and description checked.
+fn checked_skill_md(dir: &Path, name: &str, files: &[FolderFile]) -> Result<SkillText> {
+    let text = read_skill_md(dir, files)?;
     let parsed = parse_skill_md(&text).ok_or_else(|| {
         EngineError::Invalid(
             "SKILL.md needs a front matter block with name and description.".to_owned(),
@@ -249,17 +284,7 @@ fn load_skill(dir: &Path, name: &str, scope: SkillScope, mode: SkillMode) -> Res
         ));
     }
     check_fields(name, &parsed.description)?;
-    let info = SkillInfo {
-        name: name.to_owned(),
-        description: parsed.description.trim().to_owned(),
-        scope,
-        mode,
-        bytes,
-    };
-    Ok(LoadedSkill {
-        info,
-        body: parsed.body,
-    })
+    Ok(parsed)
 }
 
 fn read_skill_md(dir: &Path, files: &[FolderFile]) -> Result<String> {
@@ -360,4 +385,49 @@ fn walk(root: &Path, dir: &Path, found: &mut Vec<FolderFile>) -> Result<()> {
         });
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_skill_name_is_lowercase_digits_and_dashes_up_to_the_limit() {
+        assert!(valid_name("sql-review"));
+        assert!(valid_name("v2"));
+        assert!(!valid_name("Sql-Review"));
+        assert!(!valid_name("sql_review"));
+        assert!(!valid_name(""));
+        assert!(!valid_name(&"a".repeat(NAME_MAX + 1)));
+    }
+
+    #[test]
+    fn a_description_is_one_line_of_at_most_the_limit() {
+        assert!(check_fields("sql-review", "Reviews SQL.").is_ok());
+        assert!(check_fields("sql-review", "two\nlines").is_err());
+        assert!(check_fields("sql-review", "   ").is_err());
+        assert!(check_fields("sql-review", &"d".repeat(DESCRIPTION_MAX + 1)).is_err());
+    }
+
+    #[test]
+    fn a_rendered_skill_reads_back_with_its_quoted_description() {
+        let text = render_skill_md("sql-review", "Says \"no\" to a\\b", "Check joins.").unwrap();
+        let parsed = parse_skill_md(&text).unwrap();
+        assert_eq!(parsed.name.as_deref(), Some("sql-review"));
+        assert_eq!(parsed.description, "Says \"no\" to a\\b");
+        assert_eq!(parsed.body, "Check joins.");
+    }
+
+    #[test]
+    fn other_front_matter_keys_are_ignored() {
+        let text = "---\nname: x\ndescription: Plain text\nlicense: MIT\n---\nBody here\n";
+        let parsed = parse_skill_md(text).unwrap();
+        assert_eq!(parsed.description, "Plain text");
+        assert_eq!(parsed.body, "Body here");
+    }
+
+    #[test]
+    fn a_file_without_a_front_matter_block_is_not_a_skill() {
+        assert!(parse_skill_md("# Just a heading\n").is_none());
+    }
 }

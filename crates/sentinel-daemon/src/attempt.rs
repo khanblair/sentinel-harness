@@ -122,7 +122,7 @@ fn build_spec(ctx: &RunCtx, task: &Task, tool: &ToolInfo) -> RunSpec {
     let memory = lock(&ctx.memory);
     let failure = memory.failures.get(&task.id).cloned();
     drop(memory);
-    let memory = ctx.engine.brain_memory(task);
+    let memory = ctx.engine.task_notes(task, &ctx.source.attachments);
     let retry = failure.as_ref().map(|text| Retry {
         failure: text,
         diff_stat: "",

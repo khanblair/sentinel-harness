@@ -33,7 +33,23 @@ pub fn initialize_result() -> Value {
 pub fn tool_definitions() -> Value {
     let mut tools = file_tools();
     tools.extend(brain_tool_definitions());
+    tools.extend(skill_tool_definitions());
     Value::Array(tools)
+}
+
+fn skill_tool_definitions() -> Vec<Value> {
+    vec![
+        tool(
+            "skill_list",
+            "List the skills of the project and of the home folder, with their descriptions.",
+            &[],
+        ),
+        tool(
+            "skill_read",
+            "Read one skill's instructions by its name from skill_list.",
+            &[("name", "The skill name from skill_list.")],
+        ),
+    ]
 }
 
 fn file_tools() -> Vec<Value> {
