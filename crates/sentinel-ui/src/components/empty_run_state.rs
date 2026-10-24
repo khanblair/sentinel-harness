@@ -1,4 +1,4 @@
-//! The empty stream: what the run does, and the three first actions.
+//! The empty stream of a chat: what to do first, and three first actions.
 
 use leptos::prelude::*;
 use sentinel_core::{PermissionMode, RepoInfo};
@@ -7,33 +7,27 @@ use crate::components::icon::Icon;
 use crate::state::{Modal, use_ui};
 use crate::views::composer::launch;
 
-/// The sentence about the backlog, from the repository the daemon works on.
-pub fn backlog_sentence(repo: Option<&RepoInfo>) -> String {
-    match repo {
-        Some(repo) if repo.has_backlog => {
-            format!("Backlog: {}, {} tasks.", repo.name, repo.backlog_tasks)
-        }
-        Some(_) => "This repository has no backlog file yet.".to_owned(),
-        None => "Choose a repository to start.".to_owned(),
-    }
+/// The sub text of the backlog card: how many tasks the project's backlog holds.
+pub fn backlog_card_text(repo: Option<&RepoInfo>) -> String {
+    let tasks = repo.map_or(0, |repo| repo.backlog_tasks);
+    format!("{tasks} tasks in this project. Uses your current permission mode.")
 }
 
 #[component]
-pub fn EmptyRunState() -> impl IntoView {
+pub fn EmptyChatState() -> impl IntoView {
     let ui = use_ui();
     view! {
         <div class="empty">
-            <h2>"Run the backlog"</h2>
+            <h2>"What should we build?"</h2>
             <p>
-                "Sentinel plans the work, reserves files for each agent so two agents never write the same file, and only calls a task done when the tests say so. "
-                {move || ui.snapshot.with(|s| backlog_sentence(s.repo.as_ref()))}
+                "Describe the work in plain words, or attach a backlog. Sentinel plans it, reserves files for each agent so two agents never write the same file, and only calls a task done when the tests say so."
             </p>
             <div class="sugg">
                 <button on:click=move |_| launch(ui, None, None)>
                     <span style="color:var(--accent)"><Icon name="play2" size=20 /></span>
                     <div>
-                        <b>"Start the run"</b>
-                        <span>{move || format!("Uses your current permission mode: {}.", ui.snapshot.with(|s| s.permission_mode.label()))}</span>
+                        <b>"Use backlog.md"</b>
+                        <span>{move || ui.snapshot.with(|s| backlog_card_text(s.repo.as_ref()))}</span>
                     </div>
                 </button>
                 <button on:click=move |_| launch(ui, Some(PermissionMode::PlanOnly), None)>
@@ -63,24 +57,27 @@ pub fn EmptyRunState() -> impl IntoView {
 mod tests {
     use super::*;
 
-    fn repo(has_backlog: bool) -> RepoInfo {
+    fn repo(backlog_tasks: u32) -> RepoInfo {
         RepoInfo {
             path: "/repo".to_owned(),
             name: "fee-ledger-api".to_owned(),
             is_git: true,
-            has_backlog,
+            has_backlog: true,
             clean: true,
-            backlog_tasks: 12,
+            backlog_tasks,
         }
     }
 
     #[test]
-    fn backlog_sentence_names_the_repo_and_task_count() {
+    fn the_backlog_card_counts_the_project_tasks() {
         assert_eq!(
-            backlog_sentence(Some(&repo(true))),
-            "Backlog: fee-ledger-api, 12 tasks."
+            backlog_card_text(Some(&repo(12))),
+            "12 tasks in this project. Uses your current permission mode."
         );
-        assert!(backlog_sentence(Some(&repo(false))).contains("no backlog"));
-        assert!(backlog_sentence(None).starts_with("Choose"));
+    }
+
+    #[test]
+    fn the_backlog_card_counts_zero_without_a_repository() {
+        assert!(backlog_card_text(None).starts_with("0 tasks"));
     }
 }

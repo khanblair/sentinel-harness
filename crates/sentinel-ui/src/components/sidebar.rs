@@ -1,38 +1,16 @@
-//! `Sidebar`: the run list grouped by repository, the New run button, search, and the footer
+//! `Sidebar`: the chats grouped by project, the New chat button, search, and the footer
 //! (`docs/ui-rules.md`, Layout).
 
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use sentinel_core::api::RunRequest;
-use sentinel_core::{Event, EventRecord, HarnessState, Snapshot, TaskStatus};
+use sentinel_core::{ChatId, HarnessState, Snapshot};
 
 use crate::api;
+use crate::chats::{ARCHIVED_GROUP, ChatRow, ProjectGroup, RowIcon, group_chats};
 use crate::components::icon::Icon;
-use crate::components::top_bar::settle;
 use crate::prefs::{Resolved, Theme};
-use crate::state::{Connection, Modal, ToastKind, Ui, use_ui};
+use crate::state::{self, Connection, Modal, ToastKind, Ui, use_ui};
 use crate::theme;
-
-const NO_REPO_GROUP: &str = "No repository";
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RunStatus {
-    Running,
-    Paused,
-    Done,
-    Blocked,
-    Stopped,
-}
-
-/// One row of the run list.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RunRow {
-    pub id: String,
-    pub title: String,
-    pub group: String,
-    pub count: String,
-    pub status: RunStatus,
-}
 
 /// True while the harness runs or is paused.
 pub fn is_live(snapshot: &Snapshot) -> bool {
@@ -42,141 +20,16 @@ pub fn is_live(snapshot: &Snapshot) -> bool {
     )
 }
 
-/// The backlog file name, without its folders.
-pub fn backlog_title(backlog: &str) -> String {
-    backlog
-        .rsplit(['/', '\\'])
-        .next()
-        .unwrap_or(backlog)
-        .to_owned()
-}
-
-/// A run seen in the event log, before its status is known.
-struct SeenRun {
-    id: String,
-    backlog: String,
-    finished: Option<(u32, u32)>,
-}
-
-fn seen_runs(events: &[EventRecord]) -> Vec<SeenRun> {
-    let mut seen: Vec<SeenRun> = Vec::new();
-    for record in events {
-        if let Event::RunStarted { run, backlog } = &record.event {
-            seen.push(SeenRun {
-                id: run.as_str().to_owned(),
-                backlog: backlog.clone(),
-                finished: None,
-            });
-        } else if let Event::RunFinished { verified, total } = &record.event {
-            let pending = seen.iter_mut().rev().find(|run| run.finished.is_none());
-            if let Some(open) = pending {
-                open.finished = Some((*verified, *total));
-            }
-        }
-    }
-    seen
-}
-
-/// Every run in the event log, plus the live run when the log no longer holds its start.
-pub fn runs_from(snapshot: &Snapshot) -> Vec<RunRow> {
-    let group = snapshot
-        .repo
-        .as_ref()
-        .map_or_else(|| NO_REPO_GROUP.to_owned(), |repo| repo.name.clone());
-    let mut seen = seen_runs(&snapshot.events);
-    let missing_live = snapshot
-        .run
-        .as_ref()
-        .filter(|run| !seen.iter().any(|known| known.id == run.id.as_str()));
-    if let Some(run) = missing_live {
-        seen.push(SeenRun {
-            id: run.id.as_str().to_owned(),
-            backlog: run.backlog.clone(),
-            finished: None,
-        });
-    }
-    seen.into_iter()
-        .map(|known| {
-            let live = snapshot
-                .run
-                .as_ref()
-                .is_some_and(|run| run.id.as_str() == known.id);
-            build_row(snapshot, &group, known, live)
-        })
-        .collect()
-}
-
-fn build_row(snapshot: &Snapshot, group: &str, known: SeenRun, live: bool) -> RunRow {
-    let (status, count) = if live {
-        (live_status(snapshot), live_count(snapshot))
-    } else if let Some((verified, total)) = known.finished {
-        (RunStatus::Done, format!("{verified}/{total}"))
-    } else {
-        (RunStatus::Stopped, String::new())
-    };
-    RunRow {
-        id: known.id,
-        title: backlog_title(&known.backlog),
-        group: group.to_owned(),
-        count,
-        status,
-    }
-}
-
-fn live_status(snapshot: &Snapshot) -> RunStatus {
-    if snapshot.harness == HarnessState::Running {
-        RunStatus::Running
-    } else if snapshot.harness == HarnessState::Paused {
-        RunStatus::Paused
-    } else if snapshot
-        .tasks
-        .iter()
-        .any(|task| task.status == TaskStatus::Blocked)
-    {
-        RunStatus::Blocked
-    } else {
-        RunStatus::Stopped
-    }
-}
-
-fn live_count(snapshot: &Snapshot) -> String {
-    if snapshot.tasks.is_empty() {
-        return String::new();
-    }
-    let verified = snapshot
-        .tasks
-        .iter()
-        .filter(|task| task.status == TaskStatus::Verified)
-        .count();
-    format!("{verified}/{}", snapshot.tasks.len())
-}
-
-/// Rows grouped by repository, in the order each group first appears. Rows whose title does not
-/// contain `needle` (lower case) are left out. An empty needle keeps every row.
-pub fn grouped(rows: &[RunRow], needle: &str) -> Vec<(String, Vec<RunRow>)> {
-    let mut groups: Vec<(String, Vec<RunRow>)> = Vec::new();
-    for row in rows
-        .iter()
-        .filter(|row| needle.is_empty() || row.title.to_lowercase().contains(needle))
-    {
-        match groups.iter_mut().find(|(name, _)| *name == row.group) {
-            Some((_, members)) => members.push(row.clone()),
-            None => groups.push((row.group.clone(), vec![row.clone()])),
-        }
-    }
-    groups
-}
-
 #[component]
 pub fn Sidebar() -> impl IntoView {
     let search_open = RwSignal::new(false);
     let query = RwSignal::new(String::new());
     view! {
-        <aside class="sb" id="sb" aria-label="Runs">
+        <aside class="sb" id="sb" aria-label="Chats">
             <SidebarHeader search_open=search_open />
-            <NewRunButton />
+            <NewChatButton />
             <SearchRow search_open=search_open query=query />
-            <RunList query=query />
+            <ChatList query=query />
             <SidebarFooter />
         </aside>
     }
@@ -199,7 +52,7 @@ fn SidebarHeader(search_open: RwSignal<bool>) -> impl IntoView {
             </button>
             <span class="sp"></span>
             <span class="segi">
-                <button class="ibtn" aria-label="Find a run" data-tip="Find a run"
+                <button class="ibtn" aria-label="Find a chat" data-tip="Find a chat"
                     aria-pressed=move || search_open.get()
                     on:click=move |_| search_open.update(|open| *open = !*open)>
                     <Icon name="search" size=16 />
@@ -213,27 +66,30 @@ fn SidebarHeader(search_open: RwSignal<bool>) -> impl IntoView {
 }
 
 #[component]
-fn NewRunButton() -> impl IntoView {
+fn NewChatButton() -> impl IntoView {
     let ui = use_ui();
     view! {
         <div class="sb-new">
-            <button class="btn pri" style="width:100%"
+            <button class="btn pri" style="width:100%" aria-label="New chat"
                 disabled=move || ui.connection.get() != Connection::Live
-                on:click=move |_| start_run(ui)>
+                on:click=move |_| new_chat(ui)>
                 <Icon name="plus" size=15 />
-                <span>"New run"</span>
+                <span>"New chat"</span>
             </button>
         </div>
     }
 }
 
-fn start_run(ui: Ui) {
-    if ui.snapshot.with_untracked(is_live) {
-        ui.show_toast("A run is already live.", ToastKind::Info);
-        return;
-    }
+/// Makes an empty chat, opens it, and reloads. A failure shows as a toast.
+fn new_chat(ui: Ui) {
     spawn_local(async move {
-        settle(ui, api::start_run(&RunRequest::default()).await);
+        match api::create_chat(None).await {
+            Ok(chat) => {
+                ui.open(chat.id);
+                state::refresh(ui);
+            }
+            Err(failure) => ui.show_toast(failure.to_string(), ToastKind::Danger),
+        }
     });
 }
 
@@ -241,7 +97,7 @@ fn start_run(ui: Ui) {
 fn SearchRow(search_open: RwSignal<bool>, query: RwSignal<String>) -> impl IntoView {
     view! {
         <div class="sb-search" hidden=move || !search_open.get()>
-            <input placeholder="Search runs" aria-label="Search runs"
+            <input placeholder="Find a chat" aria-label="Find a chat"
                 prop:value=move || query.get()
                 on:input=move |ev| query.set(event_target_value(&ev)) />
         </div>
@@ -249,22 +105,22 @@ fn SearchRow(search_open: RwSignal<bool>, query: RwSignal<String>) -> impl IntoV
 }
 
 #[component]
-fn RunList(query: RwSignal<String>) -> impl IntoView {
+fn ChatList(query: RwSignal<String>) -> impl IntoView {
     let ui = use_ui();
-    let closed_groups = RwSignal::new(Vec::<String>::new());
+    let closed_groups = RwSignal::new(vec![ARCHIVED_GROUP.to_owned()]);
     view! {
         <div class="sb-scroll">
             {move || {
-                let needle = query.get().trim().to_lowercase();
-                let rows = ui.snapshot.with(runs_from);
-                let groups = grouped(&rows, &needle);
+                let needle = query.get();
+                let groups = ui.snapshot.with(|snapshot| group_chats(&snapshot.chats, &needle));
                 if groups.is_empty() {
-                    let text = if rows.is_empty() { "No runs yet." } else { "No runs match." };
+                    let text = ui.snapshot.with(list_empty_text);
                     return view! { <div class="note" style="padding:1em">{text}</div> }.into_any();
                 }
+                let searching = !needle.trim().is_empty();
                 groups
                     .into_iter()
-                    .map(|(group, members)| group_view(group, members, closed_groups))
+                    .map(|group| group_view(group, closed_groups, searching))
                     .collect_view()
                     .into_any()
             }}
@@ -272,16 +128,32 @@ fn RunList(query: RwSignal<String>) -> impl IntoView {
     }
 }
 
-fn group_view(group: String, rows: Vec<RunRow>, closed: RwSignal<Vec<String>>) -> impl IntoView {
-    let is_closed = closed.with(|list| list.contains(&group));
-    let toggle_name = group.clone();
+/// The text shown when the list has no row to show.
+fn list_empty_text(snapshot: &Snapshot) -> &'static str {
+    if snapshot.chats.is_empty() {
+        "No chats yet."
+    } else {
+        "No chats match."
+    }
+}
+
+/// A project header and its chats. While a search runs, every group is open, so a match shows.
+fn group_view(
+    group: ProjectGroup,
+    closed: RwSignal<Vec<String>>,
+    searching: bool,
+) -> impl IntoView {
+    let ui = use_ui();
+    let ProjectGroup { project, chats } = group;
+    let is_closed = !searching && closed.with(|list| list.contains(&project));
+    let toggle_name = project.clone();
     view! {
         <div class="grp" class:closed=is_closed
             on:click=move |_| toggle_group(closed, &toggle_name)>
-            {group}
+            {project}
             <Icon name="down" size=12 />
         </div>
-        {(!is_closed).then(|| rows.into_iter().map(run_row).collect_view())}
+        {(!is_closed).then(|| chats.into_iter().map(|row| chat_row(row, ui)).collect_view())}
     }
 }
 
@@ -295,13 +167,16 @@ fn toggle_group(closed: RwSignal<Vec<String>>, group: &str) {
     });
 }
 
-fn run_row(row: RunRow) -> impl IntoView {
-    let active = matches!(row.status, RunStatus::Running | RunStatus::Paused);
-    let icon = status_icon(row.status);
+fn chat_row(row: ChatRow, ui: Ui) -> impl IntoView {
+    let id = row.id.clone();
+    let open_id = row.id.clone();
+    let active = move || ui.open_chat.with(|open| open.as_ref() == Some(&open_id));
+    let icon = status_icon(row.icon);
     view! {
-        <button class="run" class:active=active>
+        <button class="run" class:active=active on:click=move |_| show_chat(ui, id.clone())>
             <span class="t">{row.title}</span>
             <span class="meta">
+                {row.needs_you.then(|| view! { <span class="dot" title="Needs you"></span> })}
                 <span>{row.count}</span>
                 {icon}
             </span>
@@ -309,25 +184,36 @@ fn run_row(row: RunRow) -> impl IntoView {
     }
 }
 
-fn status_icon(status: RunStatus) -> AnyView {
-    match status {
-        RunStatus::Running => view! { <span class="spin" title="Running"></span> }.into_any(),
-        RunStatus::Paused => view! {
+/// Opens a chat in the stream and reloads its events.
+fn show_chat(ui: Ui, id: ChatId) {
+    ui.open(id);
+    state::refresh(ui);
+}
+
+fn status_icon(icon: RowIcon) -> AnyView {
+    match icon {
+        RowIcon::Spinner => view! { <span class="spin" title="Running"></span> }.into_any(),
+        RowIcon::Paused => view! {
             <span style="color:var(--warn)" title="Paused"><Icon name="pause" size=14 /></span>
         }
         .into_any(),
-        RunStatus::Done => view! {
+        RowIcon::Done => view! {
             <span style="color:var(--ok)" title="Finished"><Icon name="check" size=14 /></span>
         }
         .into_any(),
-        RunStatus::Blocked => view! {
+        RowIcon::Blocked => view! {
             <span style="color:var(--danger)" title="Has blocked tasks"><Icon name="alert" size=14 /></span>
         }
         .into_any(),
-        RunStatus::Stopped => view! {
+        RowIcon::Planned => view! {
+            <span title="Plan waiting for approval"><Icon name="clock" size=14 /></span>
+        }
+        .into_any(),
+        RowIcon::Stopped => view! {
             <span title="Stopped"><Icon name="stop" size=13 /></span>
         }
         .into_any(),
+        RowIcon::None => ().into_any(),
     }
 }
 
@@ -368,113 +254,54 @@ fn toggle_theme(ui: Ui) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sentinel_core::{RepoInfo, RunId, RunInfo, Task, TaskId};
+    use sentinel_core::{RunId, RunInfo};
     use time::OffsetDateTime;
 
-    fn record(id: i64, event: Event) -> EventRecord {
-        EventRecord {
-            chat: None,
-            id,
-            at: OffsetDateTime::UNIX_EPOCH,
-            event,
-        }
-    }
-
-    fn started(run: &str, backlog: &str) -> Event {
-        Event::RunStarted {
-            run: RunId::new(run),
-            backlog: backlog.to_owned(),
-        }
+    #[test]
+    fn an_idle_harness_is_not_live() {
+        assert!(!is_live(&Snapshot::empty()));
     }
 
     #[test]
-    fn no_events_give_no_rows() {
-        assert_eq!(runs_from(&Snapshot::empty()), Vec::<RunRow>::new());
-    }
-
-    #[test]
-    fn a_started_then_finished_run_gives_one_done_row() {
-        let snapshot = Snapshot {
-            events: vec![
-                record(1, started("r1", "docs/backlog.md")),
-                record(
-                    2,
-                    Event::RunFinished {
-                        verified: 2,
-                        total: 3,
-                    },
-                ),
-            ],
+    fn a_running_or_paused_harness_is_live() {
+        let running = Snapshot {
+            harness: HarnessState::Running,
             ..Snapshot::empty()
         };
-        let rows = runs_from(&snapshot);
-        assert_eq!(rows.len(), 1);
-        assert_eq!(rows[0].title, "backlog.md");
-        assert_eq!(rows[0].status, RunStatus::Done);
-        assert_eq!(rows[0].count, "2/3");
-    }
-
-    #[test]
-    fn a_live_run_gives_a_running_row_with_its_verified_count() {
-        let mut verified = Task::new(TaskId::new("T1"), "One", "");
-        verified.status = TaskStatus::Verified;
-        let pending = Task::new(TaskId::new("T2"), "Two", "");
-        let snapshot = Snapshot {
-            harness: HarnessState::Running,
+        let paused = Snapshot {
+            harness: HarnessState::Paused,
             run: Some(RunInfo {
                 id: RunId::new("r1"),
-                chat: sentinel_core::ChatId::new("c1"),
+                chat: ChatId::new("c1"),
                 backlog: "backlog.md".to_owned(),
                 wave: 1,
                 started_at: OffsetDateTime::UNIX_EPOCH,
             }),
-            tasks: vec![verified, pending],
-            repo: Some(RepoInfo {
-                path: "/repo".to_owned(),
-                name: "fee-ledger-api".to_owned(),
-                is_git: true,
-                has_backlog: true,
-                clean: true,
-                backlog_tasks: 2,
-            }),
             ..Snapshot::empty()
         };
-        let rows = runs_from(&snapshot);
-        assert_eq!(rows[0].status, RunStatus::Running);
-        assert_eq!(rows[0].count, "1/2");
-        assert_eq!(rows[0].group, "fee-ledger-api");
+        assert!(is_live(&running));
+        assert!(is_live(&paused));
     }
 
     #[test]
-    fn backlog_title_drops_the_folders() {
-        assert_eq!(backlog_title("a/b/backlog.md"), "backlog.md");
-        assert_eq!(backlog_title("backlog.md"), "backlog.md");
-    }
-
-    #[test]
-    fn grouping_keeps_first_seen_order_and_filters_by_title() {
-        let row = |group: &str, title: &str| RunRow {
-            id: title.to_owned(),
-            title: title.to_owned(),
-            group: group.to_owned(),
-            count: String::new(),
-            status: RunStatus::Stopped,
+    fn an_empty_list_says_whether_chats_exist() {
+        assert_eq!(list_empty_text(&Snapshot::empty()), "No chats yet.");
+        let with_chat = Snapshot {
+            chats: vec![sentinel_core::ChatInfo {
+                id: ChatId::new("c1"),
+                project: "api".to_owned(),
+                title: "Fees".to_owned(),
+                pinned: false,
+                archived: false,
+                created_at: OffsetDateTime::UNIX_EPOCH,
+                updated_at: OffsetDateTime::UNIX_EPOCH,
+                run: sentinel_core::ChatRunState::Idle,
+                verified: 0,
+                total: 0,
+                needs_you: false,
+            }],
+            ..Snapshot::empty()
         };
-        let rows = vec![
-            row("api", "fees.md"),
-            row("web", "login.md"),
-            row("api", "tax.md"),
-        ];
-        let all = grouped(&rows, "");
-        assert_eq!(
-            all.iter()
-                .map(|(name, _)| name.as_str())
-                .collect::<Vec<_>>(),
-            ["api", "web"]
-        );
-        assert_eq!(all[0].1.len(), 2);
-        let filtered = grouped(&rows, "tax");
-        assert_eq!(filtered.len(), 1);
-        assert_eq!(filtered[0].1[0].title, "tax.md");
+        assert_eq!(list_empty_text(&with_chat), "No chats match.");
     }
 }

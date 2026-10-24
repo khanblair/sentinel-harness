@@ -13,7 +13,7 @@ use crate::components::barrier_card::BarrierCard;
 use crate::components::blocked_write_card::{BlockedWriteCard, blocked_copy};
 use crate::components::budget_banner::BudgetBanner;
 use crate::components::decision_card::DecisionCard;
-use crate::components::empty_run_state::EmptyRunState;
+use crate::components::empty_run_state::EmptyChatState;
 use crate::components::file_change_card::FileChangeCard;
 use crate::components::message_cards::{NoteLine, SystemMessage, UserMessage};
 use crate::components::plan_card::PlanCard;
@@ -72,7 +72,7 @@ fn empty_or_note(ui: Ui, items: Memo<Vec<(i64, Item)>>) -> AnyView {
     if ui.focus.get().is_some() {
         view! { <NoteLine text="Nothing from this agent yet." icon="eye" /> }.into_any()
     } else {
-        view! { <EmptyRunState /> }.into_any()
+        view! { <EmptyChatState /> }.into_any()
     }
 }
 
