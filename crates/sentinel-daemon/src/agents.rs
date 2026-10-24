@@ -398,14 +398,17 @@ mod tests {
 
     #[test]
     fn a_json_envelope_gives_its_result_text() {
-        let output = r#"{"type":"result","result":"{\"tasks\":[]}","total_cost_usd":0.01}"#;
-        assert_eq!(answer_text(output), r#"{"tasks":[]}"#);
+        let output = concat!(
+            r#"{"type":"result","result":"the plan","#,
+            r#""total_cost_usd":0.01}"#
+        );
+        assert_eq!(answer_text(output), "the plan");
     }
 
     #[test]
     fn plain_output_stays_as_it_is() {
         assert_eq!(answer_text("line one\nline two"), "line one\nline two");
-        assert_eq!(answer_text(r#"{"tasks":[]}"#), r#"{"tasks":[]}"#);
+        assert_eq!(answer_text(r#"{"no":"result"}"#), r#"{"no":"result"}"#);
     }
 
     #[test]

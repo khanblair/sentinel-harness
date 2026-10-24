@@ -63,7 +63,7 @@ Every UI component. If it is not here, it does not exist yet.
 | BudgetBanner | 70% and 95% notices | level | warn, danger | P6 | planned |
 | ReportCard | Counts and links to the report and the Brain | report | default | P6 | planned |
 | Composer | Text box, plus menu, attachment chips, voice, send | value, attachments | idle, typing, slash open, disabled | P6 | planned |
-| AttachMenu | Add files, Add a folder, Use a backlog file, Add a context note | chat | open, closed | P6 | planned |
+| AttachMenu | Add files, Add a folder, Use a backlog file, Use a skill, Add a context note | chat | open, closed | P6 | planned |
 | AttachmentChip | One attachment above the text box, with an x | attachment | file, folder, backlog, note, upload, error | P6 | planned |
 | RepoFilePicker | A list of repository files with a filter box, for the plus menu | files, kind | files, folders | P6 | planned |
 | SlashMenu | Command list under the composer | commands, query | hidden, open | P6 | planned |
@@ -195,6 +195,7 @@ Every UI component. If it is not here, it does not exist yet.
 | RoutinesPage | Settings page: the routines, their times, and the last briefs | routines | empty, listed | P17 | planned |
 | RoutineRow | One routine: name, kind, time, days, switch, destination, last run, Send now | routine | on, off, locked on phone | P17 | planned |
 | RoutineEditor | Dialog to add or edit a routine: kind, time, days, text or backlog, destination | routine | new, editing, error | P17 | planned |
+| RoutinesRow | The Routines row under Scheduled in the sidebar, with the count of routines that are on | count | default | P17 | planned |
 | BriefCard | One brief as text, with its kind and time | brief | default, sent to Telegram | P17 | planned |
 
 ## Telegram

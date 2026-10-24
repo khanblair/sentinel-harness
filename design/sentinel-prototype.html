@@ -612,7 +612,22 @@ const S = {
   devices: [{ id: 'd1', name: 'Pixel 7', kind: 'phone', seen: 'just now' }],
   runs: [], tasks: [], reserved: {}, cost: { total: 0, by: {}, hist: [] }, checkpoints: [], blocked: [], quality: [],
   term: {}, agentState: {}, pending: {}, sim: { paused: false, cancel: null }, version: 1,
-  attach: [], runChips: [], fromMessage: false, renaming: null, dlg: null
+  attach: [], runChips: [], fromMessage: false, renaming: null, dlg: null,
+  skills: [
+    { name: 'house-style', desc: 'Rust naming, error handling, and comment rules for this repository. Use when writing or reviewing code.', scope: 'project', mode: 'always', bytes: 2400 },
+    { name: 'release-checklist', desc: 'Steps to cut a release: changelog, version bump, tag, and notes. Use when preparing a release.', scope: 'project', mode: 'auto', bytes: 1800 },
+    { name: 'migration-guide', desc: 'How to write a safe SQLite migration. Use when a task changes the schema.', scope: 'personal', mode: 'auto', bytes: 3100 }
+  ],
+  found: [
+    { name: 'code-review', desc: 'Review a diff against the repository standards.', source: '.claude/skills' },
+    { name: 'write-tests', desc: 'Write focused tests for new code.', source: '~/.codex/skills' },
+    { name: 'api-docs', desc: 'Document an HTTP API from its routes.', source: '.agents/skills' }
+  ],
+  routines: [
+    { id: 'morning', name: 'Morning brief', kind: 'morning', time: '08:00', days: 'weekdays', on: false, tg: true, last: 'never' },
+    { id: 'sundown', name: 'Sundown wrap-up', kind: 'sundown', time: '18:00', days: 'every day', on: false, tg: true, last: 'never' }
+  ],
+  briefs: []
 };
 CAPS.forEach(() => { });
 AGENTS0.forEach(a => { S.agentPerms[a.id] = { read: true, write: true, ext: a.id !== 'opencode', tests: true, shell: a.id === 'claude', net: false }; });
@@ -649,7 +664,7 @@ const KEY = 'sentinel-proto-v2';
 /* event ids restart on every page load, so they are not saved; renderStream assigns new ones */
 const chatForSave = r => ({ id: r.id, repo: r.repo, title: r.title, status: isActive(r) ? 'stopped' : r.status, verified: r.verified, pinned: !!r.pinned, archived: !!r.archived, renamed: !!r.renamed, care: !!r.care, past: !!r.past, remote: !!r.remote, events: r.events.map(ev => Object.assign({}, ev, { id: undefined })) });
 function save() {
-  try { localStorage.setItem(KEY, JSON.stringify({ prefs: S.prefs, setup: S.setup, perm: S.perm, brainMode: S.brainMode, routing: S.routing, tools: S.tools.map(t => ({ id: t.id, enabled: t.enabled, status: t.status, tier: t.tier })), conn: S.conn, devices: S.devices, brain: S.brain ? { notes: S.brain.notes, care: S.brain.care, journal: S.brain.journal, proposals: S.brain.proposals } : null, tg: S.tg ? Object.assign({}, S.tg, { messages: [], unread: 0, log: [] }) : null, live: S.live, chats: S.runs.map(chatForSave) })); } catch (e) { }
+  try { localStorage.setItem(KEY, JSON.stringify({ prefs: S.prefs, skills: S.skills, found: S.found, routines: S.routines, briefs: S.briefs, setup: S.setup, perm: S.perm, brainMode: S.brainMode, routing: S.routing, tools: S.tools.map(t => ({ id: t.id, enabled: t.enabled, status: t.status, tier: t.tier })), conn: S.conn, devices: S.devices, brain: S.brain ? { notes: S.brain.notes, care: S.brain.care, journal: S.brain.journal, proposals: S.brain.proposals } : null, tg: S.tg ? Object.assign({}, S.tg, { messages: [], unread: 0, log: [] }) : null, live: S.live, chats: S.runs.map(chatForSave) })); } catch (e) { }
 }
 function load() {
   try {
@@ -659,6 +674,7 @@ function load() {
     if (d.live && getRun(d.live)) S.live = d.live;
     S.cur = S.live; S.hist = [S.live]; S.hpos = 0;
     if (d.prefs) S.prefs = Object.assign({}, DEFAULT_PREFS, d.prefs, { overrides: Object.assign({ dark: {}, light: {} }, d.prefs.overrides) });
+    if (d.skills) S.skills = d.skills; if (d.found) S.found = d.found; if (d.routines) S.routines = d.routines; if (d.briefs) S.briefs = d.briefs;
     if (d.setup) Object.assign(S.setup, d.setup);
     if (d.perm) S.perm = d.perm; if (d.brainMode) S.brainMode = d.brainMode; if (d.routing) S.routing = d.routing;
     if (d.tools) d.tools.forEach(t => { const a = agentById(t.id); if (a) Object.assign(a, t); });
@@ -711,7 +727,7 @@ const PANELS = {
 const SLASH = [
   ['/pause', 'Pause the run'], ['/resume', 'Resume the run'], ['/stop', 'Stop the run'], ['/cap 1.50', 'Lower the budget cap'],
   ['/agent claude', 'Send messages to one agent'], ['/focus codex', 'Show one agent in the stream'], ['/kill codex', 'Kill an agent'],
-  ['/plan', 'Switch to plan only'], ['/brain off', 'Set the Brain mode'], ['/report', 'Open the report'], ['/help', 'List commands']
+  ['/plan', 'Switch to plan only'], ['/skill house-style', 'Add a skill to your next message'], ['/brain off', 'Set the Brain mode'], ['/report', 'Open the report'], ['/help', 'List commands']
 ];
 
 function mountApp() {
@@ -787,7 +803,8 @@ function runRow(r) {
 function groupHtml(key, label, chats, closed, canAdd) {
   const plus = canAdd ? `<button class="ibtn plus" data-act="newChat" data-arg="${esc(key)}" aria-label="New chat in ${esc(key)}" data-tip="New chat in ${esc(key)}">${ic('plus', 14)}</button>` : '';
   const head = `<div class="grp ${closed ? 'closed' : ''}" data-act="toggleGroup" data-arg="${esc(key)}">${esc(label)}${ic('down', 12)}${plus}</div>`;
-  return head + (closed ? '' : chats.map(runRow).join(''));
+  const routines = key === 'Scheduled' && !closed ? `<div class="run" role="button" tabindex="0" data-act="settings" data-arg="routines">${ic('clock', 14)}<span class="t">Routines</span><span class="meta"><span>${S.routines.filter(r => r.on).length} on</span></span></div>` : '';
+  return head + (closed ? '' : chats.map(runRow).join('')) + routines;
 }
 function renderSidebar() {
   const ae = document.activeElement;
@@ -1584,7 +1601,7 @@ function menuPanel(a) {
   openPop(a, Object.entries(PANELS).map(([id, p]) => mi(p.icon, p.label + tick1(S.panelTabs.includes(id)), '', 'openPanel', id)).join(''), 'right');
 }
 function menuAttach(a) {
-  openPop(a, `${mi('file', 'Add files', 'From this project or this device', 'addFiles')}${mi('folder', 'Add a folder', 'A folder of this project', 'addFolder')}${mi('tasks', 'Use a backlog file', 'fee-ledger-api/backlog.md', 'addBacklog')}${mi('edit', 'Add a context note', 'Goes into every agent prompt', 'addNote')}`);
+  openPop(a, `${mi('file', 'Add files', 'From this project or this device', 'addFiles')}${mi('folder', 'Add a folder', 'A folder of this project', 'addFolder')}${mi('tasks', 'Use a backlog file', 'fee-ledger-api/backlog.md', 'addBacklog')}${mi('book', 'Use a skill', 'Adds a skill to the next message', 'addSkill')}${mi('edit', 'Add a context note', 'Goes into every agent prompt', 'addNote')}`);
 }
 
 /* ---------- attachments: chips and the add dialogs ---------- */
@@ -1592,10 +1609,11 @@ const ATT_FILES = ['src/lib.rs', 'src/ledger.rs', 'src/fees.rs', 'src/limits.rs'
 const ATT = {
   files: { title: 'Add files', icon: 'file', items: ATT_FILES, single: false, tabs: true, ok: n => `Add ${n} file${n === 1 ? '' : 's'}` },
   folder: { title: 'Add a folder', icon: 'folder', items: ['src', 'tests', 'docs'], single: true, tabs: false, ok: () => 'Add folder' },
-  backlog: { title: 'Use a backlog file', icon: 'tasks', items: ['backlog.md', 'docs/roadmap.md'], single: true, tabs: true, ok: () => 'Use file' }
+  backlog: { title: 'Use a backlog file', icon: 'tasks', items: ['backlog.md', 'docs/roadmap.md'], single: true, tabs: true, ok: () => 'Use file' },
+  get skill() { return { title: 'Use a skill', icon: 'book', items: S.skills.map(k => k.name), single: true, tabs: false, ok: () => 'Use skill' }; }
 };
 const DEVICE_FILES = { 'notes.txt': 2048, 'big-dump.log': 3355443 };
-const CHIP_ICON = { file: 'file', folder: 'folder', backlog: 'list', note: 'edit' };
+const CHIP_ICON = { file: 'file', folder: 'folder', backlog: 'list', note: 'edit', skill: 'book' };
 const chipLabel = c => c.kind === 'note' ? c.text.slice(0, 24) : c.name;
 /* act: the remove action, or none for a read-only chip in a sent message */
 function chipHtml(c, act, i) {
@@ -1677,7 +1695,7 @@ function noteAdd() {
 }
 
 /* ---------- settings ---------- */
-const SET_PAGES = [['general', 'gear', 'General'], ['appearance', 'palette', 'Appearance'], ['agents', 'agent', 'Agents and tools'], ['connections', 'net', 'Connections'], ['integrations', 'link', 'Integrations'], ['perms', 'shield', 'Permissions'], ['brain', 'brain', 'Brain'], ['budget', 'dollar', 'Budget'], ['devices', 'phone', 'Devices'], ['shortcuts', 'keyboard', 'Shortcuts'], ['about', 'info', 'About']];
+const SET_PAGES = [['general', 'gear', 'General'], ['appearance', 'palette', 'Appearance'], ['agents', 'agent', 'Agents and tools'], ['connections', 'net', 'Connections'], ['integrations', 'link', 'Integrations'], ['perms', 'shield', 'Permissions'], ['skills', 'book', 'Skills'], ['routines', 'clock', 'Routines'], ['brain', 'brain', 'Brain'], ['budget', 'dollar', 'Budget'], ['devices', 'phone', 'Devices'], ['shortcuts', 'keyboard', 'Shortcuts'], ['about', 'info', 'About']];
 function selHtml(key, val, opts) { return `<select data-sel="${key}" aria-label="${key}">${opts.map(([v, l]) => `<option value="${v}" ${String(v) === String(val) ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`; }
 function segHtml(key, val, opts) { return `<span class="seg">${opts.map(([v, l, i]) => `<button aria-pressed="${String(v) === String(val)}" data-act="pref" data-arg="${key}|${v}">${i ? ic(i, 15) : ''}${l}</button>`).join('')}</span>`; }
 function fld(l, d, ctrl, cls = '') { return `<div class="fld ${cls}"><div class="l"><b>${l}</b>${d ? `<span>${d}</span>` : ''}</div>${ctrl}</div>`; }
@@ -1734,6 +1752,8 @@ function setPage(p) {
       ${row('OS keychain', 'shield', ok, 'Stores API keys. Falls back to an environment variable if no keychain exists.', `<button class="btn" data-act="conn" data-arg="keychain">Test</button>`)}`;
     }
     case 'integrations': return tgSettingsHtml();
+    case 'skills': return skillsPageHtml();
+    case 'routines': return routinesPageHtml();
     case 'perms': return `<h2>Permissions</h2><p class="lead">What agents may do without asking.</p>${pPerms()}`;
     case 'budget': return `<h2>Budget</h2><p class="lead">Spend limits.</p>
       ${fld('Budget cap', 'Can only be lowered once a run starts.', `<span class="row"><input type="number" step="0.1" min="0.1" id="capSet" value="${S.cap.toFixed(2)}" aria-label="Budget cap in dollars"><button class="btn" data-act="lowerCapSet">Apply</button></span>`)}
@@ -1755,6 +1775,46 @@ function setPage(p) {
     case 'about': return `<h2>About</h2><p class="lead">Sentinel prototype. All data in this screen is simulated.</p>${fld('Version', '', '<span class="k">0.3.0 (prototype)</span>')}${fld('Daemon', '', '<span class="k">local, pid 4821</span>')}${fld('Updates', S.update ? 'An update is ready.' : 'You are up to date.', `<button class="btn" data-act="update" ${S.update ? '' : 'disabled'}>Relaunch to update</button>`)}`;
   }
   return '';
+}
+/* ---------- skills and routines (F24, F25) ---------- */
+function skillRowHtml(k) {
+  const seg = `<span class="seg">${[['off', 'Off'], ['auto', 'Auto'], ['always', 'Always']].map(([m, l]) => `<button aria-pressed="${k.mode === m}" data-act="skillMode" data-arg="${esc(k.name)}|${m}">${l}</button>`).join('')}</span>`;
+  const del = `<button class="ibtn" data-act="skillDel" data-arg="${esc(k.name)}" aria-label="Delete ${esc(k.name)}">${ic('trash', 15)}</button>`;
+  return fld(`<span class="mono">${esc(k.name)}</span>`, `${esc(k.desc)} <span class="chip">${k.scope}</span>`, `<span class="row">${seg}${del}</span>`);
+}
+function skillsPageHtml() {
+  const mine = S.skills.length ? S.skills.map(skillRowHtml).join('') : `<div class="note">${ic('info', 14)}<span>No skills yet. Add one, or import one from another tool.</span></div>`;
+  const found = S.found.filter(f => !S.skills.some(k => k.name === f.name));
+  const foundHtml = found.length ? found.map(f => fld(`<span class="mono">${esc(f.name)}</span>`, `${esc(f.desc)} <span class="chip">${esc(f.source)}</span>`, `<button class="btn sm" data-act="skillImport" data-arg="${esc(f.name)}">${ic('download', 13)} Import</button>`)).join('') : `<div class="note">${ic('info', 14)}<span>Nothing new found. Sentinel looks in <span class="k">.claude/skills</span>, <span class="k">.agents/skills</span>, <span class="k">.agent/skills</span>, and <span class="k">.codex/skills</span>, in this repository and in your home folder.</span></div>`;
+  return `<h2>Skills</h2><p class="lead">A skill is a folder with a <span class="k">SKILL.md</span> that teaches agents one thing the way you want it done. It is the same format Claude, Codex, and Antigravity use. Sentinel puts the right skills into each task.</p>
+    <div class="psec"><h5>Your skills</h5>${mine}</div>
+    <div class="row wrap" style="margin:.8em 0"><button class="btn pri" data-act="skillNew">${ic('plus', 14)} New skill</button></div>
+    <div class="psec"><h5>Found on this computer</h5>${foundHtml}</div>
+    <div class="psec"><h5>How skills are used</h5>${fld('Always', 'In every task prompt.', '')}${fld('Auto', 'When the words of its name and description match the task. At most 3 per task, within 1,500 tokens.', '')}${fld('Off', 'Never, unless you add it to a message by hand with /skill.', '')}${fld('Files', 'Project skills are in .sentinel/skills/. Personal skills are in ~/.sentinel/skills/. Sentinel never runs a file in a skill folder.', '<span class="k">SKILL.md</span>')}</div>`;
+}
+function routineRowHtml(r) {
+  const what = { morning: 'What is waiting today, what you have, and what to start with.', sundown: 'What got done, what is stuck and why, and what waits for tomorrow.', reminder: 'Your own text.' }[r.kind] || '';
+  const times = ['06:00', '07:00', '08:00', '09:00', '12:00', '17:00', '18:00', '19:00', '21:00'];
+  if (!times.includes(r.time)) times.push(r.time);
+  return `<div class="card" style="margin-bottom:.6em"><div class="row sp wrap"><span class="row">${ic('clock', 17)}<b>${esc(r.name)}</b></span>${tog(r.on, 'routineToggle', r.id)}</div>
+    <div class="sub" style="margin:.35em 0">${what}${r.text ? ' ' + esc(r.text) : ''}</div>
+    <div class="row wrap"><span class="row"><label class="sub" for="rt-${r.id}">At</label>${selHtml('routineTime|' + r.id, r.time, times.sort().map(t => [t, t]))}</span>
+      ${selHtml('routineDays|' + r.id, r.days, [['every day', 'Every day'], ['weekdays', 'Weekdays'], ['weekends', 'Weekends']])}
+      <span class="row">${tog(r.tg, 'routineTg', r.id)}<span class="sub">Send to Telegram</span></span><span style="flex:1"></span>
+      <span class="sub">Last: ${esc(r.last)}</span><button class="btn sm" data-act="routineNow" data-arg="${r.id}">Send now</button></div></div>`;
+}
+function briefTextFor(kind) {
+  const v = S.tasks.filter(t => t.status === 'verified').length, b = S.tasks.filter(t => t.status === 'blocked').length, open = Math.max(0, 10 - v);
+  if (kind === 'morning') return `Good morning.\nWaiting today: ${open} open tasks in backlog.md, ${b} blocked from the last run, ${S.brain.proposals.length} Brain proposals.\nSpend this week ${money(S.cost.total)} of ${money(S.cap)}. ${S.tools.filter(a => a.enabled && a.status === 'ready').length} agents ready.\nStart with: ${b ? 'the blocked task, T-09' : 'a run from the backlog'}.`;
+  return `Day wrap-up.\n${v} tasks verified, ${b} blocked.\nSpent today ${money(S.cost.total)}.\n${b ? 'Stuck: T-09 failed three times.' : 'Nothing is stuck.'} ${S.brain.proposals.length} Brain proposals are waiting.\nTomorrow: ${b ? 'look at T-09 first' : 'start the next backlog'}.\nStatus: ${v} verified. Nothing is called done without a passing test.`;
+}
+function routinesPageHtml() {
+  const brief = b => `<div class="card" style="margin-bottom:.5em"><div class="row sp"><b>${esc(b.title)}</b><span class="sub">${esc(b.at)}${b.tg ? ' · sent to Telegram' : ''}</span></div><div class="sub" style="white-space:pre-line;margin-top:.3em">${esc(b.text)}</div></div>`;
+  return `<h2>Routines</h2><p class="lead">Jobs that run at a set time on this computer's clock. A brief is built from the facts of your project. It uses no agent and costs nothing. The scheduler checks every 30 seconds while Sentinel is on.</p>
+    ${S.routines.map(routineRowHtml).join('')}
+    <div class="row wrap" style="margin:.8em 0"><button class="btn" data-act="routineNew">${ic('plus', 14)} Add a reminder</button></div>
+    <div class="psec"><h5>Latest briefs</h5>${S.briefs.length ? S.briefs.slice(0, 5).map(brief).join('') : `<div class="note">${ic('info', 14)}<span>No briefs yet. Press Send now on a routine to see one.</span></div>`}</div>
+    <div class="psec"><h5>Good to know</h5>${fld('Missed times', 'A routine missed while Sentinel was off still runs at start when it is under 2 hours late. Older ones are skipped.', '')}${fld('Telegram', 'Needs the Reports level. /brief and /wrapup send them on demand.', '')}${fld('Privacy', 'A brief holds counts, task ids, and reasons. In hackathon mode it holds counts only. It never holds code, files, keys, or note text.', '')}</div>`;
 }
 function toolRowsHtml() {
   return S.tools.map(a => {
@@ -2282,7 +2342,7 @@ function tgCommand(text) {
   const [c, ...r] = text.trim().split(/\s+/), a = r.join(' '), run = getRun(S.live);
   const need = k => { if (!T.level[k]) { tgReply(`${k[0].toUpperCase() + k.slice(1)} is off for this chat. Turn it on in Settings, Integrations.`); return false; } return true; };
   switch (c) {
-    case '/help': tgReply('Commands:\n/status\n/pause  /resume  /stop\n/cap 1.50\n/kill <agent>\n/agent <name> <text>\n/diff [task]\n/report\n/daily\n/brain <search>\n/task <text>\n/run [task]'); break;
+    case '/help': tgReply('Commands:\n/status\n/pause  /resume  /stop\n/cap 1.50\n/kill <agent>\n/agent <name> <text>\n/diff [task]\n/report\n/daily  /brief  /wrapup\n/brain <search>\n/task <text>\n/run [task]'); break;
     case '/status': tgReply(tgStatus()); break;
     case '/pause': if (!need('control')) break; if (run.status === 'running') { pauseRun(); tgReply('Paused. Agents finish their current step.', [{ label: 'Resume', arg: 'cmd|/resume' }]); } else tgReply('Nothing is running.'); break;
     case '/resume': if (!need('control')) break; if (run.status === 'paused') { pauseRun(); tgReply('Resumed.'); } else tgReply('The run is not paused.'); break;
@@ -2297,6 +2357,8 @@ function tgCommand(text) {
     case '/diff': if (!need('code')) break; tgReply(tgDiff(a)); break;
     case '/report': if (!need('reports')) break; tgReply(tgStatus() + (S.tasks.length ? '\nOpen the report in Sentinel for receipts.' : '')); break;
     case '/daily': if (!need('reports')) break; tgDaily(); break;
+    case '/brief': if (!need('reports')) break; routineFire(S.routines[0]); break;
+    case '/wrapup': if (!need('reports')) break; routineFire(S.routines[1]); break;
     case '/brain': { if (!need('code')) break; const q = a.toLowerCase(), ns = S.brain.notes.filter(n => !q || (n.title + n.tags.join(' ')).toLowerCase().includes(q)); tgReply(tgDetail() === 'status' ? `${ns.length} notes match.` : `${ns.length} notes match.\n` + ns.slice(0, 4).map(n => '- ' + n.title).join('\n') + '\nNote text stays on the computer.'); break; }
     case '/bypass': case '/raise': case '/edit': case '/shell': tgReply('That can only be done at the PC. Telegram cannot switch on Bypass permissions, raise the cap, edit notes or tests, or run shell commands.'); tgLog('Refused: ' + c + ' (needs the PC)'); break;
     case '/task': { if (!need('code')) break; if (!a) { tgReply('Use /task <what to do>, for example /task Add a rate limit to transfers.'); break; } T.draft = a; tgReply(tgDetail() === 'status' ? 'Add this task to backlog.md?' : `Add this task to backlog.md?\n"${a.slice(0, 120)}"`, [{ label: 'Add task', arg: 'cmd|/addtask' }, { label: 'Cancel', arg: 'cmd|/cancel' }]); break; }
@@ -2305,6 +2367,13 @@ function tgCommand(text) {
     case '/runnow': { if (!need('code')) break; if (S.perm === 'bypass') { tgReply('Runs started from Telegram never use Bypass permissions.'); break; } const id = (a || '').trim().toUpperCase(); if (['running', 'paused'].includes(run.status)) { tgReply('A run is already live.'); break; } tgLog('Run started from Telegram' + (id ? ': ' + id : '')); if (id) { quickRun(id); tgReply(`Started ${id} in ${PERM_MODES[S.perm].l} mode. I will message you when it is done.`); } else { startRun('auto', '', [], getRun(S.live)); tgReply('Started the run. I will message you at each wave.'); } break; }
     default: tgReply(text.startsWith('/') ? 'I do not know that command. Send /help.' : 'To talk to an agent, send /agent claude <text>. Send /help for all commands.');
   }
+}
+function routineFire(r) {
+  const text = r.kind === 'reminder' ? r.text : briefTextFor(r.kind), now = 'just now';
+  S.briefs.unshift({ title: r.name, text, at: now, tg: !!(r.tg && S.tg.paired) }); S.briefs = S.briefs.slice(0, 14); r.last = now; save();
+  if (r.tg && S.tg.paired) { tgLog('Sent (' + tgDetail() + '): ' + r.name); tgPush({ who: 'bot', text: tgRedact(r.name + '\n' + text), buttons: [] }); }
+  if (S.setPageId === 'routines' && $('#setBody')) renderSettings();
+  toast(r.name + (r.tg && S.tg.paired ? ' sent to Telegram' : ' is ready, in Routines'), 'ok');
 }
 function tgDaily() {
   const T = S.tg; if (!T.paired) { toast('Pair a chat first', 'warn'); return; }
@@ -2399,6 +2468,7 @@ function command(text) {
   const [c, ...rest] = text.split(/\s+/), a = rest.join(' ');
   add(S.live, { k: 'user', text });
   switch (c) {
+    case '/skill': { const k = S.skills.find(x => x.name === a); if (!k) { say('<p>Use <span class="k">/skill NAME</span>. Skills: ' + S.skills.map(x => esc(x.name)).join(', ') + '.</p>'); break; } if (!S.attach.some(c => c.kind === 'skill' && c.name === k.name)) S.attach.push({ kind: 'skill', name: k.name }); renderFoot(); say('<p>Skill <b>' + esc(k.name) + '</b> goes with your next message.</p>'); break; }
     case '/help': say('<p>Commands:</p><ul>' + SLASH.map(x => `<li><span class="k">${esc(x[0])}</span> ${esc(x[1])}</li>`).join('') + '</ul>'); break;
     case '/pause': { const r = getRun(S.live); if (r.status === 'running') pauseRun(); else say('<p>Nothing is running.</p>'); break; }
     case '/resume': { const r = getRun(S.live); if (r.status === 'paused') pauseRun(); else say('<p>The run is not paused.</p>'); break; }
@@ -2533,6 +2603,15 @@ function act(a, arg, el) {
     case 'resetPrefs': S.prefs = JSON.parse(JSON.stringify(DEFAULT_PREFS)); applyPrefs(); save(); renderAll(); renderSettings(); toast('Appearance reset'); break;
     case 'copyCss': try { navigator.clipboard.writeText(tokensCss()); toast('CSS copied'); } catch (e) { toast('Copy is blocked here. Select the text above.'); } break;
     case 'setPage': S.setPageId = arg; renderSettings(); break;
+    case 'skillMode': { const [n, m] = arg.split('|'), k = S.skills.find(x => x.name === n); if (k) { k.mode = m; save(); renderSettings(); toast(n + ': ' + m, 'ok'); } break; }
+    case 'skillDel': S.skills = S.skills.filter(x => x.name !== arg); save(); renderSettings(); toast('Skill deleted'); break;
+    case 'skillNew': { let n = 'new-skill', i = 2; while (S.skills.some(x => x.name === n)) n = 'new-skill-' + i++; S.skills.push({ name: n, desc: 'Describe what it does and when to use it.', scope: 'project', mode: 'auto', bytes: 400 }); save(); renderSettings(); toast('Skill added. Edit SKILL.md in .sentinel/skills/' + n, 'ok'); break; }
+    case 'skillImport': { const f = S.found.find(x => x.name === arg); if (f) { S.skills.push({ name: f.name, desc: f.desc, scope: 'project', mode: 'auto', bytes: 1200 }); save(); renderSettings(); toast('Imported ' + f.name + '. The original is untouched.', 'ok'); } break; }
+    case 'routineToggle': { const r = S.routines.find(x => x.id === arg); if (r) { r.on = !r.on; save(); renderSettings(); toast(r.name + (r.on ? ' is on' : ' is off'), r.on ? 'ok' : undefined); } break; }
+    case 'routineTg': { const r = S.routines.find(x => x.id === arg); if (r) { r.tg = !r.tg; save(); renderSettings(); } break; }
+    case 'routineNew': S.routines.push({ id: 'r-' + (S.routines.length + 1), name: 'Reminder', kind: 'reminder', time: '09:00', days: 'weekdays', on: true, tg: true, last: 'never', text: 'Review the plan before standup.' }); save(); renderSettings(); toast('Reminder added', 'ok'); break;
+    case 'routineNow': { const r = S.routines.find(x => x.id === arg); if (r) routineFire(r); break; }
+    case 'addSkill': openAttachDialog('skill'); break;
     case 'closeOverlay': closeOverlay(arg); break;
     case 'toolToggle': { const t = agentById(arg); if (t.status !== 'ready') { toast('Fix ' + t.name + ' first: ' + (t.status === 'missing' ? 'it is not installed' : t.status === 'login' ? 'it needs a login' : 'it needs a command')); break; } t.enabled = !t.enabled; save(); rerenderUi(); break; }
     case 'toolFix': { const t = agentById(arg); if (t.status === 'missing') { toast('Install ' + t.name + ' from its own docs, then Rescan'); break; } toast(t.status === 'login' ? 'Opened login for ' + t.name + ' (simulated)' : 'Command saved: ' + t.id + ' run --prompt {task}'); setTimeout(() => { t.status = 'ready'; t.enabled = true; t.ver = t.ver === 'unknown' ? '1.0.0' : t.ver; save(); rerenderUi(); }, 600 / S.speed); break; }
@@ -2649,6 +2728,8 @@ document.addEventListener('change', ev => {
   else if (k.startsWith('tier|')) { agentById(k.slice(5)).tier = v; save(); }
   else if (k === 'ceiling') { S.ceiling = v; toast('Task ceiling: ' + v + 'x'); }
   else if (k === 'tgDetail') { S.tg.detail = v; save(); rerenderUi(); }
+  else if (k.startsWith('routineTime|')) { const r = S.routines.find(x => x.id === k.slice(12)); if (r) { r.time = v; save(); toast(r.name + ' at ' + v, 'ok'); } }
+  else if (k.startsWith('routineDays|')) { const r = S.routines.find(x => x.id === k.slice(12)); if (r) { r.days = v; save(); toast(r.name + ': ' + v, 'ok'); } }
   else if (k === 'brainType') { S.brain.ui.type = v; renderPanelBody(); }
   else if (k === 'careFreq') { S.brain.care.freq = v; S.brain.care.next = v === 'daily' ? 'Tomorrow 02:00' : v === 'monthly' ? 'Nov 1, 02:00' : v === 'runs' ? 'After 5 more runs' : 'Sun 02:00'; const r7 = getRun('r7'); r7.title = 'Brain care, ' + (v === 'off' ? 'off' : v === 'runs' ? 'every 5 runs' : v); save(); rerenderUi(); }
   else if (k === 'careBudget') { const n = parseFloat(v); if (n > 0) { S.brain.care.budget = n; save(); toast('Care budget saved', 'ok'); } }

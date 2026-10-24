@@ -73,7 +73,7 @@ On phone the panel icons move to the bottom tab bar and the More tab.
 ## Composer
 
 - A text box with a plus menu, a voice button, and send.
-- The plus menu has four entries: **Add files** (pick repository files, or upload from this device), **Add a folder** (a repository folder), **Use a backlog file** (a repository file or an upload), and **Add a context note**. On a phone, Add files also offers the camera roll.
+- The plus menu has five entries: **Add files** (pick repository files, or upload from this device), **Add a folder** (a repository folder), **Use a backlog file** (a repository file or an upload), **Use a skill** (one of your skills, for the next message), and **Add a context note**. On a phone, Add files also offers the camera roll.
 - Each choice becomes a chip above the text box, with an icon, a short name, and an x. Chips go with the next message and then show on the message in the stream. A chip that cannot be used says why in its tooltip (a file over 1 MB, a path outside the repository).
 - Dropping files on the stream or pasting a file into the text box adds chips the same way on desktop.
 - Enter sends. Shift + Enter adds a line. Typing `/` opens the command list.
