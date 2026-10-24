@@ -149,8 +149,11 @@ fn RenameInput(ui: Ui, chat: ChatId) -> impl IntoView {
         .renaming
         .with_untracked(|state| state.as_ref().map(|state| state.title.clone()))
         .unwrap_or_default();
+    let shown = start.clone();
+    // The value is set here, not only in the view, so the selection covers the whole title.
     Effect::new(move |_| {
         if let Some(element) = field.get() {
+            element.set_value(&shown);
             let _ = element.focus();
             element.select();
         }
