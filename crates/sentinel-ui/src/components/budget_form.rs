@@ -95,6 +95,7 @@ pub fn BudgetPage() -> impl IntoView {
                 <option value="3">"3x estimate"</option>
             </select>
         </Field>
+        <RoutingFields />
     }
 }
 

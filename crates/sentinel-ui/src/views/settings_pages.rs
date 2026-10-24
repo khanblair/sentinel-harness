@@ -115,6 +115,7 @@ fn check_panel(
     }
 }
 
+// Only the starter-backlog row carries a fix (`folders.rs`), so the fix button calls that route.
 fn check_row(
     ui: Ui,
     picked: RwSignal<Option<PickedFolder>>,

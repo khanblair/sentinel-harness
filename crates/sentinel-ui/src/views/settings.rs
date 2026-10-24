@@ -102,9 +102,16 @@ pub fn Field(
     }
 }
 
+/// Other ids that open a settings page. The Agents panel's "Manage in settings" link sends `tools`.
+const PAGE_ALIASES: [(&str, &str); 1] = [("tools", "agents")];
+
 /// The page for a stored id. An unknown id opens General, so a stale link never shows an
 /// empty body.
 pub fn page_from_id(id: &str) -> &'static SettingsPage {
+    let id = PAGE_ALIASES
+        .iter()
+        .find(|(alias, _)| *alias == id)
+        .map_or(id, |(_, target)| *target);
     SET_PAGES
         .iter()
         .find(|page| page.id == id)
@@ -311,6 +318,12 @@ mod tests {
         for page in SET_PAGES {
             assert_eq!(page_from_id(page.id), &page);
         }
+    }
+
+    #[test]
+    fn the_agents_panel_link_opens_the_agents_page() {
+        assert_eq!(page_from_id("tools").id, "agents");
+        assert_eq!(page_from_id("agents").id, "agents");
     }
 
     #[test]
