@@ -195,3 +195,18 @@ pub(crate) fn report(repo: Option<PathBuf>) -> Result<ExitCode> {
     println!("{text}");
     Ok(ExitCode::SUCCESS)
 }
+
+/// Serve the MCP tools on stdin and stdout for an agent. Nothing else may print to stdout.
+pub(crate) async fn mcp() -> Result<ExitCode> {
+    let served = tokio::task::spawn_blocking(|| {
+        sentinel_mcp::serve(
+            std::io::stdin().lock(),
+            std::io::stdout().lock(),
+            sentinel_mcp::ServerConfig::from_env(),
+        )
+    })
+    .await
+    .context("the MCP server stopped unexpectedly")?;
+    served.context("the MCP server could not read or write its stdio")?;
+    Ok(ExitCode::SUCCESS)
+}

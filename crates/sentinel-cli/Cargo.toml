@@ -13,6 +13,7 @@ path = "src/main.rs"
 [dependencies]
 sentinel-core = { path = "../sentinel-core" }
 sentinel-daemon = { path = "../sentinel-daemon" }
+sentinel-mcp = { path = "../sentinel-mcp" }
 anyhow = { workspace = true }
 clap = { workspace = true }
 reqwest = { workspace = true }

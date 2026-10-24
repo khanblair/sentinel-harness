@@ -3312,6 +3312,7 @@ dependencies = [
  "reqwest",
  "sentinel-core",
  "sentinel-daemon",
+ "sentinel-mcp",
  "serde_json",
  "tempfile",
  "tokio",
@@ -3370,6 +3371,16 @@ version = "0.1.0"
 dependencies = [
  "sentinel-core",
  "time",
+]
+
+[[package]]
+name = "sentinel-mcp"
+version = "0.1.0"
+dependencies = [
+ "sentinel-brain",
+ "sentinel-core",
+ "serde_json",
+ "tempfile",
 ]
 
 [[package]]
