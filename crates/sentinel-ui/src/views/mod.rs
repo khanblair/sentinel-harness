@@ -5,9 +5,7 @@ pub mod modal_stubs;
 pub mod panel_stubs;
 pub mod stream_slot;
 
-pub mod agents {
-    pub use super::panel_stubs::AgentsPanel;
-}
+pub mod agents;
 
 pub mod board;
 
@@ -21,9 +19,7 @@ pub mod cost;
 
 pub mod files;
 
-pub mod permissions {
-    pub use super::panel_stubs::PermissionsPanel;
-}
+pub mod permissions;
 
 pub mod remote {
     pub use super::panel_stubs::RemotePanel;
