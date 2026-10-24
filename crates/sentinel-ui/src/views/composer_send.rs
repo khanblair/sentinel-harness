@@ -3,8 +3,9 @@
 
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use sentinel_core::api::{LowerCap, PermissionsUpdate, RunRequest, SetBrainMode};
-use sentinel_core::{AttachmentId, BrainMode, ChatId, PermissionMode, ToolId};
+use sentinel_core::api::{AddAttachment, LowerCap, PermissionsUpdate, RunRequest, SetBrainMode};
+use sentinel_core::skills::SkillInfo;
+use sentinel_core::{AttachmentId, AttachmentKind, BrainMode, ChatId, PermissionMode, ToolId};
 use serde::Serialize;
 
 use crate::api::{self, ApiFailure};
@@ -12,9 +13,10 @@ use crate::chats::busy_notice;
 use crate::components::agent_stack::ready_agents;
 use crate::components::top_bar::{post_action, settle};
 use crate::layout::PanelId;
+use crate::skills::unknown_skill_text;
 use crate::slash::{self, SlashCommand};
 use crate::state::{Connection, Target, ToastKind, Ui, refresh};
-use crate::views::composer::{Draft, SendRoute, send_route};
+use crate::views::composer::{Draft, SendRoute, reload_attachments, send_route};
 
 const AGENT_NOTE: &str = "Applied on the agent's next step. Reserved files do not change.";
 
@@ -185,7 +187,60 @@ pub fn run_command(ui: Ui, command: SlashCommand) {
         SlashCommand::Agent(name) => choose_agent(ui, &name),
         SlashCommand::Focus(name) => focus_agent(ui, &name),
         SlashCommand::Report => ui.open_panel(PanelId::Report),
+        SlashCommand::Skill(name) => add_skill(ui, &name),
         SlashCommand::Help => ui.show_toast(help_text(), ToastKind::Info),
+    }
+}
+
+/// Adds a skill to the open chat's next message. The name must be one of the skills Sentinel has.
+pub fn add_skill(ui: Ui, name: &str) {
+    let Some(chat) = ui.open_chat.get_untracked() else {
+        ui.show_toast("Open a chat first.", ToastKind::Warn);
+        return;
+    };
+    if skill_attached(ui, name) {
+        ui.show_toast(skill_goes_text(name), ToastKind::Info);
+        return;
+    }
+    let name = name.to_owned();
+    spawn_local(async move {
+        match api::get::<Vec<SkillInfo>>("/api/skills").await {
+            Ok(list) if list.iter().any(|skill| skill.name == name) => {
+                attach_skill(ui, &chat, &name).await;
+            }
+            Ok(list) => ui.show_toast(unknown_skill_text(&name, &list), ToastKind::Warn),
+            Err(failure) => ui.show_toast(failure.to_string(), ToastKind::Danger),
+        }
+    });
+}
+
+/// True when the open chat already carries this skill for its next message.
+pub fn skill_attached(ui: Ui, name: &str) -> bool {
+    ui.attachments.with_untracked(|list| {
+        list.iter()
+            .any(|attachment| attachment.kind == AttachmentKind::Skill && attachment.name == name)
+    })
+}
+
+fn skill_goes_text(name: &str) -> String {
+    format!("Skill {name} goes with your next message.")
+}
+
+/// Adds the skill as a chip of the chat. The daemon reads its text when the message is sent.
+pub async fn attach_skill(ui: Ui, chat: &ChatId, name: &str) {
+    let body = AddAttachment {
+        kind: AttachmentKind::Skill,
+        path: None,
+        text: None,
+        name: Some(name.to_owned()),
+        content_base64: None,
+    };
+    match api::add_attachment(chat, &body).await {
+        Ok(_) => {
+            reload_attachments(ui);
+            ui.show_toast(skill_goes_text(name), ToastKind::Ok);
+        }
+        Err(failure) => ui.show_toast(failure.to_string(), ToastKind::Danger),
     }
 }
 

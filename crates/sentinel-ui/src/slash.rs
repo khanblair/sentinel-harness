@@ -16,13 +16,14 @@ pub enum SlashCommand {
     Focus(String),
     Kill(String),
     Plan,
+    Skill(String),
     Brain(BrainMode),
     Report,
     Help,
 }
 
 /// Same list and order as the prototype's `SLASH`.
-const COMMANDS: [SlashEntry; 11] = [
+const COMMANDS: [SlashEntry; 12] = [
     ("/pause", "Pause the run"),
     ("/resume", "Resume the run"),
     ("/stop", "Stop the run"),
@@ -31,6 +32,7 @@ const COMMANDS: [SlashEntry; 11] = [
     ("/focus codex", "Show one agent in the stream"),
     ("/kill codex", "Kill an agent"),
     ("/plan", "Switch to plan only"),
+    ("/skill house-style", "Add a skill to your next message"),
     ("/brain off", "Set the Brain mode"),
     ("/report", "Open the report"),
     ("/help", "List commands"),
@@ -62,6 +64,7 @@ fn build(name: &str, arg: &str) -> Result<SlashCommand, String> {
         "focus" => required(name, arg, SlashCommand::Focus),
         "kill" => required(name, arg, SlashCommand::Kill),
         "brain" => brain_mode(arg),
+        "skill" => skill_name(arg),
         "" => Err("Type a command name after the slash. Type /help for the list.".to_owned()),
         other => Err(format!(
             "Unknown command /{other}. Type /help for the list."
@@ -93,6 +96,14 @@ fn amount(arg: &str) -> Result<SlashCommand, String> {
     match arg.parse::<f64>() {
         Ok(_) => Ok(SlashCommand::Cap(arg.to_owned())),
         Err(_) => Err("/cap needs a number, for example /cap 1.50.".to_owned()),
+    }
+}
+
+fn skill_name(arg: &str) -> Result<SlashCommand, String> {
+    if arg.is_empty() {
+        Err("/skill needs a name, for example /skill house-style.".to_owned())
+    } else {
+        Ok(SlashCommand::Skill(arg.to_owned()))
     }
 }
 
@@ -167,6 +178,15 @@ mod tests {
     }
 
     #[test]
+    fn skill_takes_the_name_of_one_skill() {
+        assert_eq!(
+            cmd("/skill house-style"),
+            Ok(SlashCommand::Skill("house-style".to_owned()))
+        );
+        assert!(cmd("/skill").is_err());
+    }
+
+    #[test]
     fn brain_takes_one_of_three_modes() {
         assert_eq!(cmd("/brain off"), Ok(SlashCommand::Brain(BrainMode::Off)));
         assert_eq!(
@@ -196,7 +216,7 @@ mod tests {
     #[test]
     fn help_lists_every_command_once() {
         let lines = help_lines();
-        assert_eq!(lines.len(), 11);
+        assert_eq!(lines.len(), 12);
         assert_eq!(lines[0], ("/pause", "Pause the run"));
         assert!(lines.iter().any(|(name, _)| *name == "/help"));
     }
@@ -204,7 +224,7 @@ mod tests {
     #[test]
     fn menu_shows_commands_that_start_with_the_typed_word() {
         assert_eq!(matches("/ca"), vec![("/cap 1.50", "Lower the budget cap")]);
-        assert_eq!(matches("/").len(), 11);
+        assert_eq!(matches("/").len(), 12);
     }
 
     #[test]
