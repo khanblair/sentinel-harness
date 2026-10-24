@@ -96,7 +96,11 @@ Hackathon cut line: end of P7.
 | P5-03 | Crash resume | Claude | done |
 | P5-04 | HTTP API and WebSocket | Haiku (Agent tool), Claude | review |
 | P5-05 | Real agents on the sample repo | unassigned | todo |
-| P6-01 to P6-13 | Web UI core | opencode | doing |
+| P6-01 to P6-13 | Web UI core | Haiku (CLI and Agent tool), Claude | review |
+| P6-14 | Prototype moves to the chat model | Haiku (CLI), Claude | done |
+| P6-15 to P6-18 | Chats: core, store, routes, attachments, runs from a message | Claude | done |
+| P6-19 | Sidebar of chats (rows, menu, archive group, rename, delete) | Haiku | doing |
+| P6-20 | Composer plus menu, chips, file picker, empty chat state | Haiku | todo |
 | P7-01 to P7-06 | Phone over Tailscale | unassigned | todo |
 
 Add the rows for later phases when a phase starts. Copy IDs from [build-plan.md](build-plan.md).

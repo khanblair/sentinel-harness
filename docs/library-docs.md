@@ -38,6 +38,7 @@
 | Crate | Version | Use | Reason |
 |---|---|---|---|
 | `reqwest` (default rustls build, feature `json`) | 0.13.5 | OpenRouter and model APIs | No OpenSSL |
+| `base64` | 0.22.1 | Chat uploads arrive as base64 text in JSON (D73) | Approved in autopilot (D71 to D75) |
 | `sha2`, `hex` | 0.11.1, 0.4.3 | Hash device tokens (SHA-256) and write hex | Small RustCrypto crate. Added by autopilot decision D61 |
 | `which` | 8.0.6 | Find CLIs on `PATH` | Cross-platform detection |
 | `notify` | 8.2.0 | Filesystem watcher | Write guard backstop |
@@ -121,7 +122,7 @@ Files live in `crates/sentinel-ui/assets/fonts/`. Each family needs its license 
 | Smell checks on agent code in any language | Line heuristics now, `tree-sitter` later | Decide at P4-07. Parser is a v1.1 item |
 | Duplicate detection | Own `dup-check` on token windows, or an external tool | Decide at P0-06. Own tool preferred, no new crate |
 | Which fonts to bundle | All eleven, or a smaller set to cut bundle size | Decide at P6-02 with license check |
-| Telegram client | `teloxide` (a maintained Rust bot framework), or calls to the Bot API with `reqwest` | Decide at P13-01. It is not an agent orchestration framework, so it is not banned |
+| Telegram client | `teloxide` (a maintained Rust bot framework), or calls to the Bot API with `reqwest` | Decided in autopilot (T-1): calls with `reqwest`, because the Bot API surface is five methods and tests use `wiremock` |
 | Markdown front matter | A maintained YAML crate, or a small parser for the fixed fields | Decide at P11-01 |
 
 ## Banned Libraries
