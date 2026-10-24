@@ -14,6 +14,7 @@ mod layout;
 mod palette;
 mod prefs;
 mod routines;
+mod skills;
 mod slash;
 mod state;
 mod telegram;

@@ -12,6 +12,7 @@ use crate::state::{Modal, Ui, use_ui};
 use crate::views::appearance::AppearancePage;
 use crate::views::routines_page::RoutinesPage;
 use crate::views::settings_pages::{BrainPage, GeneralPage};
+use crate::views::skills_page::SkillsPage;
 use crate::views::telegram_slot::{HostCardSlot, TelegramSettingsSlot};
 
 /// One row of the settings nav: its id as the modal stores it, its icon, and its label.
@@ -22,9 +23,8 @@ pub struct SettingsPage {
     pub label: &'static str,
 }
 
-/// The twelve pages, in the prototype's order. Skills is not built yet, so Routines follows
-/// Permissions.
-pub static SET_PAGES: [SettingsPage; 12] = [
+/// The thirteen pages, in the prototype's order.
+pub static SET_PAGES: [SettingsPage; 13] = [
     SettingsPage {
         id: "general",
         icon: "gear",
@@ -54,6 +54,11 @@ pub static SET_PAGES: [SettingsPage; 12] = [
         id: "perms",
         icon: "shield",
         label: "Permissions",
+    },
+    SettingsPage {
+        id: "skills",
+        icon: "book",
+        label: "Skills",
     },
     SettingsPage {
         id: "routines",
@@ -212,6 +217,7 @@ fn page_body(id: &str) -> AnyView {
         "connections" => view! { <ConnectionsPage /> }.into_any(),
         "integrations" => view! { <IntegrationsPage /> }.into_any(),
         "perms" => view! { <PermissionsPage /> }.into_any(),
+        "skills" => view! { <SkillsPage /> }.into_any(),
         "routines" => view! { <RoutinesPage /> }.into_any(),
         "brain" => view! { <BrainPage /> }.into_any(),
         "budget" => view! { <BudgetPage /> }.into_any(),
@@ -323,6 +329,7 @@ mod tests {
                 "Connections",
                 "Integrations",
                 "Permissions",
+                "Skills",
                 "Routines",
                 "Brain",
                 "Budget",
