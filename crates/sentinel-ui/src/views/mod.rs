@@ -21,9 +21,7 @@ pub mod cost {
     pub use super::panel_stubs::CostPanel;
 }
 
-pub mod files {
-    pub use super::panel_stubs::FilesPanel;
-}
+pub mod files;
 
 pub mod permissions {
     pub use super::panel_stubs::PermissionsPanel;
@@ -43,6 +41,4 @@ pub mod telegram {
     pub use super::panel_stubs::TelegramPanel;
 }
 
-pub mod terminal {
-    pub use super::panel_stubs::TerminalPanel;
-}
+pub mod terminal;
