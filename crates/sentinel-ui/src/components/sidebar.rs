@@ -3,10 +3,11 @@
 
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use sentinel_core::{ChatId, HarnessState, Snapshot};
+use sentinel_core::{HarnessState, Snapshot};
 
 use crate::api;
-use crate::chats::{ARCHIVED_GROUP, ChatRow, ProjectGroup, RowIcon, group_chats};
+use crate::chats::{ARCHIVED_GROUP, ProjectGroup, group_chats};
+use crate::components::chat_row::ChatRow;
 use crate::components::icon::Icon;
 use crate::prefs::{Resolved, Theme};
 use crate::state::{self, Connection, Modal, ToastKind, Ui, use_ui};
@@ -80,8 +81,9 @@ fn NewChatButton() -> impl IntoView {
     }
 }
 
-/// Makes an empty chat, opens it, and reloads. A failure shows as a toast.
-fn new_chat(ui: Ui) {
+/// Makes an empty chat, opens it, and reloads. A failure shows as a toast. The New chat button,
+/// its shortcut, and each project's plus button all run this.
+pub fn new_chat(ui: Ui) {
     spawn_local(async move {
         match api::create_chat(None).await {
             Ok(chat) => {
@@ -138,6 +140,7 @@ fn list_empty_text(snapshot: &Snapshot) -> &'static str {
 }
 
 /// A project header and its chats. While a search runs, every group is open, so a match shows.
+/// The archived group has no plus button.
 fn group_view(
     group: ProjectGroup,
     closed: RwSignal<Vec<String>>,
@@ -147,13 +150,24 @@ fn group_view(
     let ProjectGroup { project, chats } = group;
     let is_closed = !searching && closed.with(|list| list.contains(&project));
     let toggle_name = project.clone();
+    let can_add = project != ARCHIVED_GROUP;
+    let label = format!("New chat in {project}");
     view! {
         <div class="grp" class:closed=is_closed
             on:click=move |_| toggle_group(closed, &toggle_name)>
             {project}
             <Icon name="down" size=12 />
+            {can_add.then(|| view! {
+                <button class="ibtn plus" aria-label=label.clone() data-tip=label
+                    on:click=move |event| {
+                        event.stop_propagation();
+                        new_chat(ui);
+                    }>
+                    <Icon name="plus" size=14 />
+                </button>
+            })}
         </div>
-        {(!is_closed).then(|| chats.into_iter().map(|row| chat_row(row, ui)).collect_view())}
+        {(!is_closed).then(|| chats.into_iter().map(|row| view! { <ChatRow row=row /> }).collect_view())}
     }
 }
 
@@ -165,56 +179,6 @@ fn toggle_group(closed: RwSignal<Vec<String>>, group: &str) {
             list.push(group.to_owned());
         }
     });
-}
-
-fn chat_row(row: ChatRow, ui: Ui) -> impl IntoView {
-    let id = row.id.clone();
-    let open_id = row.id.clone();
-    let active = move || ui.open_chat.with(|open| open.as_ref() == Some(&open_id));
-    let icon = status_icon(row.icon);
-    view! {
-        <button class="run" class:active=active on:click=move |_| show_chat(ui, id.clone())>
-            <span class="t">{row.title}</span>
-            <span class="meta">
-                {row.needs_you.then(|| view! { <span class="dot" title="Needs you"></span> })}
-                <span>{row.count}</span>
-                {icon}
-            </span>
-        </button>
-    }
-}
-
-/// Opens a chat in the stream and reloads its events.
-fn show_chat(ui: Ui, id: ChatId) {
-    ui.open(id);
-    state::refresh(ui);
-}
-
-fn status_icon(icon: RowIcon) -> AnyView {
-    match icon {
-        RowIcon::Spinner => view! { <span class="spin" title="Running"></span> }.into_any(),
-        RowIcon::Paused => view! {
-            <span style="color:var(--warn)" title="Paused"><Icon name="pause" size=14 /></span>
-        }
-        .into_any(),
-        RowIcon::Done => view! {
-            <span style="color:var(--ok)" title="Finished"><Icon name="check" size=14 /></span>
-        }
-        .into_any(),
-        RowIcon::Blocked => view! {
-            <span style="color:var(--danger)" title="Has blocked tasks"><Icon name="alert" size=14 /></span>
-        }
-        .into_any(),
-        RowIcon::Planned => view! {
-            <span title="Plan waiting for approval"><Icon name="clock" size=14 /></span>
-        }
-        .into_any(),
-        RowIcon::Stopped => view! {
-            <span title="Stopped"><Icon name="stop" size=13 /></span>
-        }
-        .into_any(),
-        RowIcon::None => ().into_any(),
-    }
 }
 
 #[component]
@@ -254,7 +218,7 @@ fn toggle_theme(ui: Ui) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sentinel_core::{RunId, RunInfo};
+    use sentinel_core::{ChatId, RunId, RunInfo};
     use time::OffsetDateTime;
 
     #[test]

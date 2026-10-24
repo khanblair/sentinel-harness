@@ -8,6 +8,7 @@ use web_sys::KeyboardEvent;
 
 use crate::api;
 use crate::components::icon::Icon;
+use crate::components::sidebar::new_chat;
 use crate::components::top_bar::settle;
 use crate::palette::{
     PaletteAction, PaletteItem, filter_items, next_theme, palette_items, step_highlight,
@@ -122,6 +123,7 @@ fn run_item(ui: Ui, action: PaletteAction) {
         PaletteAction::FocusAgent(agent) => ui.focus.set(Some(agent)),
         PaletteAction::OpenPanel(panel) => ui.open_panel(panel),
         PaletteAction::StartRun => start_run(ui),
+        PaletteAction::NewChat => new_chat(ui),
         PaletteAction::ToggleTheme => {
             ui.prefs
                 .update(|prefs| prefs.theme = next_theme(prefs.theme));

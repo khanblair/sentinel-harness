@@ -1,11 +1,25 @@
-//! Pure logic of the chat list: grouping by project, row icons, counts, and which chat is open.
-//! Nothing here touches the DOM or a signal, so each rule has a unit test.
+//! Pure logic of the chat list and the chat visuals: grouping by project, row icons, counts, which
+//! chat is open, rename, the chat menu, and the attachment pickers. Nothing here touches the DOM
+//! or a signal, so each rule has a unit test (`chats/tests.rs`).
+
+use std::collections::BTreeSet;
 
 use sentinel_core::chat::NEW_CHAT_TITLE;
-use sentinel_core::{ChatId, ChatInfo, ChatRunState, Snapshot};
+use sentinel_core::{
+    Attachment, AttachmentId, AttachmentKind, ChatId, ChatInfo, ChatRunState, Snapshot,
+};
 
 /// The group that holds archived chats. It comes last and starts collapsed.
 pub const ARCHIVED_GROUP: &str = "Archived";
+
+/// Most folders the Add a folder list shows.
+pub const FOLDER_LIMIT: usize = 60;
+
+/// Characters kept in an attachment chip, the ellipsis included.
+pub const CHIP_NAME_CHARS: usize = 24;
+
+/// The largest upload the page sends, in bytes.
+const UPLOAD_LIMIT_BYTES: u64 = 1_000_000;
 
 /// Chats of one project, or the archived group.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -38,6 +52,13 @@ pub enum RowIcon {
     None,
 }
 
+/// A chat whose title is being edited in its row. `title` is the name before the edit.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RenameState {
+    pub chat: ChatId,
+    pub title: String,
+}
+
 /// The icon for a chat's run state. An idle chat has no icon.
 pub fn row_icon(state: ChatRunState) -> RowIcon {
     match state {
@@ -52,23 +73,23 @@ pub fn row_icon(state: ChatRunState) -> RowIcon {
 }
 
 /// `verified/total` once the chat has tasks, else nothing.
-pub fn count_text(info: &ChatInfo) -> String {
-    if info.total > 0 {
-        format!("{}/{}", info.verified, info.total)
+pub fn count_text(chat_info: &ChatInfo) -> String {
+    if chat_info.total > 0 {
+        format!("{}/{}", chat_info.verified, chat_info.total)
     } else {
         String::new()
     }
 }
 
-fn row_from(info: &ChatInfo) -> ChatRow {
+fn row_from(chat_info: &ChatInfo) -> ChatRow {
     ChatRow {
-        id: info.id.clone(),
-        title: info.title.clone(),
-        pinned: info.pinned,
-        archived: info.archived,
-        icon: row_icon(info.run),
-        count: count_text(info),
-        needs_you: info.needs_you,
+        id: chat_info.id.clone(),
+        title: chat_info.title.clone(),
+        pinned: chat_info.pinned,
+        archived: chat_info.archived,
+        icon: row_icon(chat_info.run),
+        count: count_text(chat_info),
+        needs_you: chat_info.needs_you,
     }
 }
 
@@ -85,14 +106,14 @@ pub fn group_chats(chats: &[ChatInfo], query: &str) -> Vec<ProjectGroup> {
     let needle = query.trim().to_lowercase();
     let mut groups: Vec<ProjectGroup> = Vec::new();
     let mut archived: Vec<ChatRow> = Vec::new();
-    for info in chats
+    for chat_info in chats
         .iter()
-        .filter(|info| matches_query(&info.title, &needle))
+        .filter(|chat_info| matches_query(&chat_info.title, &needle))
     {
-        if info.archived {
-            archived.push(row_from(info));
+        if chat_info.archived {
+            archived.push(row_from(chat_info));
         } else {
-            push_into_project(&mut groups, &info.project, row_from(info));
+            push_into_project(&mut groups, &chat_info.project, row_from(chat_info));
         }
     }
     if !archived.is_empty() {
@@ -147,191 +168,167 @@ pub fn busy_notice(snapshot: &Snapshot, live: Option<&ChatId>) -> String {
     )
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use sentinel_core::RunId;
-    use sentinel_core::RunInfo;
-    use time::OffsetDateTime;
+/// The new title typed into a row, or `None` when nothing should be saved: the name is empty
+/// after trimming, or it is the same as the current title.
+pub fn commit_rename(current: &str, typed: &str) -> Option<String> {
+    let name = typed.trim();
+    (!name.is_empty() && name != current).then(|| name.to_owned())
+}
 
-    fn chat(id: &str, project: &str, title: &str) -> ChatInfo {
-        ChatInfo {
-            id: ChatId::new(id),
-            project: project.to_owned(),
-            title: title.to_owned(),
-            pinned: false,
-            archived: false,
-            created_at: OffsetDateTime::UNIX_EPOCH,
-            updated_at: OffsetDateTime::UNIX_EPOCH,
-            run: ChatRunState::Idle,
-            verified: 0,
-            total: 0,
-            needs_you: false,
+const BASE64_ALPHABET: &[u8; 64] =
+    b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+fn sextet(value: u32) -> char {
+    let index = usize::try_from(value & 0x3f).unwrap_or(0);
+    char::from(BASE64_ALPHABET[index])
+}
+
+/// Standard base64 with `=` padding. Used for uploads, so no crate is needed.
+pub fn base64_encode(bytes: &[u8]) -> String {
+    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for chunk in bytes.chunks(3) {
+        let mut block = [0_u8; 3];
+        block[..chunk.len()].copy_from_slice(chunk);
+        let n = (u32::from(block[0]) << 16) | (u32::from(block[1]) << 8) | u32::from(block[2]);
+        let chars = [sextet(n >> 18), sextet(n >> 12), sextet(n >> 6), sextet(n)];
+        let kept = chunk.len() + 1;
+        for (index, symbol) in chars.into_iter().enumerate() {
+            out.push(if index < kept { symbol } else { '=' });
         }
     }
+    out
+}
 
-    fn ids(groups: &[ProjectGroup]) -> Vec<(String, Vec<String>)> {
-        groups
-            .iter()
-            .map(|group| {
-                (
-                    group.project.clone(),
-                    group
-                        .chats
-                        .iter()
-                        .map(|row| row.id.as_str().to_owned())
-                        .collect(),
-                )
-            })
-            .collect()
+/// The distinct parent folders of the repository files, sorted, at most `FOLDER_LIMIT`.
+pub fn folders_of(files: &[String]) -> Vec<String> {
+    let folders: BTreeSet<&str> = files
+        .iter()
+        .filter_map(|path| path.rsplit_once('/').map(|(folder, _)| folder))
+        .filter(|folder| !folder.is_empty())
+        .collect();
+    folders
+        .into_iter()
+        .take(FOLDER_LIMIT)
+        .map(str::to_owned)
+        .collect()
+}
+
+/// The files whose path contains the query, ignoring case and outer spaces. An empty query keeps all.
+pub fn filter_files(files: &[String], query: &str) -> Vec<String> {
+    let needle = query.trim().to_lowercase();
+    files
+        .iter()
+        .filter(|path| needle.is_empty() || path.to_lowercase().contains(&needle))
+        .cloned()
+        .collect()
+}
+
+fn shorten(text: &str, limit: usize) -> String {
+    if text.chars().count() <= limit {
+        return text.to_owned();
     }
+    let kept: String = text.chars().take(limit.saturating_sub(1)).collect();
+    format!("{kept}\u{2026}")
+}
 
-    #[test]
-    fn projects_keep_the_order_they_first_appear_in() {
-        let chats = vec![
-            chat("c1", "api", "Fees"),
-            chat("c2", "web", "Login"),
-            chat("c3", "api", "Tax"),
-        ];
-        assert_eq!(
-            ids(&group_chats(&chats, "")),
-            vec![
-                ("api".to_owned(), vec!["c1".to_owned(), "c3".to_owned()]),
-                ("web".to_owned(), vec!["c2".to_owned()]),
-            ]
-        );
-    }
+/// The text on an attachment chip. A note shows its text; anything else shows its name.
+pub fn chip_label(attachment: &Attachment) -> String {
+    let full = match attachment.kind {
+        AttachmentKind::Note => attachment.text.as_deref().unwrap_or_default(),
+        AttachmentKind::File
+        | AttachmentKind::Folder
+        | AttachmentKind::Backlog
+        | AttachmentKind::Upload => attachment.name.as_str(),
+    };
+    shorten(full, CHIP_NAME_CHARS)
+}
 
-    #[test]
-    fn the_daemon_order_inside_a_project_is_kept() {
-        let mut pinned = chat("c2", "api", "Pinned");
-        pinned.pinned = true;
-        let chats = vec![pinned, chat("c1", "api", "Newer")];
-        let groups = group_chats(&chats, "");
-        assert!(groups[0].chats[0].pinned);
-        assert_eq!(groups[0].chats[1].title, "Newer");
-    }
-
-    #[test]
-    fn archived_chats_only_appear_in_the_last_archived_group() {
-        let mut old = chat("c2", "api", "Old");
-        old.archived = true;
-        let chats = vec![old, chat("c1", "api", "Fees")];
-        let groups = group_chats(&chats, "");
-        assert_eq!(groups.len(), 2);
-        assert_eq!(groups[0].project, "api");
-        assert_eq!(groups[0].chats.len(), 1);
-        assert_eq!(groups[1].project, ARCHIVED_GROUP);
-        assert!(groups[1].chats[0].archived);
-    }
-
-    #[test]
-    fn an_archived_chat_that_matches_the_query_still_shows() {
-        let mut old = chat("c1", "api", "Tax report");
-        old.archived = true;
-        let groups = group_chats(&[old], "tax");
-        assert_eq!(groups.len(), 1);
-        assert_eq!(groups[0].project, ARCHIVED_GROUP);
-    }
-
-    #[test]
-    fn the_query_ignores_case_and_outer_spaces_and_drops_empty_groups() {
-        let chats = vec![chat("c1", "api", "Fees"), chat("c2", "web", "Login")];
-        assert_eq!(
-            ids(&group_chats(&chats, "  FEE ")),
-            vec![("api".to_owned(), vec!["c1".to_owned()])]
-        );
-        assert_eq!(
-            group_chats(&chats, "nothing here"),
-            Vec::<ProjectGroup>::new()
-        );
-    }
-
-    #[test]
-    fn a_chat_without_tasks_has_no_count() {
-        assert_eq!(count_text(&chat("c1", "api", "Fees")), "");
-    }
-
-    #[test]
-    fn a_chat_with_tasks_shows_verified_over_total() {
-        let mut info = chat("c1", "api", "Fees");
-        info.verified = 2;
-        info.total = 5;
-        assert_eq!(count_text(&info), "2/5");
-    }
-
-    #[test]
-    fn every_run_state_maps_to_its_row_icon() {
-        assert_eq!(row_icon(ChatRunState::Idle), RowIcon::None);
-        assert_eq!(row_icon(ChatRunState::Planned), RowIcon::Planned);
-        assert_eq!(row_icon(ChatRunState::Running), RowIcon::Spinner);
-        assert_eq!(row_icon(ChatRunState::Paused), RowIcon::Paused);
-        assert_eq!(row_icon(ChatRunState::Done), RowIcon::Done);
-        assert_eq!(row_icon(ChatRunState::Blocked), RowIcon::Blocked);
-        assert_eq!(row_icon(ChatRunState::Stopped), RowIcon::Stopped);
-    }
-
-    fn snapshot_with(chats: Vec<ChatInfo>) -> Snapshot {
-        Snapshot {
-            chats,
-            ..Snapshot::empty()
-        }
-    }
-
-    #[test]
-    fn an_open_chat_stays_open_even_when_archived() {
-        let mut old = chat("c1", "api", "Old");
-        old.archived = true;
-        let snapshot = snapshot_with(vec![chat("c2", "api", "New"), old]);
-        assert_eq!(
-            pick_open_chat(&snapshot, Some(&ChatId::new("c1"))),
-            Some(ChatId::new("c1"))
-        );
-    }
-
-    #[test]
-    fn a_deleted_open_chat_gives_way_to_the_live_run_chat() {
-        let mut snapshot = snapshot_with(vec![chat("c2", "api", "New")]);
-        snapshot.run = Some(RunInfo {
-            id: RunId::new("r1"),
-            chat: ChatId::new("c3"),
-            backlog: "backlog.md".to_owned(),
-            wave: 1,
-            started_at: OffsetDateTime::UNIX_EPOCH,
-        });
-        assert_eq!(
-            pick_open_chat(&snapshot, Some(&ChatId::new("gone"))),
-            Some(ChatId::new("c3"))
-        );
-    }
-
-    #[test]
-    fn without_a_run_the_first_unarchived_chat_opens() {
-        let mut old = chat("c1", "api", "Old");
-        old.archived = true;
-        let snapshot = snapshot_with(vec![old, chat("c2", "api", "New")]);
-        assert_eq!(pick_open_chat(&snapshot, None), Some(ChatId::new("c2")));
-    }
-
-    #[test]
-    fn no_chats_means_no_open_chat() {
-        assert_eq!(pick_open_chat(&Snapshot::empty(), None), None);
-    }
-
-    #[test]
-    fn the_title_falls_back_to_new_chat() {
-        let snapshot = snapshot_with(vec![chat("c1", "api", "Fees")]);
-        assert_eq!(chat_title(&snapshot, Some(&ChatId::new("c1"))), "Fees");
-        assert_eq!(chat_title(&snapshot, Some(&ChatId::new("c9"))), "New chat");
-        assert_eq!(chat_title(&snapshot, None), "New chat");
-    }
-
-    #[test]
-    fn the_busy_notice_names_the_live_chat() {
-        let snapshot = snapshot_with(vec![chat("c1", "api", "Fees")]);
-        assert_eq!(
-            busy_notice(&snapshot, Some(&ChatId::new("c1"))),
-            "Another chat is working in this project: Fees. Open it or stop it."
-        );
+/// The icon name for an attachment kind.
+pub fn chip_icon(kind: AttachmentKind) -> &'static str {
+    match kind {
+        AttachmentKind::File => "file",
+        AttachmentKind::Folder => "folder",
+        AttachmentKind::Backlog => "list",
+        AttachmentKind::Note => "edit",
+        AttachmentKind::Upload => "upload",
     }
 }
+
+/// An upload above the limit is never sent. The limit is 1 MB.
+pub fn too_large(size: u64) -> bool {
+    size > UPLOAD_LIMIT_BYTES
+}
+
+/// The ids of the pending attachments of one kind. A single choice replaces these.
+pub fn same_kind_ids(attachments: &[Attachment], kind: AttachmentKind) -> Vec<AttachmentId> {
+    attachments
+        .iter()
+        .filter(|attachment| attachment.kind == kind)
+        .map(|attachment| attachment.id.clone())
+        .collect()
+}
+
+/// A path whose extension is `md`, in any letter case.
+fn is_markdown(path: &str) -> bool {
+    path.rsplit_once('.')
+        .is_some_and(|(_, extension)| extension.eq_ignore_ascii_case("md"))
+}
+
+/// The four kinds of the composer's add dialogs that pick repository paths.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PickerKind {
+    Files,
+    Folder,
+    Backlog,
+}
+
+impl PickerKind {
+    pub fn attachment_kind(self) -> AttachmentKind {
+        match self {
+            PickerKind::Files => AttachmentKind::File,
+            PickerKind::Folder => AttachmentKind::Folder,
+            PickerKind::Backlog => AttachmentKind::Backlog,
+        }
+    }
+
+    /// Folder and backlog take one choice. Files take many.
+    pub fn single(self) -> bool {
+        self != PickerKind::Files
+    }
+
+    /// Folders come only from the project, so only files and backlogs have a device tab.
+    pub fn has_device_tab(self) -> bool {
+        self != PickerKind::Folder
+    }
+
+    /// The rows the picker offers, before the filter: files, folders, or `.md` files.
+    pub fn rows(self, files: &[String]) -> Vec<String> {
+        match self {
+            PickerKind::Files => files.to_vec(),
+            PickerKind::Folder => folders_of(files),
+            PickerKind::Backlog => files
+                .iter()
+                .filter(|path| is_markdown(path))
+                .cloned()
+                .collect(),
+        }
+    }
+
+    /// The primary button text for `count` picked rows.
+    pub fn confirm_label(self, count: usize) -> String {
+        match self {
+            PickerKind::Files if count == 1 => "Add 1 file".to_owned(),
+            PickerKind::Files => format!("Add {count} files"),
+            PickerKind::Folder => "Add folder".to_owned(),
+            PickerKind::Backlog => "Use file".to_owned(),
+        }
+    }
+}
+
+pub use menu::{MenuAction, MenuEntry, menu_items, title_menu_items};
+
+mod menu;
+
+#[cfg(test)]
+#[path = "chats/tests.rs"]
+mod tests;

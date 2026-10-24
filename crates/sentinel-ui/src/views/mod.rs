@@ -10,6 +10,8 @@ pub mod brain {
 pub mod budget_step;
 pub mod changes;
 pub mod composer;
+pub mod composer_chips;
+pub mod composer_send;
 pub mod cost;
 pub mod dry_run;
 pub mod files;

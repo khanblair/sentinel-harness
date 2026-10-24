@@ -7,8 +7,12 @@ use sentinel_core::PermissionMode;
 use sentinel_core::api::PermissionsUpdate;
 
 use crate::api;
+use crate::chats::PickerKind;
+use crate::components::confirm_delete::ConfirmDelete;
 use crate::components::guide_modal::GuideModal;
 use crate::components::icon::Icon;
+use crate::components::note_dialog::NoteDialog;
+use crate::components::repo_file_picker::PickerDialog;
 use crate::components::top_bar::settle;
 use crate::state::{Modal, ToastKind, Ui, use_ui};
 use crate::views::settings::SettingsDialog;
@@ -20,13 +24,20 @@ pub fn modal_key(modal: &Modal) -> &'static str {
         Modal::Guide => "guide",
         Modal::Palette => "palette",
         Modal::BypassConfirm => "bp",
+        Modal::ConfirmDelete { .. } => "del",
+        Modal::AddFiles | Modal::AddFolder | Modal::AddBacklog | Modal::AddNote => "att",
     }
 }
 
 /// The dialog width class. The bypass confirm is a small dialog.
 pub fn modal_class(modal: &Modal) -> &'static str {
     match modal {
-        Modal::BypassConfirm => "modal sm",
+        Modal::BypassConfirm
+        | Modal::ConfirmDelete { .. }
+        | Modal::AddFiles
+        | Modal::AddFolder
+        | Modal::AddBacklog
+        | Modal::AddNote => "modal sm",
         Modal::Settings { .. } | Modal::Guide | Modal::Palette => "modal",
     }
 }
@@ -56,6 +67,11 @@ fn modal_body(modal: &Modal) -> AnyView {
         Modal::Guide => view! { <GuideModal /> }.into_any(),
         Modal::Palette => ().into_any(),
         Modal::BypassConfirm => view! { <BypassConfirm /> }.into_any(),
+        Modal::ConfirmDelete { chat } => view! { <ConfirmDelete chat=chat.clone() /> }.into_any(),
+        Modal::AddFiles => view! { <PickerDialog kind=PickerKind::Files /> }.into_any(),
+        Modal::AddFolder => view! { <PickerDialog kind=PickerKind::Folder /> }.into_any(),
+        Modal::AddBacklog => view! { <PickerDialog kind=PickerKind::Backlog /> }.into_any(),
+        Modal::AddNote => view! { <NoteDialog /> }.into_any(),
     }
 }
 
