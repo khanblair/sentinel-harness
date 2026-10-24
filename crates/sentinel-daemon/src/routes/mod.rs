@@ -8,6 +8,7 @@ mod dry_run;
 mod routines;
 mod run;
 mod setup;
+mod skills;
 mod state;
 mod telegram;
 
@@ -155,6 +156,7 @@ pub fn protected_routes() -> Router<Engine> {
         .merge(access::routes())
         .merge(setup::routes())
         .merge(brain::routes())
+        .merge(skills::routes())
         .merge(telegram::routes())
         .merge(routines::routes())
 }
