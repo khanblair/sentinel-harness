@@ -154,6 +154,7 @@ impl Engine {
             memory,
             reviewer,
             suite_dir: repo.join(".sentinel/logs"),
+            checkpoint_lock: Mutex::new(()),
         });
         let mut live = lock(&self.inner.live);
         live.run = Some(info);

@@ -44,6 +44,8 @@ pub(crate) struct RunCtx {
     pub memory: Arc<Mutex<RunMemory>>,
     pub reviewer: Arc<dyn DiffReviewer>,
     pub suite_dir: PathBuf,
+    /// Checkpoints share one private git index, so only one may stage, write, and commit at a time.
+    pub checkpoint_lock: Mutex<()>,
 }
 
 impl RunCtx {

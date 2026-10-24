@@ -237,6 +237,7 @@ fn finish_success(ctx: &RunCtx, task: &Task, outcome: &RunOutcome) -> Result<()>
     let made = if mine.is_empty() {
         None
     } else {
+        let _one_at_a_time = lock(&ctx.checkpoint_lock);
         checkpoint(&ctx.git, &mine, &message).map_err(|e| EngineError::Invalid(e.to_string()))?
     };
     let Some(made) = made else {

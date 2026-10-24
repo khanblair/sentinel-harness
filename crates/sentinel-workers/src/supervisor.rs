@@ -397,6 +397,8 @@ fn kill_tree(pid: Option<u32>) {
         .arg("-KILL")
         .arg("--")
         .arg(format!("-{pid}"))
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
         .status();
 }
 
@@ -408,6 +410,8 @@ fn kill_tree(pid: Option<u32>) {
     let _ = std::process::Command::new("taskkill")
         .args(["/T", "/F", "/PID"])
         .arg(pid.to_string())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
         .status();
 }
 
