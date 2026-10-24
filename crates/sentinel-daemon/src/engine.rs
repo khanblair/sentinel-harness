@@ -15,6 +15,7 @@ use sentinel_store::{Store, StoreError};
 use time::OffsetDateTime;
 use tokio::sync::broadcast;
 
+use crate::brain::BrainState;
 use crate::cmd::CommandRunner;
 use crate::config::{self, Config, ConfigError};
 use crate::live::LiveRun;
@@ -42,6 +43,8 @@ pub enum EngineError {
     NotFound(String),
     #[error("{0}")]
     Refused(String),
+    #[error("{0}")]
+    Conflict(String),
 }
 
 pub type Result<T> = std::result::Result<T, EngineError>;
@@ -76,6 +79,8 @@ pub(crate) struct Inner {
     pub repo: Mutex<Option<RepoInfo>>,
     pub tailscale: Mutex<TailscaleState>,
     pub live: Mutex<LiveRun>,
+    /// The Brain vault and index, opened on first use.
+    pub(crate) brain: Mutex<Option<Arc<BrainState>>>,
     /// True on an always-on host: no native dialogs.
     pub headless: std::sync::atomic::AtomicBool,
     /// When this daemon started.
@@ -112,6 +117,7 @@ impl Engine {
                 repo: Mutex::new(None),
                 tailscale: Mutex::new(TailscaleState::NotInstalled),
                 live: Mutex::new(LiveRun::default()),
+                brain: Mutex::new(None),
                 headless: std::sync::atomic::AtomicBool::new(false),
                 started: OffsetDateTime::now_utc(),
             }),
