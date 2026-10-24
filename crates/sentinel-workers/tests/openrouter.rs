@@ -76,16 +76,14 @@ fn worker_for(server: &MockServer, max_steps: u32) -> OpenRouterWorker {
 
 /// A reply that asks for one tool call and costs half a cent.
 fn tool_reply(name: &str, arguments: &Value) -> ResponseTemplate {
+    let call = json!({
+        "id": format!("call_{name}"),
+        "type": "function",
+        "function": {"name": name, "arguments": arguments.to_string()},
+    });
+    let message = json!({"role": "assistant", "content": null, "tool_calls": [call]});
     ResponseTemplate::new(200).set_body_json(json!({
-        "choices": [{"message": {
-            "role": "assistant",
-            "content": null,
-            "tool_calls": [{
-                "id": format!("call_{name}"),
-                "type": "function",
-                "function": {"name": name, "arguments": arguments.to_string()},
-            }],
-        }}],
+        "choices": [{ "message": message }],
         "usage": {"total_tokens": 120, "cost": 0.0005},
     }))
 }

@@ -15,7 +15,7 @@ use std::time::{Duration, Instant};
 use sentinel_core::HarnessState;
 use std::sync::Arc;
 
-use sentinel_daemon::cmd::SystemRunner;
+use sentinel_daemon::cmd::{CommandRunner, SystemRunner};
 use sentinel_daemon::engine::{Engine, EngineOptions, FakeAgents};
 use sentinel_daemon::secrets::MemoryStore;
 
@@ -83,13 +83,13 @@ pub async fn wait_done(engine: &Engine) {
     }
 }
 
-/// An engine with the scripted agents on a repository, with short timeouts and a $5 cap.
-pub fn fake_engine(repo: &Path) -> Engine {
+/// An engine with the scripted agents on a repository. `runner` answers the external programs.
+pub fn engine_with_runner(repo: &Path, runner: Arc<dyn CommandRunner>) -> Engine {
     let fixtures = repo_root().join("fixtures/fake-cli");
-    let engine = Engine::open(EngineOptions {
+    Engine::open(EngineOptions {
         repo_root: repo.to_path_buf(),
         home: repo.to_path_buf(),
-        runner: Arc::new(SystemRunner),
+        runner,
         secrets: Arc::new(MemoryStore::new()),
         fake_agents: Some(FakeAgents {
             script: fixtures.join("fake-agent"),
@@ -97,7 +97,12 @@ pub fn fake_engine(repo: &Path) -> Engine {
         }),
         in_memory: true,
     })
-    .unwrap();
+    .unwrap()
+}
+
+/// An engine with the scripted agents on a repository, with short timeouts and a $5 cap.
+pub fn fake_engine(repo: &Path) -> Engine {
+    let engine = engine_with_runner(repo, Arc::new(SystemRunner));
     engine
         .update_config(|c| {
             "5.00".clone_into(&mut c.cap_usd);

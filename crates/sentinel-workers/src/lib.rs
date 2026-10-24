@@ -1,11 +1,13 @@
 //! Worker supervision: spawn agent CLIs, count their cost, and stop them on a signal.
 
 pub mod adapter_cli;
+mod agent_schema;
 pub mod agent_tools;
 pub mod budget;
 pub mod context;
 pub mod detect;
 pub mod openrouter;
+mod openrouter_config;
 pub mod profile;
 pub mod router;
 pub mod supervisor;

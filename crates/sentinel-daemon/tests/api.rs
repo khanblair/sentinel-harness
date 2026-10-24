@@ -19,11 +19,10 @@ use sentinel_core::snapshot::Snapshot;
 use sentinel_core::state::TailscaleState;
 use sentinel_daemon::cmd::{CmdOutput, CommandRunner, SystemRunner};
 use sentinel_daemon::controls::Caller;
-use sentinel_daemon::engine::{Engine, EngineOptions, FakeAgents};
-use sentinel_daemon::secrets::MemoryStore;
+use sentinel_daemon::engine::Engine;
 
 mod common;
-use common::{repo_root, sample_repo_with};
+use common::sample_repo_with;
 use sentinel_daemon::server::{self, ServerOptions};
 use sentinel_daemon::tailscale::{self, BindError, BindMode};
 use serde_json::{Value, json};
@@ -48,19 +47,7 @@ impl CommandRunner for TailnetRunner {
 }
 
 fn engine_in(repo: &Path) -> Engine {
-    let fixtures = repo_root().join("fixtures/fake-cli");
-    let engine = Engine::open(EngineOptions {
-        repo_root: repo.to_path_buf(),
-        home: repo.to_path_buf(),
-        runner: Arc::new(TailnetRunner),
-        secrets: Arc::new(MemoryStore::new()),
-        fake_agents: Some(FakeAgents {
-            script: fixtures.join("fake-agent"),
-            plans_dir: fixtures.join("plans"),
-        }),
-        in_memory: true,
-    })
-    .unwrap();
+    let engine = common::engine_with_runner(repo, Arc::new(TailnetRunner));
     engine
         .update_config(|c| {
             "5.00".clone_into(&mut c.cap_usd);

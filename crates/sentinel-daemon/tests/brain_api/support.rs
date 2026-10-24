@@ -19,13 +19,10 @@ use sentinel_brain::replace_generated;
 use sentinel_brain::schedule::Date;
 use sentinel_core::{NoteId, NoteType, ProposalKind};
 use sentinel_daemon::cmd::{CmdOutput, CommandRunner, SystemRunner};
-use sentinel_daemon::engine::{Engine, EngineOptions, FakeAgents};
-use sentinel_daemon::secrets::MemoryStore;
+use sentinel_daemon::engine::Engine;
 use sentinel_daemon::server;
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
-
-use crate::common::repo_root;
 
 pub const RUNNING_STATUS: &str =
     r#"{"BackendState":"Running","Self":{"TailscaleIPs":["100.64.0.5"],"HostName":"test-pc"}}"#;
@@ -46,19 +43,7 @@ impl CommandRunner for TailnetRunner {
 }
 
 pub fn engine_in(repo: &Path) -> Engine {
-    let fixtures = repo_root().join("fixtures/fake-cli");
-    Engine::open(EngineOptions {
-        repo_root: repo.to_path_buf(),
-        home: repo.to_path_buf(),
-        runner: Arc::new(TailnetRunner),
-        secrets: Arc::new(MemoryStore::new()),
-        fake_agents: Some(FakeAgents {
-            script: fixtures.join("fake-agent"),
-            plans_dir: fixtures.join("plans"),
-        }),
-        in_memory: true,
-    })
-    .unwrap()
+    crate::common::engine_with_runner(repo, Arc::new(TailnetRunner))
 }
 
 /// Serves the router on a free loopback port and returns its base URL.

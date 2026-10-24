@@ -40,15 +40,7 @@ pub fn task_prompt(
         };
         return format!("{}\n\n{RULES}", retry_prompt(&parts, limits));
     }
-    let files = if scope.is_empty() {
-        "(none: this task is read only)".to_owned()
-    } else {
-        scope
-            .iter()
-            .map(|p| format!("- {p}"))
-            .collect::<Vec<_>>()
-            .join("\n")
-    };
+    let files = file_list(&scope);
     let memory = if memory.is_empty() {
         String::new()
     } else {
@@ -61,6 +53,17 @@ pub fn task_prompt(
         title = task.title,
         body = task.body.trim(),
     )
+}
+
+fn file_list(scope: &[String]) -> String {
+    if scope.is_empty() {
+        return "(none: this task is read only)".to_owned();
+    }
+    scope
+        .iter()
+        .map(|p| format!("- {p}"))
+        .collect::<Vec<_>>()
+        .join("\n")
 }
 
 #[cfg(test)]
