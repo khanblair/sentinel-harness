@@ -134,9 +134,13 @@ fn run_item(ui: Ui, action: PaletteAction) {
     }
 }
 
-/// Starts the whole backlog of the chosen repository, as the Start run button does.
+/// Starts the whole backlog of the project in the open chat, as the Start run button does.
 fn start_run(ui: Ui) {
+    let request = RunRequest {
+        chat: ui.open_chat.get_untracked(),
+        ..RunRequest::default()
+    };
     spawn_local(async move {
-        settle(ui, api::start_run(&RunRequest::default()).await);
+        settle(ui, api::start_run(&request).await);
     });
 }
