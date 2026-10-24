@@ -163,6 +163,7 @@ crates/sentinel-store/
   src/quality.rs                       QualityNote
   src/reservations.rs                  reservation queries
   src/reset.rs                         Clear what belongs to one run, so the next run starts from an empty board. Events, runs, cost
+  src/routines.rs                      Routines: jobs that run at a set time, such as the Morning brief (`docs/product-scope.md`, F25)
   src/runs.rs                          run and cost queries
   src/settings.rs                      settings queries
   src/tasks.rs                         task queries
@@ -339,6 +340,7 @@ crates/sentinel-daemon/
   src/brain_notes.rs                   Reading the Brain: the notes list, one note with its links, and the graph
   src/brain_proposals.rs               Proposals from care runs and their answers. A proposal file in `_proposals/` waits until you
   src/brain_run.rs                     The Brain during a run: the notes an agent reads before a task, and the journal a run writes
+  src/briefs.rs                        The facts a brief reports, and the plain words it is written in. The text builders take counts,
   src/chats.rs                         Chats: create, list, rename, pin, archive, delete. A chat is one conversation in the project
   src/close_out.rs                     Closing a run: every task that has not reached an end gets one, the report is written, and the
   src/cmd.rs                           Run external programs behind one trait
@@ -367,10 +369,13 @@ crates/sentinel-daemon/
   src/routes/chats.rs                  Chats and their attachments: the sidebar list, new chat, rename, pin, archive, delete, and the
   src/routes/dry_run.rs                The dry run routes. Only the computer starts one. Any device may read the last one, so a page
   src/routes/mod.rs                    The HTTP routes. Each handler checks the caller, calls one Engine method, and returns JSON
+  src/routes/routines.rs               Routines and briefs. The computer makes and deletes routines. A phone may turn one off and press
   src/routes/run.rs                    Routes that start, steer, and answer a run
   src/routes/setup.rs                  Repository choice, the first-run steps, and the settings only the computer may change
   src/routes/state.rs                  Read routes and the settings that change what the daemon is allowed to use
   src/routes/telegram.rs               The Telegram routes under `/api/telegram`. A phone may read the state. Saving the token, the
+  src/routines.rs                      Routines: jobs that run at a set time, such as the Morning brief (`docs/product-scope.md`, F25)
+  src/routines_tick.rs                 The scheduler. Every 30 seconds it finds the routines due in local time, marks each one fired,
   src/run.rs                           run loop tying planner, scheduler, workers, verifier
   src/run_ctx.rs                       Everything the tasks of one run share. A run owns one `RunCtx`; every wave and attempt gets an
   src/run_source.rs                    What a run starts from. A message in a chat can bring plain words, a backlog file, and
@@ -398,6 +403,7 @@ crates/sentinel-daemon/
   tests/folders.rs                     Folder browser, repository checks, and starter backlog behavior
   tests/host.rs                        The always-on host: the heartbeat, the back-online gap, and the host card
   tests/openrouter_tool.rs             The `OpenRouter` worker offered as a tool in a real-mode engine: its entry after a scan, and a
+  tests/routines.rs                    Routines end to end: the two built-in routines, who may change what, the input rules, and the
   tests/security.rs                    The route access matrix. Every route answers the right way to a caller with no token, a paired
   tests/security/coverage.rs           Reads the route source at test time. A `.route(` call with no row in `ROUTES` fails the build,
   tests/security/harness.rs            Starts the daemon for one test and sends it requests. A test gets its own engine, so a row
