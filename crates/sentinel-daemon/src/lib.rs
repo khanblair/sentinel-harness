@@ -43,6 +43,7 @@ pub mod server;
 mod settings;
 pub mod tailscale;
 pub mod telegram;
+mod telegram_code;
 mod telegram_notify;
 mod telegram_poll;
 mod telegram_router;
