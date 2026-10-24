@@ -1,0 +1,19 @@
+[book]
+title = "Sentinel"
+description = "How to install, set up, and use Sentinel."
+language = "en"
+src = "src"
+
+[build]
+build-dir = "book"
+create-missing = false
+
+[output.html]
+default-theme = "light"
+preferred-dark-theme = "navy"
+additional-css = ["theme/sentinel.css"]
+git-repository-url = "https://github.com/khanblair/sentinel-harness"
+edit-url-template = "https://github.com/khanblair/sentinel-harness/edit/main/site/{path}"
+
+[output.html.search]
+enable = true
