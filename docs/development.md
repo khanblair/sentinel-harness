@@ -57,7 +57,7 @@ Keys are never printed. Prefer the keychain, set through `sentinel keys set`.
 
 | Command | Purpose |
 |---|---|
-| `cargo xtask ci` | All checks |
+| `cargo xtask ci` | All checks in one command. GitHub runs the same checks as parallel jobs (`.github/workflows/ci.yml`), so you do not need to run this yourself |
 | `cargo nextest run` | Tests |
 | `cargo llvm-cov nextest` | Coverage |
 | `cargo run -- scan` | Detect agent CLIs |
@@ -102,7 +102,7 @@ Linux x86_64, macOS (Apple silicon and Intel), Windows x86_64. Hackathon build t
 CI and releases run on GitHub, not on your computer. Do not run `cargo xtask ci` or a release build locally: it fills the disk (the build output reached 60 GB). Locally, run the tests of the crate you changed: `cargo nextest run -p CRATE`.
 
 1. Update `progress-tracker.md` and the changelog section there.
-2. Push to `main` and wait for the `ci` workflow to turn green.
+2. Push to `main`. The `ci` workflow (lint, test, checks, and ui jobs side by side) turns green. The release workflow does not wait for it: run it when you need a build now.
 3. Tag the commit (`git tag v0.1.0 && git push origin v0.1.0`), or run the `release` workflow by hand from the Actions tab and type the tag.
 4. The `release` workflow builds `Sentinel-VERSION.dmg` on a GitHub Mac: a universal app (Apple silicon and Intel) with the UI embedded. It is attached to a draft release and to the run as an artifact.
 5. Download the .dmg, open it, and drag Sentinel to Applications. Opening the app picks a project (the last one, or a folder dialog), serves it on this Mac, and opens the UI in the browser. Open it again to get the browser tab back. Quit it in Settings, General, or run `sentinel stop`.

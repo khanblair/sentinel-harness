@@ -1,28 +1,38 @@
 name: ci
 
-# One authoritative job runs `cargo xtask ci`, the same command a person runs locally
-# (docs/development.md). It covers format, clippy, tests, cargo-deny, cargo-machete, and the file
-# checks (smell, dup, slop, doc, ban, contrast). The other jobs add what that job cannot: the
-# tests on macOS and Windows, and the WASM build of the UI with its size budget.
+# The checks of `cargo xtask ci`, split into jobs that run side by side, so the whole run takes as
+# long as its slowest job and not the sum of them (docs/development.md). CI runs here on GitHub,
+# never on the owner's computer. The release build is a separate workflow (release.yml) and does
+# not wait for this one.
+#
+#   lint    format and clippy
+#   test    the test suite on Linux
+#   checks  cargo-deny, cargo-machete, and the repository checks (smell, dup, slop, doc, ban, contrast)
+#   ui      clippy for the browser build, then the WASM bundle and its size budget
+#   test-os the test suite on macOS and Windows, after lint and test pass
 
 on:
   pull_request:
   push:
     branches: [main]
 
+# A newer push to a pull request replaces its older run. A push to main never cancels the run
+# before it: a cancelled run saves no build cache, and the next run would start cold again.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
 
 env:
   CARGO_TERM_COLOR: always
+  # Debug info is not read in CI. Leaving it out makes the test binaries link faster.
+  CARGO_PROFILE_DEV_DEBUG: "0"
 
 jobs:
-  xtask-ci:
-    name: cargo xtask ci (ubuntu)
+  lint:
+    name: lint (format, clippy)
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
@@ -30,16 +40,73 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --all --check
+      - run: cargo clippy --workspace --all-targets -- -D warnings
+
+  test:
+    name: test (ubuntu)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+      # Real git runs in these tests. Give it an identity so commits work on a clean runner.
+      - run: |
+          git config --global user.name "ci"
+          git config --global user.email "ci@localhost"
+          git config --global init.defaultBranch main
+      - run: cargo nextest run --workspace --no-tests=pass
+
+  checks:
+    name: checks (deny, machete, repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny,cargo-machete
+      - run: cargo deny check
+      - run: cargo machete
+      - run: cargo xtask checks
+
+  ui:
+    name: ui (wasm clippy, bundle and size budget)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
           targets: wasm32-unknown-unknown
       - uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@v2
         with:
-          tool: cargo-nextest,cargo-deny,cargo-machete
-      - run: cargo xtask ci
+          tool: trunk
+      - run: cargo clippy -p sentinel-ui --target wasm32-unknown-unknown -- -D warnings
+      - run: trunk build --release
+        working-directory: crates/sentinel-ui
+      # Budget from docs/architecture.md: the UI bundle stays under 1.5 MB compressed.
+      - run: |
+          size=$(find crates/sentinel-ui/dist -name '*.wasm' -print0 | xargs -0 gzip -9c | wc -c)
+          echo "compressed wasm: ${size} bytes"
+          test "$size" -lt 1500000
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ui-dist
+          path: crates/sentinel-ui/dist
 
-  test:
+  test-os:
     name: tests (${{ matrix.os }})
-    needs: xtask-ci
+    needs: [lint, test]
     strategy:
       fail-fast: false
       matrix:
@@ -58,38 +125,3 @@ jobs:
           git config --global user.name "ci"
           git config --global user.email "ci@localhost"
       - run: cargo nextest run --workspace --no-tests=pass
-
-  ui:
-    name: ui (wasm build and size budget)
-    needs: xtask-ci
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Check that the UI crate exists yet
-        id: ui
-        run: |
-          if [ -f crates/sentinel-ui/Cargo.toml ]; then echo "present=true" >> "$GITHUB_OUTPUT"; fi
-      - if: steps.ui.outputs.present == 'true'
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          targets: wasm32-unknown-unknown
-      - if: steps.ui.outputs.present == 'true'
-        uses: Swatinem/rust-cache@v2
-      - if: steps.ui.outputs.present == 'true'
-        uses: taiki-e/install-action@v2
-        with:
-          tool: trunk
-      - if: steps.ui.outputs.present == 'true'
-        run: trunk build --release
-        working-directory: crates/sentinel-ui
-      # Budget from docs/architecture.md: the UI bundle stays under 1.5 MB compressed.
-      - if: steps.ui.outputs.present == 'true'
-        run: |
-          size=$(find crates/sentinel-ui/dist -name '*.wasm' -print0 | xargs -0 gzip -9c | wc -c)
-          echo "compressed wasm: ${size} bytes"
-          test "$size" -lt 1500000
-      - if: steps.ui.outputs.present == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: ui-dist
-          path: crates/sentinel-ui/dist
