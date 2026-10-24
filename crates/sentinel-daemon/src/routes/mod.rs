@@ -44,7 +44,7 @@ impl ApiFailure {
         Self::new(StatusCode::UNAUTHORIZED, "Send a valid device token.")
     }
 
-    fn needs_computer() -> Self {
+    pub(crate) fn needs_computer() -> Self {
         Self::new(
             StatusCode::FORBIDDEN,
             "This needs the computer. Do it there.",

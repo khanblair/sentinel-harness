@@ -12,6 +12,13 @@ use serde::de::DeserializeOwned;
 use time::format_description::well_known::Rfc3339;
 use time::{OffsetDateTime, UtcOffset};
 
+/// Read the numbered columns of a row into a tuple, in order.
+macro_rules! columns {
+    ($row:expr; $($index:expr),+ $(,)?) => {
+        Ok(($($row.get($index)?),+))
+    };
+}
+
 pub mod approvals;
 pub mod attachments;
 pub mod barriers;

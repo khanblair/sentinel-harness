@@ -12,7 +12,8 @@ use sentinel_core::api::{AddAttachment, CreateChat, UpdateChat};
 use sentinel_core::{Attachment, AttachmentId, ChatId, ChatInfo, EventRecord};
 
 use super::state::{PageQuery, page_limit};
-use super::{ApiResult, blocking, okay, require_computer};
+use super::{ApiResult, blocking, okay};
+use crate::auth::Computer;
 use crate::controls::Caller;
 use crate::engine::Engine;
 
@@ -79,10 +80,9 @@ async fn update_chat(
 
 async fn delete_chat(
     State(engine): State<Engine>,
-    caller: Caller,
+    Computer(caller): Computer,
     Path(id): Path<String>,
 ) -> ApiResult<Value> {
-    require_computer(&caller)?;
     blocking(engine, move |e| {
         e.delete_chat(&ChatId::new(id), &caller).map(|()| okay())
     })

@@ -66,14 +66,7 @@ impl Store {
 }
 
 fn read_barrier_row(row: &Row<'_>) -> rusqlite::Result<BarrierRow> {
-    Ok((
-        row.get(0)?,
-        row.get(1)?,
-        row.get(2)?,
-        row.get(3)?,
-        row.get(4)?,
-        row.get(5)?,
-    ))
+    columns!(row; 0, 1, 2, 3, 4, 5)
 }
 
 fn barrier_from_row(row: BarrierRow) -> Result<BarrierRecord> {

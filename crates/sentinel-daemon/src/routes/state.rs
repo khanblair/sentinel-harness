@@ -16,6 +16,7 @@ use sentinel_core::state::ConnectionState;
 use sentinel_core::tool::ToolInfo;
 
 use super::{ApiResult, blocking, okay, require_computer};
+use crate::auth::Computer;
 use crate::connections::ConnectionStatus;
 use crate::controls::Caller;
 use crate::engine::{Engine, EngineError};
@@ -141,10 +142,9 @@ async fn update_permissions(
 
 async fn set_routing(
     State(engine): State<Engine>,
-    caller: Caller,
+    Computer(_): Computer,
     Json(update): Json<RoutingUpdate>,
 ) -> ApiResult<Value> {
-    require_computer(&caller)?;
     blocking(engine, move |e| {
         e.set_routing(update.routing).map(|()| okay())
     })
@@ -158,18 +158,19 @@ async fn tools(State(engine): State<Engine>) -> ApiResult<Vec<ToolInfo>> {
     .await
 }
 
-async fn scan_tools(State(engine): State<Engine>, caller: Caller) -> ApiResult<Vec<ToolInfo>> {
-    require_computer(&caller)?;
+async fn scan_tools(
+    State(engine): State<Engine>,
+    Computer(_): Computer,
+) -> ApiResult<Vec<ToolInfo>> {
     Ok(Json(engine.scan_tools().await?))
 }
 
 async fn toggle_tool(
     State(engine): State<Engine>,
-    caller: Caller,
+    Computer(_): Computer,
     Path(id): Path<String>,
     Json(toggle): Json<ToolToggle>,
 ) -> ApiResult<Value> {
-    require_computer(&caller)?;
     blocking(engine, move |e| {
         e.toggle_tool(&ToolId::new(id), toggle.enabled)
             .map(|()| okay())
@@ -177,8 +178,7 @@ async fn toggle_tool(
     .await
 }
 
-async fn doctor(State(engine): State<Engine>, caller: Caller) -> ApiResult<DoctorReport> {
-    require_computer(&caller)?;
+async fn doctor(State(engine): State<Engine>, Computer(_): Computer) -> ApiResult<DoctorReport> {
     Ok(Json(engine.doctor().await))
 }
 

@@ -13,55 +13,22 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
+#[path = "../../sentinel-daemon/tests/common/mod.rs"]
+mod common;
+
 fn fixtures() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../fixtures")
-        .canonicalize()
-        .unwrap()
+    common::repo_root().join("fixtures")
 }
 
-fn copy_dir(from: &Path, to: &Path) {
-    fs::create_dir_all(to).unwrap();
-    for entry in fs::read_dir(from).unwrap() {
-        let entry = entry.unwrap();
-        let target = to.join(entry.file_name());
-        if entry.file_type().unwrap().is_dir() {
-            copy_dir(&entry.path(), &target);
-        } else {
-            fs::copy(entry.path(), target).unwrap();
-        }
-    }
-}
-
-fn git(dir: &Path, args: &[&str]) {
-    let status = Command::new("git")
-        .current_dir(dir)
-        .args(args)
-        .status()
-        .unwrap();
-    assert!(status.success(), "git {args:?}");
-}
-
-/// A temp copy of the sample repository with its backlog and short timeouts, committed and clean.
+/// A temp copy of the sample repository with short timeouts for the run (the config is not tracked).
 fn sample_repo() -> tempfile::TempDir {
-    let dir = tempfile::tempdir().unwrap();
-    copy_dir(&fixtures().join("sample-repo"), dir.path());
-    fs::copy(
-        fixtures().join("sample-backlog.md"),
-        dir.path().join("backlog.md"),
-    )
-    .unwrap();
+    let dir = common::sample_repo();
     fs::create_dir_all(dir.path().join(".sentinel")).unwrap();
     fs::write(
         dir.path().join(".sentinel/config.toml"),
         "cap_usd = \"5.00\"\ndecision_timeout_seconds = 2\napproval_timeout_seconds = 2\ntask_timeout_seconds = 5\nmax_parallel = 3\n",
     )
     .unwrap();
-    git(dir.path(), &["init", "-b", "main"]);
-    git(dir.path(), &["config", "user.name", "Test"]);
-    git(dir.path(), &["config", "user.email", "test@example.com"]);
-    git(dir.path(), &["add", "-A"]);
-    git(dir.path(), &["commit", "-m", "start"]);
     dir
 }
 

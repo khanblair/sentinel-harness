@@ -116,6 +116,32 @@ impl<S: Send + Sync> FromRequestParts<S> for Caller {
     }
 }
 
+/// A caller that must be the computer. A phone gets `403` before the handler runs.
+pub struct Computer(pub Caller);
+
+impl<S: Send + Sync> FromRequestParts<S> for Computer {
+    type Rejection = ApiFailure;
+
+    fn from_request_parts(
+        parts: &mut Parts,
+        _state: &S,
+    ) -> impl Future<Output = Result<Self, Self::Rejection>> + Send {
+        let found = parts
+            .extensions
+            .get::<Caller>()
+            .cloned()
+            .ok_or_else(ApiFailure::unauthorized)
+            .and_then(|caller| {
+                if caller.from_pc {
+                    Ok(Computer(caller))
+                } else {
+                    Err(ApiFailure::needs_computer())
+                }
+            });
+        std::future::ready(found)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use axum::http::HeaderValue;

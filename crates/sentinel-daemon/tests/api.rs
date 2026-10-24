@@ -6,7 +6,6 @@
     reason = "test helpers fail the test by panicking"
 )]
 
-use std::fs;
 use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -24,7 +23,7 @@ use sentinel_daemon::engine::{Engine, EngineOptions, FakeAgents};
 use sentinel_daemon::secrets::MemoryStore;
 
 mod common;
-use common::{copy_dir, git, repo_root};
+use common::{repo_root, sample_repo_with};
 use sentinel_daemon::server::{self, ServerOptions};
 use sentinel_daemon::tailscale::{self, BindError, BindMode};
 use serde_json::{Value, json};
@@ -344,20 +343,13 @@ async fn bind_uses_loopback_in_dev_mode() {
 
 /// A temp copy of the sample repo with a two-task backlog, committed and clean.
 fn two_task_repo() -> tempfile::TempDir {
-    let dir = tempfile::tempdir().unwrap();
-    copy_dir(&repo_root().join("fixtures/sample-repo"), dir.path());
-    let backlog = "# fee-ledger backlog\n\n\
+    sample_repo_with(
+        "# fee-ledger backlog\n\n\
         ## T-01 Add a health check function\n\
         A `health()` function returns `ok`. Done when a test proves it.\n\n\
         ## T-02 Reject negative amounts\n\
-        Posting a negative amount returns an error and changes nothing. Done when a test proves it.\n";
-    fs::write(dir.path().join("backlog.md"), backlog).unwrap();
-    git(dir.path(), &["init", "-b", "main"]);
-    git(dir.path(), &["config", "user.name", "Test"]);
-    git(dir.path(), &["config", "user.email", "test@example.com"]);
-    git(dir.path(), &["add", "-A"]);
-    git(dir.path(), &["commit", "-m", "start"]);
-    dir
+        Posting a negative amount returns an error and changes nothing. Done when a test proves it.\n",
+    )
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

@@ -141,13 +141,7 @@ fn decision_filter(states: &[DecisionState]) -> Result<(String, Vec<String>)> {
 }
 
 fn read_decision_row(row: &Row<'_>) -> rusqlite::Result<DecisionRow> {
-    Ok((
-        row.get(0)?,
-        row.get(1)?,
-        row.get(2)?,
-        row.get(3)?,
-        row.get(4)?,
-    ))
+    columns!(row; 0, 1, 2, 3, 4)
 }
 
 fn decision_from_row(row: DecisionRow) -> Result<Decision> {

@@ -137,14 +137,7 @@ fn state_name(state: ReservationState) -> &'static str {
 }
 
 fn read_reservation_row(row: &Row<'_>) -> rusqlite::Result<ReservationRow> {
-    Ok((
-        row.get(0)?,
-        row.get(1)?,
-        row.get(2)?,
-        row.get(3)?,
-        row.get(4)?,
-        row.get(5)?,
-    ))
+    columns!(row; 0, 1, 2, 3, 4, 5)
 }
 
 fn reservation_from_row(row: ReservationRow) -> Result<Reservation> {

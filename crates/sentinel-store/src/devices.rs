@@ -82,14 +82,7 @@ impl Store {
 }
 
 fn read_device_row(row: &Row<'_>) -> rusqlite::Result<DeviceRow> {
-    Ok((
-        row.get(0)?,
-        row.get(1)?,
-        row.get(2)?,
-        row.get(3)?,
-        row.get(4)?,
-        row.get(5)?,
-    ))
+    columns!(row; 0, 1, 2, 3, 4, 5)
 }
 
 fn device_from_row(row: DeviceRow) -> Result<Device> {

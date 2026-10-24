@@ -99,16 +99,7 @@ fn checks_cover_verified(record: &VerificationRecord) -> Result<()> {
 }
 
 fn read_verification_row(row: &Row<'_>) -> rusqlite::Result<VerificationRow> {
-    Ok((
-        row.get(0)?,
-        row.get(1)?,
-        row.get(2)?,
-        row.get(3)?,
-        row.get(4)?,
-        row.get(5)?,
-        row.get(6)?,
-        row.get(7)?,
-    ))
+    columns!(row; 0, 1, 2, 3, 4, 5, 6, 7)
 }
 
 fn verification_from_row(row: VerificationRow) -> Result<VerificationRecord> {

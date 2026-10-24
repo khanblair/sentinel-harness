@@ -11,8 +11,9 @@ use sentinel_core::OnboardingState;
 use sentinel_core::api::{RepoCheckRequest, RepoCheckResponse};
 
 use super::state::ConnectionBody;
-use super::{ApiResult, blocking, okay, require_computer};
-use crate::controls::{Caller, usd_text};
+use super::{ApiResult, blocking, okay};
+use crate::auth::Computer;
+use crate::controls::usd_text;
 use crate::engine::{Engine, EngineError};
 
 pub(super) fn routes() -> Router<Engine> {
@@ -64,35 +65,31 @@ async fn onboarding(State(engine): State<Engine>) -> ApiResult<OnboardingState> 
 
 async fn onboarding_step(
     State(engine): State<Engine>,
-    caller: Caller,
+    Computer(_): Computer,
     Path(step): Path<u8>,
 ) -> ApiResult<OnboardingState> {
-    require_computer(&caller)?;
     blocking(engine, move |e| e.onboarding_step(step)).await
 }
 
 async fn onboarding_skip(
     State(engine): State<Engine>,
-    caller: Caller,
+    Computer(_): Computer,
     Path(step): Path<u8>,
 ) -> ApiResult<OnboardingState> {
-    require_computer(&caller)?;
     blocking(engine, move |e| e.onboarding_skip(step)).await
 }
 
 async fn onboarding_complete(
     State(engine): State<Engine>,
-    caller: Caller,
+    Computer(_): Computer,
 ) -> ApiResult<OnboardingState> {
-    require_computer(&caller)?;
     blocking(engine, Engine::onboarding_complete).await
 }
 
 async fn onboarding_reset(
     State(engine): State<Engine>,
-    caller: Caller,
+    Computer(_): Computer,
 ) -> ApiResult<OnboardingState> {
-    require_computer(&caller)?;
     blocking(engine, Engine::onboarding_reset).await
 }
 
@@ -109,10 +106,9 @@ struct KeyBody {
 /// Set the cap before a run. Once a run is live the cap can only be lowered.
 async fn set_cap(
     State(engine): State<Engine>,
-    caller: Caller,
+    Computer(caller): Computer,
     Json(body): Json<CapBody>,
 ) -> ApiResult<Value> {
-    require_computer(&caller)?;
     blocking(engine, move |e| {
         e.set_cap(&body.cap, &caller)
             .map(|cap| json!({ "cap": usd_text(cap) }))
@@ -122,10 +118,9 @@ async fn set_cap(
 
 async fn set_openrouter_key(
     State(engine): State<Engine>,
-    caller: Caller,
+    Computer(_): Computer,
     Json(body): Json<KeyBody>,
 ) -> ApiResult<Value> {
-    require_computer(&caller)?;
     blocking(engine, move |e| {
         e.set_openrouter_key(&body.key).map(|()| okay())
     })
@@ -134,10 +129,9 @@ async fn set_openrouter_key(
 
 async fn test_connection(
     State(engine): State<Engine>,
-    caller: Caller,
+    Computer(_): Computer,
     Path(name): Path<String>,
 ) -> ApiResult<ConnectionBody> {
-    require_computer(&caller)?;
     Ok(Json(engine.test_connection(&name).await?.into()))
 }
 

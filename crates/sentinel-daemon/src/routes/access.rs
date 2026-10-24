@@ -13,7 +13,8 @@ use sentinel_core::DeviceInfo;
 use sentinel_core::api::{HostStatus, PairStart, PairSubmit, TailscaleStatus};
 use sentinel_core::ids::DeviceId;
 
-use super::{ApiFailure, ApiResult, blocking, okay, require_computer};
+use super::{ApiFailure, ApiResult, blocking, okay};
+use crate::auth::Computer;
 use crate::controls::Caller;
 use crate::engine::Engine;
 use crate::pairing::{PairOutcome, PendingId, PendingPair};
@@ -110,10 +111,9 @@ async fn pair_outcome(
 
 async fn pair_start(
     State(engine): State<Engine>,
-    caller: Caller,
+    Computer(_): Computer,
     headers: HeaderMap,
 ) -> ApiResult<PairStart> {
-    require_computer(&caller)?;
     let host = headers
         .get(header::HOST)
         .and_then(|value| value.to_str().ok())
@@ -124,8 +124,10 @@ async fn pair_start(
     Ok(Json(engine.pair_start(&base_url).await))
 }
 
-async fn pair_pending(State(engine): State<Engine>, caller: Caller) -> ApiResult<Vec<PendingBody>> {
-    require_computer(&caller)?;
+async fn pair_pending(
+    State(engine): State<Engine>,
+    Computer(_): Computer,
+) -> ApiResult<Vec<PendingBody>> {
     let rows = engine
         .pair_pending()
         .iter()
@@ -136,10 +138,9 @@ async fn pair_pending(State(engine): State<Engine>, caller: Caller) -> ApiResult
 
 async fn pair_approve(
     State(engine): State<Engine>,
-    caller: Caller,
+    Computer(_): Computer,
     Path(id): Path<String>,
 ) -> ApiResult<Value> {
-    require_computer(&caller)?;
     blocking(engine, move |e| {
         e.pair_approve(&PendingId::new(id)).map(|_| okay())
     })
@@ -148,10 +149,9 @@ async fn pair_approve(
 
 async fn pair_deny(
     State(engine): State<Engine>,
-    caller: Caller,
+    Computer(_): Computer,
     Path(id): Path<String>,
 ) -> ApiResult<Value> {
-    require_computer(&caller)?;
     blocking(engine, move |e| {
         e.pair_deny(&PendingId::new(id)).map(|()| okay())
     })
@@ -179,8 +179,7 @@ async fn host_status(State(engine): State<Engine>) -> ApiResult<HostStatus> {
 }
 
 /// Write a heartbeat now and say so in the stream, so the host card can show it.
-async fn host_check(State(engine): State<Engine>, caller: Caller) -> ApiResult<HostStatus> {
-    require_computer(&caller)?;
+async fn host_check(State(engine): State<Engine>, Computer(_): Computer) -> ApiResult<HostStatus> {
     engine.beat()?;
     engine.emit_quiet(&sentinel_core::Event::HostHeartbeat);
     Ok(Json(engine.host_status().await?))
@@ -190,14 +189,15 @@ async fn tailscale_status(State(engine): State<Engine>) -> ApiResult<TailscaleSt
     Ok(Json(engine.tailscale_status().await))
 }
 
-async fn tailscale_sign_in(State(engine): State<Engine>, caller: Caller) -> ApiResult<Value> {
-    require_computer(&caller)?;
+async fn tailscale_sign_in(
+    State(engine): State<Engine>,
+    Computer(_): Computer,
+) -> ApiResult<Value> {
     let result = engine.tailscale_sign_in().await;
     Ok(Json(json!({ "ok": result.ok, "message": result.message })))
 }
 
-async fn fs_pick(State(engine): State<Engine>, caller: Caller) -> ApiResult<Value> {
-    require_computer(&caller)?;
+async fn fs_pick(State(engine): State<Engine>, Computer(_): Computer) -> ApiResult<Value> {
     let picked = tokio::task::spawn_blocking(move || engine.pick_folder_blocking())
         .await
         .map_err(|_| ApiFailure::internal())?;

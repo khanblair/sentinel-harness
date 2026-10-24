@@ -147,8 +147,14 @@ fn run_cargo(step: &CargoStep, root: &Path) -> Result<bool> {
         println!("{}: skipped (not created yet)", step.name);
         return Ok(true);
     }
-    let ok = Command::new("cargo")
-        .args(step.args)
+    // `cargo machete` reads its own name as a folder when it runs inside `cargo xtask`, so
+    // the tool runs by its own program name.
+    let (program, args) = match step.args {
+        ["machete"] => ("cargo-machete", &[][..]),
+        other => ("cargo", other),
+    };
+    let ok = Command::new(program)
+        .args(args)
         .current_dir(root)
         .status()?
         .success();

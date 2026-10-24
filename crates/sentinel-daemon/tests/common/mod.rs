@@ -52,15 +52,17 @@ pub fn git(dir: &Path, args: &[&str]) {
     );
 }
 
+/// A temp copy of the sample repository with its backlog, committed and clean.
 pub fn sample_repo() -> tempfile::TempDir {
+    let backlog = fs::read_to_string(repo_root().join("fixtures/sample-backlog.md")).unwrap();
+    sample_repo_with(&backlog)
+}
+
+/// A temp copy of the sample repository with the given backlog, committed and clean.
+pub fn sample_repo_with(backlog: &str) -> tempfile::TempDir {
     let dir = tempfile::tempdir().unwrap();
-    let fixtures = repo_root().join("fixtures");
-    copy_dir(&fixtures.join("sample-repo"), dir.path());
-    fs::copy(
-        fixtures.join("sample-backlog.md"),
-        dir.path().join("backlog.md"),
-    )
-    .unwrap();
+    copy_dir(&repo_root().join("fixtures/sample-repo"), dir.path());
+    fs::write(dir.path().join("backlog.md"), backlog).unwrap();
     git(dir.path(), &["init", "-b", "main"]);
     git(dir.path(), &["config", "user.name", "Test"]);
     git(dir.path(), &["config", "user.email", "test@example.com"]);
