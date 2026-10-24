@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 
 use crate::cost::Cost;
-use crate::ids::{ApprovalId, DeviceId, NoteId, TaskId, ToolId};
+use crate::ids::{ApprovalId, DeviceId, NoteId, RunId, TaskId, ToolId};
 use crate::note::LessonState;
 use crate::permission::{Approval, ApprovalState, PermissionMode};
 use crate::quality::QualityNote;
@@ -17,6 +17,36 @@ use crate::tool::{ToolInfo, ToolStatus};
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum Event {
+    RunStarted {
+        run: RunId,
+        backlog: String,
+    },
+    PlanReady {
+        tasks: u32,
+        contradictions: u32,
+        already_done: u32,
+    },
+    WaveStarted {
+        wave: u32,
+        tasks: Vec<TaskId>,
+    },
+    /// The verifier's decision. Only the verifier may produce `Verified`.
+    Verdict {
+        task: TaskId,
+        status: TaskStatus,
+        reason: String,
+    },
+    RunFinished {
+        verified: u32,
+        total: u32,
+    },
+    ReportReady,
+    /// Text in the stream: a user instruction, a Sentinel note, or a message to one agent.
+    Message {
+        from: String,
+        to: Option<ToolId>,
+        text: String,
+    },
     TaskStatus {
         task: TaskId,
         status: TaskStatus,
@@ -159,7 +189,8 @@ impl Event {
             | Event::Checkpoint { task, .. }
             | Event::AgentOutput { task, .. }
             | Event::ContextCompacted { task, .. }
-            | Event::TaskCeilingHit { task, .. } => Some(task),
+            | Event::TaskCeilingHit { task, .. }
+            | Event::Verdict { task, .. } => Some(task),
             Event::WriteBlocked { task, .. } => task.as_ref(),
             _ => None,
         }
@@ -214,6 +245,17 @@ mod tests {
         let json = serde_json::to_string(&e).unwrap();
         assert!(json.contains("\"kind\":\"WriteBlocked\""), "{json}");
         assert_eq!(serde_json::from_str::<Event>(&json).unwrap(), e);
+    }
+
+    #[test]
+    fn verdict_names_its_task() {
+        let e = Event::Verdict {
+            task: TaskId::new("T-02"),
+            status: TaskStatus::Verified,
+            reason: "ok".into(),
+        };
+        assert_eq!(e.task(), Some(&TaskId::new("T-02")));
+        assert_eq!(e.kind(), "Verdict");
     }
 
     #[test]

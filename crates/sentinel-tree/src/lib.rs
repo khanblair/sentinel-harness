@@ -10,6 +10,7 @@ pub mod checkpoint;
 pub mod git;
 pub mod guard_config;
 pub mod restore;
+pub mod revert;
 pub mod tamper;
 pub mod watcher;
 
@@ -17,6 +18,7 @@ pub use checkpoint::{Checkpoint, checkpoint};
 pub use git::Git;
 pub use guard_config::{GuardFiles, remove_guard_files, write_guard_files};
 pub use restore::{RestoreOutcome, restore_path};
+pub use revert::revert_checkpoint;
 pub use tamper::{edited_tests, looks_like_test};
 pub use watcher::{GuardHandle, GuardOptions, WritePolicy, WriteVerdict, start_guard};
 

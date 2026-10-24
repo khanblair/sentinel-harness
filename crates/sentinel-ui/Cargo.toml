@@ -11,6 +11,7 @@ sentinel-core = { path = "../sentinel-core" }
 console_error_panic_hook = { workspace = true }
 gloo-net = { workspace = true }
 gloo-storage = { workspace = true }
+futures = { workspace = true }
 gloo-timers = { workspace = true }
 js-sys = { workspace = true }
 leptos = { workspace = true }

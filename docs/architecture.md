@@ -253,7 +253,7 @@ Server sends `Event` frames. Client sends `Subscribe{topics}` and `Ping`. No con
 
 ### Events
 
-`TaskStatus`, `FilesReserved`, `FilesReleased`, `WriteBlocked`, `Checkpoint`, `BarrierStart`, `BarrierEnd`, `CostUpdate`, `BudgetThreshold`, `ToolDetected`, `AgentOutput`, `DecisionRequested`, `HarnessState`, `DeviceAction`, `NoteWritten`, `LessonStateChanged`, `ProposalCreated`, `CareFinished`, `QualityNote`, `ContextCompacted`, `TaskCeilingHit`, `ApprovalRequested`, `ApprovalResolved`, `PermissionChanged`, `ToolStatusChanged`, `ConnectionChanged`, `TailscaleChanged`, `TelegramPaired`, `TelegramSent`, `TelegramReceived`, `HostHeartbeat`, `HostBackOnline`.
+`RunStarted`, `PlanReady`, `WaveStarted`, `Verdict`, `RunFinished`, `ReportReady`, `Message`, `TaskStatus`, `FilesReserved`, `FilesReleased`, `WriteBlocked`, `Checkpoint`, `BarrierStart`, `BarrierEnd`, `CostUpdate`, `BudgetThreshold`, `ToolDetected`, `AgentOutput`, `DecisionRequested`, `HarnessState`, `DeviceAction`, `NoteWritten`, `LessonStateChanged`, `ProposalCreated`, `CareFinished`, `QualityNote`, `ContextCompacted`, `TaskCeilingHit`, `ApprovalRequested`, `ApprovalResolved`, `PermissionChanged`, `ToolStatusChanged`, `ConnectionChanged`, `TailscaleChanged`, `TelegramPaired`, `TelegramSent`, `TelegramReceived`, `HostHeartbeat`, `HostBackOnline`.
 
 ### Shared Types
 

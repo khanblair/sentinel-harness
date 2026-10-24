@@ -1,11 +1,15 @@
 //! Reservation table and wave builder. One path has one writer at a time.
 
+pub mod barrier;
+pub mod scheduler;
 pub mod table;
 pub mod waves;
 
 mod claims;
 mod holdings;
 
+pub use barrier::{Barrier, BarrierDecision, BarrierOutcome};
+pub use scheduler::{Scheduler, Wave};
 pub use table::{Grant, ReservationTable};
 pub use waves::build_wave;
 

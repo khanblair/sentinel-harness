@@ -3,6 +3,7 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::event::EventRecord;
 use crate::ids::{DeviceId, TaskId};
 use crate::note::BrainMode;
 use crate::permission::PermissionMode;
@@ -150,9 +151,42 @@ pub struct DoctorReport {
     pub rows: Vec<CheckRow>,
 }
 
+/// A frame the client sends on `/ws`. Control never travels over the socket: it uses the routes.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "op", rename_all = "snake_case")]
+pub enum ClientFrame {
+    /// The first frame. A browser cannot set headers on a WebSocket, so the token travels here.
+    Auth {
+        token: String,
+    },
+    /// Send every event after this id, then live events.
+    Subscribe {
+        after: i64,
+    },
+    Ping,
+}
+
+/// A frame the daemon sends on `/ws`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(tag = "op", rename_all = "snake_case")]
+pub enum ServerFrame {
+    Event { record: EventRecord },
+    Pong,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn frames_use_an_op_tag() {
+        let json = serde_json::to_string(&ClientFrame::Subscribe { after: 4 }).unwrap();
+        assert_eq!(json, "{\"op\":\"subscribe\",\"after\":4}");
+        assert_eq!(
+            serde_json::to_string(&ServerFrame::Pong).unwrap(),
+            "{\"op\":\"pong\"}"
+        );
+    }
 
     #[test]
     fn run_request_defaults_to_the_whole_backlog() {
