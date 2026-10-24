@@ -75,6 +75,15 @@ pub fn edit_changes(detail: &SkillDetail, description: &str, body: &str) -> Edit
     }
 }
 
+/// The toast for a name that is not a skill. It names the skills Sentinel has.
+pub fn unknown_skill_text(name: &str, list: &[SkillInfo]) -> String {
+    if list.is_empty() {
+        return format!("No skill named {name}. Add one in Settings, Skills.");
+    }
+    let names: Vec<&str> = list.iter().map(|skill| skill.name.as_str()).collect();
+    format!("No skill named {name}. Your skills: {}.", names.join(", "))
+}
+
 fn skill_path(name: &str) -> String {
     format!("/api/skills/{name}")
 }
@@ -165,6 +174,16 @@ mod tests {
         }
     }
 
+    fn skill_info(name: &str) -> SkillInfo {
+        SkillInfo {
+            name: name.to_owned(),
+            description: String::new(),
+            scope: SkillScope::Project,
+            mode: SkillMode::Auto,
+            bytes: 0,
+        }
+    }
+
     fn detail(description: &str, body: &str) -> SkillDetail {
         SkillDetail {
             info: SkillInfo {
@@ -247,6 +266,19 @@ mod tests {
             .map(|skill| skill.name.as_str())
             .collect();
         assert_eq!(names, vec!["release"]);
+    }
+
+    #[test]
+    fn an_unknown_skill_name_lists_the_skills_there_are() {
+        let list = vec![skill_info("house-style"), skill_info("release")];
+        assert_eq!(
+            unknown_skill_text("nope", &list),
+            "No skill named nope. Your skills: house-style, release."
+        );
+        assert_eq!(
+            unknown_skill_text("nope", &[]),
+            "No skill named nope. Add one in Settings, Skills."
+        );
     }
 
     #[test]
