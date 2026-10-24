@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 use time::OffsetDateTime;
 
 use sentinel_core::DeviceInfo;
-use sentinel_core::api::{HostStatus, PairStart, PairSubmit, TailscaleStatus};
+use sentinel_core::api::{HostStatus, PairStart, PairSubmit, TailscaleStatus, WhoAmI};
 use sentinel_core::ids::DeviceId;
 
 use super::{ApiFailure, ApiResult, blocking, okay};
@@ -86,6 +86,7 @@ pub(super) fn routes() -> Router<Engine> {
         .route("/api/tailscale/status", get(tailscale_status))
         .route("/api/tailscale/signin", post(tailscale_sign_in))
         .route("/api/host", get(host_status))
+        .route("/api/whoami", get(whoami))
         .route("/api/host/check", post(host_check))
         .route("/api/quit", post(quit))
         .route("/api/fs/pick", post(fs_pick))
@@ -177,6 +178,14 @@ async fn revoke_device(
 
 async fn host_status(State(engine): State<Engine>) -> ApiResult<HostStatus> {
     Ok(Json(engine.host_status().await?))
+}
+
+/// Who is calling, so the UI can tell a phone from the computer. Any valid device may ask.
+async fn whoami(caller: Caller) -> Json<WhoAmI> {
+    Json(WhoAmI {
+        from_pc: caller.from_pc,
+        name: caller.name,
+    })
 }
 
 /// Write a heartbeat now and say so in the stream, so the host card can show it.

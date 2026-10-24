@@ -11,7 +11,7 @@ use crate::api::{self, ApiFailure};
 use crate::chats::busy_notice;
 use crate::components::agent_stack::ready_agents;
 use crate::components::top_bar::{post_action, settle};
-use crate::layout::{Layout, PanelId};
+use crate::layout::PanelId;
 use crate::slash::{self, SlashCommand};
 use crate::state::{Connection, Target, ToastKind, Ui, refresh};
 use crate::views::composer::{Draft, SendRoute, send_route};
@@ -211,7 +211,7 @@ pub fn lower_cap(ui: Ui, amount: String) {
 
 pub fn set_brain(ui: Ui, mode: BrainMode) {
     let current = ui.snapshot.with_untracked(|s| s.brain_mode);
-    if ui.layout.get_untracked() == Layout::Phone && !current.phone_may_set(mode) {
+    if ui.from_phone.get_untracked() && !current.phone_may_set(mode) {
         ui.show_toast(
             "A phone can only set Brain to a stricter mode.",
             ToastKind::Warn,

@@ -65,7 +65,7 @@ fn mode_button(ui: Ui, mode: BrainMode, label: &'static str, hint: &'static str)
     };
     let disabled = move || {
         let current = ui.snapshot.with(|snapshot| snapshot.brain_mode);
-        !phone_may_pick(current, mode, ui.layout.get())
+        !phone_may_pick(current, mode, ui.on_phone())
     };
     view! {
         <button aria-pressed=pressed disabled=disabled on:click=move |_| set_mode(ui, mode)>

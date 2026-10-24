@@ -250,6 +250,7 @@ Money is stored as integer micro-dollars.
 | `POST /api/tools/:id/fix` | Log in or save a command template for a tool |
 | `POST /api/doctor` | Run the install check and return the result |
 | `GET /api/host`, `POST /api/host/check` | Host state, last heartbeat, and a check now |
+| `GET /api/whoami` | Who is calling: `from_pc` and the device name. The UI reads it to tell a phone from the computer |
 | `GET /api/skills`, `POST /api/skills` | List skills with their switch, and create one. Create needs the computer |
 | `GET /api/skills/found`, `POST /api/skills/import` | Skills in other tools' folders, and copy one into Sentinel |
 | `GET /api/skills/:name`, `PUT /api/skills/:name`, `DELETE /api/skills/:name` | Read a skill. Edit text or move its switch. Delete. A phone may read and move a switch toward Off |

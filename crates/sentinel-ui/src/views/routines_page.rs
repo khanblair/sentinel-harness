@@ -8,7 +8,6 @@ use crate::components::brief_card::BriefCard;
 use crate::components::icon::Icon;
 use crate::components::routine_editor::{EditorMode, RoutineEditor};
 use crate::components::routine_row::RoutineRow;
-use crate::layout::Layout;
 use crate::routines::{self, BriefNotice, latest_brief_ready};
 use crate::state::{ToastKind, Ui, use_ui};
 
@@ -87,7 +86,7 @@ fn EditorOverlay(mode: EditorMode, editor: RwSignal<Option<EditorMode>>) -> impl
 #[component]
 fn AddRow(editor: RwSignal<Option<EditorMode>>) -> impl IntoView {
     let ui = use_ui();
-    let phone = move || ui.layout.get() == Layout::Phone;
+    let phone = move || ui.on_phone();
     view! {
         <div class="row wrap" style="margin:.8em 0">
             <button class="btn" disabled=phone on:click=move |_| editor.set(Some(EditorMode::Add))>

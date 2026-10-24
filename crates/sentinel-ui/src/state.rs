@@ -5,6 +5,7 @@
 use std::collections::HashMap;
 
 use leptos::prelude::*;
+use sentinel_core::api::WhoAmI;
 use sentinel_core::chat::ChatChange;
 use sentinel_core::routines::{Brief, Routine};
 use sentinel_core::{Attachment, ChatId, Event, EventRecord, Snapshot, ToolId};
@@ -111,6 +112,9 @@ pub struct Ui {
     pub routines: RwSignal<Vec<Routine>>,
     /// The latest briefs, newest first, as `GET /api/briefs` last returned them.
     pub briefs: RwSignal<Vec<Brief>>,
+    /// True when a paired phone is calling, from `GET /api/whoami`. Off until that answers, so
+    /// the computer's own page is never locked while it loads.
+    pub from_phone: RwSignal<bool>,
 }
 
 /// Which menu a popover shows. Each kind has one body in `components/menus.rs`.
@@ -176,13 +180,34 @@ impl Ui {
             setup_open: RwSignal::new(false),
             routines: RwSignal::new(Vec::new()),
             briefs: RwSignal::new(Vec::new()),
+            from_phone: RwSignal::new(false),
         }
     }
 
-    /// Replace the snapshot with a fresh one from the daemon.
+    /// True when a paired phone is calling. Rights checks use this, never the layout.
+    pub fn on_phone(&self) -> bool {
+        self.from_phone.get()
+    }
+
+    /// Replace the snapshot with a fresh one from the daemon. The first one also asks who is
+    /// calling.
     pub fn apply_snapshot(&self, snapshot: Snapshot) {
+        let first = !self.loaded.get_untracked();
         self.snapshot.set(snapshot);
         self.loaded.set(true);
+        if first {
+            self.load_caller();
+        }
+    }
+
+    /// Ask the daemon who is calling. A failed call leaves `from_phone` false.
+    fn load_caller(&self) {
+        let ui = *self;
+        leptos::task::spawn_local(async move {
+            if let Ok(who) = crate::api::get::<WhoAmI>("/api/whoami").await {
+                ui.from_phone.set(!who.from_pc);
+            }
+        });
     }
 
     /// Show a chat in the stream. On phone the sidebar drawer closes.

@@ -12,7 +12,6 @@ use crate::brain::{
 };
 use crate::components::icon::Icon;
 use crate::components::toggle::Toggle;
-use crate::layout::Layout;
 use crate::state::{ToastKind, Ui, use_ui};
 use crate::views::brain::{report_failure, run_care};
 use crate::views::settings::Field;
@@ -191,7 +190,7 @@ fn CareActions(form: CareForm) -> impl IntoView {
     view! {
         <div class="row wrap" style="margin-top:1em">
             <button class="btn pri" on:click=move |_| save_care(form)>"Save changes"</button>
-            {move || (form.ui.layout.get() != Layout::Phone).then(|| view! {
+            {move || (!form.ui.on_phone()).then(|| view! {
                 <button class="btn" on:click=move |_| run_care(form.ui, form.missing)>
                     <Icon name="play" size=14 />" Run care now"
                 </button>
