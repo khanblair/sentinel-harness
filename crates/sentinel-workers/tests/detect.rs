@@ -301,5 +301,5 @@ async fn with_no_search_path_the_real_path_is_used() {
     let found = detect_all(&[profile], &options).await;
 
     assert_eq!(found[0].status, ToolStatus::Ready);
-    assert!(!found[0].path.is_empty());
+    assert_ne!(found[0].path, "");
 }

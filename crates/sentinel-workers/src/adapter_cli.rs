@@ -10,11 +10,23 @@ use crate::worker::{RunControl, RunOutcome, RunSpec, Worker};
 pub struct CliWorker {
     profile: Profile,
     binary: PathBuf,
+    free: bool,
 }
 
 impl CliWorker {
     pub fn new(profile: Profile, binary: PathBuf) -> Self {
-        Self { profile, binary }
+        Self {
+            profile,
+            binary,
+            free: false,
+        }
+    }
+
+    /// Mark the model as free: running time adds no estimated cost.
+    #[must_use]
+    pub fn with_free_cost(mut self, free: bool) -> Self {
+        self.free = free;
+        self
     }
 }
 
@@ -22,6 +34,7 @@ impl Worker for CliWorker {
     fn run(&self, spec: RunSpec, ctrl: RunControl) -> BoxFuture<'_, RunOutcome> {
         let profile = self.profile.clone();
         let binary = self.binary.clone();
+        let free = self.free;
 
         Box::pin(async move {
             let command_line = profile.command_line(&spec, &binary);
@@ -35,6 +48,7 @@ impl Worker for CliWorker {
             let source = CostSource {
                 tier: profile.tier,
                 reported_prefix,
+                free,
             };
 
             run_command(command_line, &spec, ctrl, &source).await

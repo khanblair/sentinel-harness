@@ -59,6 +59,7 @@ impl Worker for FakeWorker {
             let source = CostSource {
                 tier: self.tier,
                 reported_prefix: Some("Total cost: $".to_owned()),
+                free: false,
             };
             run_command(command, &spec, ctrl, &source).await
         })
@@ -175,7 +176,11 @@ impl Engine {
                 tool.name
             )));
         }
-        Ok(Arc::new(CliWorker::new(profile, tool.path.clone().into())))
+        let free = self
+            .config()
+            .is_free_model(&tool.id, &profile.default_model);
+        let worker = CliWorker::new(profile, tool.path.clone().into()).with_free_cost(free);
+        Ok(Arc::new(worker))
     }
 }
 

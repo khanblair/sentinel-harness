@@ -18,6 +18,7 @@ const TOP_LEVEL_KEYS: &[&str] = &[
     "routing",
     "enabled_tools",
     "models",
+    "free_models",
     "test_command",
     "hackathon_mode",
     "dev_loopback",
@@ -42,6 +43,9 @@ pub struct Config {
     pub enabled_tools: Vec<ToolId>,
     /// The model each tool runs with, by tool id. A tool with no entry uses its profile default.
     pub models: std::collections::BTreeMap<String, String>,
+    /// Model ids that cost nothing, such as a local model. A model whose name ends in `-free` or
+    /// `:free` counts as free without being listed.
+    pub free_models: Vec<String>,
     pub test_command: Vec<String>,
     pub hackathon_mode: bool,
     pub dev_loopback: bool,
@@ -61,6 +65,19 @@ pub struct TelegramConfig {
     pub detail: String,
 }
 
+impl Config {
+    /// True when the model a tool runs costs nothing: listed in `free_models`, or free by name.
+    pub fn is_free_model(&self, tool: &ToolId, profile_default: &str) -> bool {
+        let model = self
+            .models
+            .get(tool.as_str())
+            .map_or(profile_default, String::as_str);
+        self.free_models.iter().any(|free| free == model)
+            || model.ends_with("-free")
+            || model.ends_with(":free")
+    }
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -72,6 +89,7 @@ impl Default for Config {
             routing: Routing::default(),
             enabled_tools: Vec::new(),
             models: std::collections::BTreeMap::new(),
+            free_models: Vec::new(),
             test_command: vec!["cargo".to_owned(), "test".to_owned()],
             hackathon_mode: false,
             dev_loopback: false,
@@ -217,6 +235,7 @@ mod tests {
             },
             enabled_tools: vec![ToolId::new("claude")],
             models: std::collections::BTreeMap::from([("claude".to_owned(), "sonnet".to_owned())]),
+            free_models: vec!["ornith/ornith".to_owned()],
             test_command: vec!["cargo".to_owned(), "nextest".to_owned()],
             hackathon_mode: true,
             dev_loopback: true,
@@ -271,5 +290,25 @@ mod tests {
         fs::write(&path, "[telegram]\nenabled = true\nwrong = 1\n").unwrap();
         let error = load(&path).unwrap_err();
         assert!(error.to_string().contains("telegram.wrong"), "{error}");
+    }
+}
+
+#[cfg(test)]
+mod free_model_tests {
+    use super::*;
+
+    #[test]
+    fn a_free_name_or_a_listed_model_costs_nothing() {
+        let mut config = Config::default();
+        let tool = ToolId::new("opencode");
+        assert!(config.is_free_model(&tool, "opencode/glm-5.3-flash-free"));
+        assert!(config.is_free_model(&tool, "meta/llama:free"));
+        assert!(!config.is_free_model(&tool, "claude-sonnet"));
+        config
+            .models
+            .insert("opencode".to_owned(), "ornith/ornith".to_owned());
+        assert!(!config.is_free_model(&tool, "claude-sonnet"));
+        config.free_models.push("ornith/ornith".to_owned());
+        assert!(config.is_free_model(&tool, "claude-sonnet"));
     }
 }

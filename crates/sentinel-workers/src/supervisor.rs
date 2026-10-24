@@ -23,6 +23,9 @@ pub struct CostSource {
     /// When set, a line that contains this text and then a dollar amount reports the run's
     /// total cost so far. For example `Total cost: $0.07`.
     pub reported_prefix: Option<String>,
+    /// True for a model that costs nothing, such as a local model or a free tier. Time then adds
+    /// no estimate, so the per-task ceiling never fires. A line that reports a cost still counts.
+    pub free: bool,
 }
 
 /// Spawns `cmd`, captures its output, and stops it on the first stop condition.
@@ -207,6 +210,7 @@ struct Spend {
     budget: Arc<Budget>,
     tier: Tier,
     prefix: Option<String>,
+    free: bool,
     recorded: Cost,
     reported: Option<Cost>,
 }
@@ -218,6 +222,7 @@ impl Spend {
             budget,
             tier: source.tier,
             prefix: source.reported_prefix.clone(),
+            free: source.free,
             recorded: Cost::ZERO,
             reported: None,
         }
@@ -237,7 +242,7 @@ impl Spend {
     }
 
     fn tick(&mut self) -> Option<Stop> {
-        if self.reported.is_some() {
+        if self.reported.is_some() || self.free {
             return None;
         }
         self.charge(estimate_by_time(self.tier, ESTIMATE_TICK))
@@ -374,6 +379,7 @@ mod tests {
         CostSource {
             tier: Tier::Cheap,
             reported_prefix: prefix.map(str::to_owned),
+            free: false,
         }
     }
 
@@ -583,5 +589,39 @@ mod tests {
         .await;
         assert_eq!(out.output_tail.len(), 1);
         assert_eq!(out.output_tail[0].chars().count(), MAX_LINE_CHARS);
+    }
+}
+
+#[cfg(test)]
+mod free_cost_tests {
+    use std::sync::Arc;
+
+    use sentinel_core::{Cost, TaskId, Tier};
+
+    use super::{CostSource, Spend};
+    use crate::budget::Budget;
+
+    fn spend(free: bool) -> Spend {
+        let (budget, _kill) = Budget::new(Cost::parse_usd("5.00").unwrap());
+        let source = CostSource {
+            tier: Tier::Cheap,
+            reported_prefix: None,
+            free,
+        };
+        Spend::new(TaskId::new("T-01"), Arc::clone(&budget), &source)
+    }
+
+    #[test]
+    fn running_time_costs_nothing_for_a_free_model() {
+        let mut free = spend(true);
+        assert!(free.tick().is_none());
+        assert_eq!(free.recorded, Cost::ZERO);
+    }
+
+    #[test]
+    fn running_time_is_charged_for_a_paid_model() {
+        let mut paid = spend(false);
+        paid.tick();
+        assert!(paid.recorded > Cost::ZERO);
     }
 }
