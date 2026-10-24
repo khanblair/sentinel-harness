@@ -1,13 +1,5 @@
 //! Backlog parser: reads a markdown backlog and extracts tasks.
 
-#![allow(clippy::too_many_lines)]
-#![allow(clippy::collapsible_if)]
-#![allow(clippy::manual_let_else)]
-#![allow(clippy::single_match_else)]
-#![allow(clippy::manual_range_contains)]
-#![allow(clippy::uninlined_format_args)]
-#![allow(clippy::doc_markdown)]
-
 use std::collections::HashSet;
 
 use crate::{PlanError, Result};
@@ -29,81 +21,28 @@ pub fn parse_backlog(text: &str) -> Result<Vec<BacklogItem>> {
     let lines: Vec<&str> = text.lines().collect();
 
     let mut items = Vec::new();
-    let mut used_ids = HashSet::new();
-    let mut auto_counter = 0;
+    let mut ids = IdAllocator::default();
 
-    let mut i = 0;
-    // Skip a single top-level `#` title line if present
-    if let Some(first) = lines.first() {
-        if first.starts_with("# ") && !first.starts_with("## ") {
-            i = 1;
-        }
-    }
-
+    let mut i = first_task_line(&lines);
     while i < lines.len() {
-        let line = lines[i];
-        let (level, raw) = match heading_info(line) {
-            Some((lvl, r)) => (lvl, r),
-            None => {
-                i += 1;
-                continue;
-            }
-        };
-
-        // Only ## and ### are task headings
-        if level < 2 || level > 3 {
+        let Some(raw) = task_heading(lines[i]) else {
             i += 1;
             continue;
-        }
-
-        // Extract task id from heading if present
-        let (task_id, title) = extract_id_and_title(raw);
-
-        let task_id = if let Some(id) = task_id {
-            if used_ids.contains(&id) {
-                return Err(PlanError::Parse(format!("duplicate task id: {}", id)));
-            }
-            used_ids.insert(id.clone());
-            TaskId::new(id)
-        } else {
-            // Auto-assign T-XX
-            loop {
-                auto_counter += 1;
-                let candidate = format!("T-{:02}", auto_counter);
-                if !used_ids.contains(&candidate) {
-                    used_ids.insert(candidate.clone());
-                    break TaskId::new(candidate);
-                }
-            }
         };
 
-        // Collect body until next heading
-        i += 1;
-        let mut body_lines = Vec::new();
-        let mut in_code_fence = false;
-        while i < lines.len() {
-            let l = lines[i];
-            if let Some((lvl, _)) = heading_info(l) {
-                if lvl >= 2 && lvl <= 3 && !in_code_fence {
-                    break;
-                }
-            }
-            // Track code fences
-            if l.starts_with("```") {
-                in_code_fence = !in_code_fence;
-            }
-            body_lines.push(l);
-            i += 1;
-        }
+        let (explicit_id, title) = extract_id_and_title(raw);
+        let id = match explicit_id {
+            Some(id) => ids.explicit(id)?,
+            None => ids.auto(),
+        };
 
-        let body = body_lines.join("\n").trim().to_string();
+        let (body, next) = collect_body(&lines, i + 1);
+        i = next;
         let title = title.trim().to_string();
-
-        // Check claims_done
         let claims_done = check_claims_done(&title, &body);
 
         items.push(BacklogItem {
-            id: task_id,
+            id,
             title,
             body,
             claims_done,
@@ -117,7 +56,70 @@ pub fn parse_backlog(text: &str) -> Result<Vec<BacklogItem>> {
     Ok(items)
 }
 
-/// Returns (level, rest_of_line) for a heading line, or None if not a heading.
+/// Skip a single top-level `#` title line if present.
+fn first_task_line(lines: &[&str]) -> usize {
+    match lines.first() {
+        Some(first) if first.starts_with("# ") => 1,
+        _ => 0,
+    }
+}
+
+/// Hands out task ids: explicit ids must be unique, missing ids get `T-XX`.
+#[derive(Default)]
+struct IdAllocator {
+    used: HashSet<String>,
+    auto_counter: usize,
+}
+
+impl IdAllocator {
+    fn explicit(&mut self, id: String) -> Result<TaskId> {
+        if !self.used.insert(id.clone()) {
+            return Err(PlanError::Parse(format!("duplicate task id: {id}")));
+        }
+        Ok(TaskId::new(id))
+    }
+
+    fn auto(&mut self) -> TaskId {
+        loop {
+            self.auto_counter += 1;
+            let candidate = format!("T-{:02}", self.auto_counter);
+            if self.used.insert(candidate.clone()) {
+                return TaskId::new(candidate);
+            }
+        }
+    }
+}
+
+/// Collects body lines from `start` up to the next task heading.
+/// A heading inside a code fence is body text. Returns the trimmed body and
+/// the index of the line that ends it.
+fn collect_body(lines: &[&str], start: usize) -> (String, usize) {
+    let mut body_lines = Vec::new();
+    let mut in_code_fence = false;
+    let mut i = start;
+    while i < lines.len() {
+        let line = lines[i];
+        if !in_code_fence && task_heading(line).is_some() {
+            break;
+        }
+        if line.starts_with("```") {
+            in_code_fence = !in_code_fence;
+        }
+        body_lines.push(line);
+        i += 1;
+    }
+    (body_lines.join("\n").trim().to_string(), i)
+}
+
+/// Returns the heading text when the line is a `##` or `###` task heading.
+fn task_heading(line: &str) -> Option<&str> {
+    match heading_info(line)? {
+        (2 | 3, raw) => Some(raw),
+        _ => None,
+    }
+}
+
+/// Returns `(level, rest_of_line)` for a heading line, or `None` if not a heading.
 fn heading_info(line: &str) -> Option<(usize, &str)> {
     let trimmed = line.trim_start();
     if !trimmed.starts_with('#') {
@@ -138,51 +140,32 @@ fn heading_info(line: &str) -> Option<(usize, &str)> {
     Some((level, rest))
 }
 
+/// Length of a task id at the start of `text`, shaped `letters-digits`.
+/// Returns None when the text does not start with that shape.
+fn id_prefix(text: &str) -> Option<&str> {
+    let letters = text.bytes().take_while(u8::is_ascii_alphabetic).count();
+    if letters == 0 {
+        return None;
+    }
+    let after_letters = text[letters..].strip_prefix('-')?;
+    let digits = after_letters.bytes().take_while(u8::is_ascii_digit).count();
+    if digits == 0 {
+        return None;
+    }
+    Some(&text[..letters + 1 + digits])
+}
+
 /// Extract task id from heading text.
 /// Heading like "T-04 Add a rate limit" or "T-04: Add a rate limit"
 fn extract_id_and_title(raw: &str) -> (Option<String>, String) {
-    // Match pattern: letters, dash, digits at start
     let trimmed = raw.trim_start();
-
-    // Try to match id pattern: letters, dash, digits
-    let mut id_chars = Vec::new();
-    let mut has_letter = false;
-    let mut has_dash = false;
-    let mut has_digit = false;
-
-    for ch in trimmed.chars() {
-        if ch.is_ascii_alphabetic() {
-            if has_dash || has_digit {
-                break;
-            }
-            has_letter = true;
-            id_chars.push(ch);
-        } else if ch == '-' {
-            if has_dash || !has_letter {
-                break;
-            }
-            has_dash = true;
-            id_chars.push(ch);
-        } else if ch.is_ascii_digit() {
-            if !has_dash {
-                break;
-            }
-            has_digit = true;
-            id_chars.push(ch);
-        } else {
-            break;
-        }
-    }
-
-    if has_letter && has_dash && has_digit {
-        let id: String = id_chars.into_iter().collect();
-        let rest = trimmed[id.len()..].trim_start();
-        // Strip leading colon if present
-        let title = rest.strip_prefix(':').unwrap_or(rest).trim().to_string();
-        return (Some(id), title);
-    }
-
-    (None, trimmed.to_string())
+    let Some(id) = id_prefix(trimmed) else {
+        return (None, trimmed.to_string());
+    };
+    let rest = trimmed[id.len()..].trim_start();
+    // Strip leading colon if present
+    let title = rest.strip_prefix(':').unwrap_or(rest).trim().to_string();
+    (Some(id.to_string()), title)
 }
 
 /// Check if the task claims to be done (case-insensitive).

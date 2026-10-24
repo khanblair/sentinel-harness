@@ -1,8 +1,5 @@
 //! Contradiction detection and decision handling.
 
-#![allow(clippy::doc_markdown)]
-#![allow(clippy::redundant_guards)]
-
 use crate::Plan;
 use sentinel_core::{Decision, DecisionId, DecisionState, TaskId};
 
@@ -16,33 +13,35 @@ pub struct ContradictionPair {
 /// Find all contradiction pairs in a plan.
 /// Each unordered pair appears once, sorted by task id.
 pub fn find_contradictions(plan: &Plan) -> Vec<ContradictionPair> {
-    let mut pairs = Vec::new();
     let mut seen = std::collections::HashSet::new();
-
-    for task in &plan.tasks {
-        for other_id in &task.contradicts {
-            let a = &task.id;
-            let b = other_id;
-            // Ensure consistent ordering
-            let (first, second) = if a.as_str() < b.as_str() {
-                (a, b)
-            } else {
-                (b, a)
-            };
-            let key = (first.clone(), second.clone());
-            if seen.insert(key.clone()) {
-                pairs.push(ContradictionPair {
-                    a: first.clone(),
-                    b: second.clone(),
-                });
-            }
-        }
-    }
+    let mut pairs: Vec<ContradictionPair> = plan
+        .tasks
+        .iter()
+        .flat_map(|task| {
+            task.contradicts
+                .iter()
+                .map(move |other| ordered_pair(&task.id, other))
+        })
+        .filter(|pair| seen.insert((pair.a.clone(), pair.b.clone())))
+        .collect();
 
     // Sort pairs by first then second task id
     pairs.sort_by(|p1, p2| p1.a.cmp(&p2.a).then_with(|| p1.b.cmp(&p2.b)));
 
     pairs
+}
+
+/// Put the smaller id first, so each unordered pair has one spelling.
+fn ordered_pair(a: &TaskId, b: &TaskId) -> ContradictionPair {
+    let (first, second) = if a.as_str() < b.as_str() {
+        (a, b)
+    } else {
+        (b, a)
+    };
+    ContradictionPair {
+        a: first.clone(),
+        b: second.clone(),
+    }
 }
 
 /// Create a Decision for a contradiction pair.
@@ -54,10 +53,10 @@ pub fn decision_for(pair: &ContradictionPair, titles: &dyn Fn(&TaskId) -> String
     let title_b = titles(&pair.b);
     let prompt = format!(
         "Two tasks contradict each other and cannot both be done:\n\n\
-         - {}: {}\n\
-         - {}: {}\n\n\
-         Reply with the task id to keep (e.g. \"{}\"), \"skip_both\" to skip both, or nothing to default to skipping both.",
-        pair.a, title_a, pair.b, title_b, pair.a
+         - {0}: {title_a}\n\
+         - {1}: {title_b}\n\n\
+         Reply with the task id to keep (e.g. \"{0}\"), \"skip_both\" to skip both, or nothing to default to skipping both.",
+        pair.a, pair.b
     );
 
     Decision {
@@ -77,28 +76,27 @@ pub enum Resolution {
 }
 
 /// Apply an answer to a decision and return the resolution.
-/// answer: task id of the pair (keep that one), "skip_both", or None/other (skip both).
+/// `answer`: task id of the pair (keep that one), `skip_both`, or `None` (skip both).
 pub fn apply_answer(decision: &Decision, answer: Option<&str>) -> Resolution {
     let task_a = &decision.tasks[0];
     let task_b = &decision.tasks[1];
 
-    match answer {
-        Some(ans) if ans == task_a.as_str() => Resolution::Keep {
+    // "skip_both", no answer, and any unknown id all skip both tasks
+    if answer == Some(task_a.as_str()) {
+        return Resolution::Keep {
             chosen: task_a.clone(),
             skipped: task_b.clone(),
-        },
-        Some(ans) if ans == task_b.as_str() => Resolution::Keep {
+        };
+    }
+    if answer == Some(task_b.as_str()) {
+        return Resolution::Keep {
             chosen: task_b.clone(),
             skipped: task_a.clone(),
-        },
-        Some(ans) if ans == "skip_both" => Resolution::SkipBoth {
-            a: task_a.clone(),
-            b: task_b.clone(),
-        },
-        _ => Resolution::SkipBoth {
-            a: task_a.clone(),
-            b: task_b.clone(),
-        },
+        };
+    }
+    Resolution::SkipBoth {
+        a: task_a.clone(),
+        b: task_b.clone(),
     }
 }
 

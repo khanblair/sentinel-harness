@@ -3,6 +3,7 @@
 pub mod backlog;
 pub mod contradiction;
 pub mod graph;
+mod plan_check;
 pub mod planner;
 
 pub use planner::{Plan, PlanRequest, PlannedTask};
