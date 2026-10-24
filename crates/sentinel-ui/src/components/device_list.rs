@@ -47,12 +47,14 @@ fn DeviceRow(device: DeviceInfo, asking: RwSignal<Option<String>>) -> impl IntoV
     let icon = device_icon(device.kind);
     let question = revoke_text(&device.name);
     let name = device.name.clone();
+    // Revoking the computer's own token would lock this browser out until the daemon restarts.
+    let revocable = device.kind != DeviceKind::Desktop;
     let is_asking = Memo::new(move |_| asking.get().as_deref() == Some(id.as_str()));
     view! {
         <div class="tcard">
             <div class="row sp wrap">
                 <span class="row"><Icon name=icon size=16 /><b>{name}</b></span>
-                <RevokeButtons device=device asking=asking is_asking=is_asking />
+                {revocable.then(|| view! { <RevokeButtons device=device asking=asking is_asking=is_asking /> })}
             </div>
             <Show when=move || is_asking.get() fallback=|| ()>
                 <div class="sub" style="margin-top:.3em">{question.clone()}</div>
