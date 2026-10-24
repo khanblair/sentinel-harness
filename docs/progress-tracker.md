@@ -90,11 +90,11 @@ Hackathon cut line: end of P7.
 | P4-04 | Test gate | opencode | done |
 | P4-05 | Diff reviewer contract | opencode | done |
 | P4-06 | Verdict and honest report | opencode | done |
-| P4-07 | Quality notes | opencode | doing |
+| P4-07 | Quality notes | Claude | done |
 | P5-01 | Run loop | Claude | done |
 | P5-02 | Append-only log | Claude | done |
-| P5-03 | Crash resume | unassigned | todo |
-| P5-04 | HTTP API and WebSocket | opencode | doing |
+| P5-03 | Crash resume | Claude | done |
+| P5-04 | HTTP API and WebSocket | Haiku (Agent tool), Claude | review |
 | P5-05 | Real agents on the sample repo | unassigned | todo |
 | P6-01 to P6-13 | Web UI core | opencode | doing |
 | P7-01 to P7-06 | Phone over Tailscale | unassigned | todo |
@@ -191,6 +191,10 @@ Paths listed in [project-structure.md](project-structure.md) that do not exist y
 | D64 | Owner rule (2026-10-24): subagents are Haiku only, never Sonnet or Opus, and at most 2 at a time. All other work goes to the local Ornith model and the CLI tools (opencode, goose, pi, agy) when their free quota is back, or is done by Claude as reviewer and integrator | Owner instruction. Keeps token spend low |
 | D65 | (autopilot, review) Fonts: only Inter and JetBrains Mono are bundled (woff2, latin, Open Font License, from the fontsource packages). The other families in Settings fall back to system fonts. Answers Q14 | Keeps the UI bundle small. Licenses are in `crates/sentinel-ui/assets/fonts` |
 | D66 | (autopilot, review) The light theme accent is `#B35F09`, not `#B8620A`. `cargo xtask contrast-check` found white text on the old color at 4.4:1, below the 4.5:1 rule. Changed in the token doc, the prototype, and the UI crate together | The contrast check is the authority over the starting hex values |
+| D67 | Owner rule (2026-10-24, later): UI work may also run through the Claude Code CLI in headless mode (`.build/claude_worker.sh`, `claude -p --model haiku`, one git worktree per worker), two at a time. This adds to D64, it does not replace it. Sonnet and Opus stay banned | Owner instruction: "use also claude cli to work on some ui, use haiku, 2 agents" |
+| D68 | (autopilot, review) A phone may read state and use only the controls listed in `docs/mobile.md` (Security). The HTTP routes for choosing the repository, setup steps, tool scan and toggles, routing, capabilities, the doctor, the folder list, and Tailscale sign-in need the computer and give a phone `403`. A phone may still pause, resume, stop, kill, lower the cap, answer decisions and approvals, send a message, start a run, and tighten the Brain mode | `docs/mobile.md` says "Nothing else". Checked by the `tests/api.rs` phone test |
+| D69 | (autopilot, review) Crash resume (P5-03): the store holds a `run.live` mark from run start to close-out. When a run starts and the mark is set, the run resumes: stray changes go back to HEAD, interrupted tasks go back to Ready, commits that were not yet verified are checked first, open cards take their safe default, and spend from the interrupted run counts toward the cap. No second `RunStarted` event is written. A run that stopped while planning starts over. A daemon that opens a store with the mark shows state Crashed | `docs/product-scope.md` F6 and `docs/architecture.md` Crash Resume. E2E test `crates/sentinel-cli/tests/resume.rs` kills a run with SIGKILL |
+| D70 | (autopilot, review) `Engine::emit` takes `&Event`. `set_task_status` to the status a task already has is a no-op (a restarted run may repeat a step). The daemon binds only `127.0.0.1` with `--dev-bind` and only the Tailscale address otherwise; `sentinel daemon` writes `.sentinel/daemon.addr` so `open` and `pair` find it | Lint cleanup and resume. D50 and D63 stay as written |
 
 ## Open Questions
 
