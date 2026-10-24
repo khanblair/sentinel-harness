@@ -20,6 +20,7 @@ pub mod pairing;
 mod plan_phase;
 mod prompt;
 mod report_build;
+mod resume;
 mod reviewer;
 pub mod routes;
 mod run;

@@ -25,7 +25,10 @@ pub(crate) async fn verify_wave(
         let Some(task) = ctx.engine.store().get_task(id)? else {
             continue;
         };
-        if task.status == TaskStatus::Checkpointed {
+        if matches!(
+            task.status,
+            TaskStatus::Checkpointed | TaskStatus::Verifying
+        ) {
             verify_one(ctx, suite, id).await?;
         }
     }

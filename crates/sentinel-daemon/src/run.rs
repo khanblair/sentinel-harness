@@ -14,12 +14,14 @@ use sentinel_verify::verifier::DiffReviewer;
 use sentinel_workers::Budget;
 use sentinel_workers::budget::BudgetEvent;
 use sentinel_workers::context::ContextLimits;
+use time::OffsetDateTime;
 use tokio::sync::{mpsc, watch};
 
 use crate::attempt::record_end;
 use crate::config::Config;
 use crate::engine::{Engine, EngineError, Result, lock};
 use crate::plan_phase::plan_phase;
+use crate::resume::{restored_git, resume_phase};
 use crate::reviewer::{AgentReviewer, ScopeReviewer};
 use crate::run_ctx::{RunCtx, RunMemory, RunPolicy};
 use crate::wave::{WaveEnd, run_wave};
@@ -33,17 +35,25 @@ impl Engine {
     /// snapshot show the rest.
     pub async fn start_run(&self, request: RunRequest) -> Result<RunInfo> {
         self.check_can_start().await?;
-        let (ctx, stop_tx) = self.prepare_run(&request)?;
+        let resume = self.interrupted_since()?;
+        let (ctx, stop_tx) = self.prepare_run(&request, resume)?;
         let (guard_tx, guard_rx) = mpsc::unbounded_channel();
         let info = lock(&self.inner.live)
             .run
             .clone()
             .ok_or_else(|| EngineError::Invalid("run not registered".to_owned()))?;
-        self.emit(&Event::RunStarted {
-            run: info.id.clone(),
-            backlog: info.backlog.clone(),
-        })?;
-        self.set_state(HarnessState::Running);
+        if resume.is_none() {
+            self.mark_run_live(info.started_at)?;
+            self.emit(&Event::RunStarted {
+                run: info.id.clone(),
+                backlog: info.backlog.clone(),
+            })?;
+        }
+        self.set_state(if resume.is_some() {
+            HarnessState::Resuming
+        } else {
+            HarnessState::Running
+        });
         let guard = start_guard(
             ctx.git.clone(),
             Arc::new(RunPolicy {
@@ -128,7 +138,12 @@ impl Engine {
         })
     }
 
-    fn new_run_info(&self, request: &RunRequest, config: &Config) -> RunInfo {
+    fn new_run_info(
+        &self,
+        request: &RunRequest,
+        config: &Config,
+        resume: Option<OffsetDateTime>,
+    ) -> RunInfo {
         RunInfo {
             id: RunId::generate(),
             backlog: request
@@ -136,16 +151,39 @@ impl Engine {
                 .clone()
                 .unwrap_or_else(|| config.backlog.clone()),
             wave: 0,
-            started_at: self.now(),
+            started_at: resume.unwrap_or_else(|| self.now()),
         }
     }
 
-    fn prepare_run(&self, request: &RunRequest) -> Result<(Arc<RunCtx>, watch::Sender<bool>)> {
-        let config = self.config();
-        let repo = self.repo_path();
+    /// The tree for this run. A fresh run needs a clean tree and an empty board. A resumed run
+    /// puts stray changes back and keeps its tasks.
+    fn open_tree(&self, resume: Option<OffsetDateTime>) -> Result<Git> {
+        if resume.is_some() {
+            return restored_git(self);
+        }
         let git = self.clean_git()?;
         self.store().reset_for_new_run()?;
+        Ok(git)
+    }
+
+    /// The budget guard. A resumed run starts with what the interrupted run already spent.
+    fn make_budget(&self, config: &Config, resume: Option<OffsetDateTime>) -> Result<Arc<Budget>> {
         let (budget, _kill) = Budget::new(config.cap()?);
+        if let Some(since) = resume {
+            budget.seed(self.store().cost_since(since)?);
+        }
+        Ok(budget)
+    }
+
+    fn prepare_run(
+        &self,
+        request: &RunRequest,
+        resume: Option<OffsetDateTime>,
+    ) -> Result<(Arc<RunCtx>, watch::Sender<bool>)> {
+        let config = self.config();
+        let repo = self.repo_path();
+        let git = self.open_tree(resume)?;
+        let budget = self.make_budget(&config, resume)?;
         let retry_limit = self.router()?.retry_limit();
         let scheduler = Scheduler::new(self.store().clone())
             .map_err(|e| EngineError::Invalid(e.to_string()))?
@@ -154,7 +192,7 @@ impl Engine {
         let (stop_tx, stop_rx) = watch::channel(false);
         let memory = Arc::new(Mutex::new(RunMemory::default()));
         let reviewer = self.reviewer_for(&memory, &stop_rx, &budget);
-        let info = self.new_run_info(request, &config);
+        let info = self.new_run_info(request, &config, resume);
         let ctx = Arc::new(RunCtx {
             engine: self.clone(),
             git,
@@ -170,6 +208,7 @@ impl Engine {
             reviewer,
             suite_dir: repo.join(".sentinel/logs"),
             checkpoint_lock: Mutex::new(()),
+            resuming: resume.is_some(),
         });
         let mut live = lock(&self.inner.live);
         live.run = Some(info);
@@ -301,16 +340,21 @@ async fn run_main(
 }
 
 async fn drive(ctx: &Arc<RunCtx>, request: &RunRequest) -> Result<()> {
-    let plan = plan_phase(ctx, request).await?;
-    if !plan.approved {
-        ctx.engine.emit_quiet(&Event::Message {
-            from: "sentinel".to_owned(),
-            to: None,
-            text: "The plan was not approved, so nothing ran.".to_owned(),
-        });
-        return Ok(());
-    }
-    for number in 1..=MAX_WAVES {
+    let first = if ctx.resuming {
+        resume_phase(ctx).await?
+    } else {
+        let plan = plan_phase(ctx, request).await?;
+        if !plan.approved {
+            ctx.engine.emit_quiet(&Event::Message {
+                from: "sentinel".to_owned(),
+                to: None,
+                text: "The plan was not approved, so nothing ran.".to_owned(),
+            });
+            return Ok(());
+        }
+        1
+    };
+    for number in first..first + MAX_WAVES {
         match run_wave(ctx, number).await? {
             WaveEnd::Ran => {}
             WaveEnd::Empty | WaveEnd::Stop => break,
@@ -344,6 +388,7 @@ async fn finish(ctx: &Arc<RunCtx>) {
         live.task_kills.clear();
         live.agent_task.clear();
     }
+    engine.clear_run_live();
     engine.set_state(HarnessState::Done);
     engine.refresh_repo();
 }

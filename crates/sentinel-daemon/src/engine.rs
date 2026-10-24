@@ -111,6 +111,7 @@ impl Engine {
             }),
         };
         engine.refresh_repo();
+        engine.note_crash_on_open();
         Ok(engine)
     }
 

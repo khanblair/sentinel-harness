@@ -108,6 +108,18 @@ impl Store {
         Ok(cost_from_columns(micro, estimated))
     }
 
+    /// What the agent runs that started at or after `at` cost.
+    pub fn cost_since(&self, at: OffsetDateTime) -> Result<Cost> {
+        let connection = self.connection()?;
+        let (micro, estimated) = connection.query_row(
+            "SELECT COALESCE(SUM(cost_micro_usd), 0), COALESCE(MAX(cost_estimated), 0)
+             FROM runs WHERE started_at >= ?1",
+            params![time_text(at)?],
+            |row| Ok((row.get::<_, i64>(0)?, row.get::<_, i64>(1)?)),
+        )?;
+        Ok(cost_from_columns(micro, estimated))
+    }
+
     pub fn task_cost(&self, task: &TaskId) -> Result<Cost> {
         let connection = self.connection()?;
         let (micro, estimated) = connection.query_row(

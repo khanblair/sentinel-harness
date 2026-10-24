@@ -74,6 +74,10 @@ impl Store {
             .optional()?
             .ok_or_else(|| StoreError::NotFound(id.to_string()))?;
         let current: TaskStatus = enum_from_text(&stored)?;
+        if current == next {
+            // Saying the same thing twice is not a change, for example after a crash.
+            return Ok(());
+        }
         let accepted = current.move_to(next)?;
         connection.execute(
             "UPDATE tasks SET status = ?1 WHERE id = ?2",

@@ -121,6 +121,12 @@ impl Budget {
         state.spent.percent_of(state.cap) < NO_NEW_TASKS_PERCENT
     }
 
+    /// Count spend from before a restart, so the cap holds across a crash. No task owns it.
+    pub fn seed(&self, spent: Cost) {
+        let mut state = self.lock();
+        state.spent = state.spent + spent;
+    }
+
     pub fn set_ceiling(&self, task: &TaskId, ceiling: Cost) {
         self.lock().ceilings.insert(task.clone(), ceiling);
     }

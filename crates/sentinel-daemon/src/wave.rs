@@ -111,7 +111,11 @@ async fn run_tasks(ctx: &Arc<RunCtx>, number: u32, tasks: &[TaskId]) -> Result<(
     Ok(())
 }
 
-async fn barrier_and_verify(ctx: &Arc<RunCtx>, number: u32, tasks: &[TaskId]) -> Result<()> {
+pub(crate) async fn barrier_and_verify(
+    ctx: &Arc<RunCtx>,
+    number: u32,
+    tasks: &[TaskId],
+) -> Result<()> {
     let checkpointed = checkpointed(ctx, tasks)?;
     let mut barrier = Barrier::new(number, tasks.len());
     for _ in tasks {
@@ -168,7 +172,7 @@ fn checkpointed(ctx: &RunCtx, tasks: &[TaskId]) -> Result<Vec<TaskId>> {
             .engine
             .store()
             .get_task(id)?
-            .is_some_and(|t| t.status == TaskStatus::Checkpointed)
+            .is_some_and(|t| matches!(t.status, TaskStatus::Checkpointed | TaskStatus::Verifying))
         {
             found.push(id.clone());
         }

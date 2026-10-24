@@ -489,7 +489,7 @@ fn reset_for_new_run_clears_tasks_but_keeps_events_and_settings() {
         )
         .unwrap();
     store.reset_for_new_run().unwrap();
-    assert!(store.list_tasks().unwrap().is_empty());
+    assert_eq!(store.list_tasks().unwrap(), Vec::new());
     assert_eq!(store.get_setting("k").unwrap().as_deref(), Some("v"));
     assert_eq!(store.last_event_id().unwrap(), 1);
 }
