@@ -24,28 +24,28 @@ The live status of the project. Update at the start and end of every work sessio
 
 ## Current Phase
 
-**Phases 0 to 5 mostly built, UI in progress.** A full run with the scripted fake agents on the sample repo gives honest statuses (`cargo nextest run -p sentinel-daemon --test engine_run`). `cargo xtask ci` is red until the cleanup pass (smell and duplicate findings). The UI is being ported from the prototype.
+**Phases 0 to 6 and the Brain, Telegram, and host parts are built; Phase 8 and the Telegram and host UI cards are in progress.** A full run with the scripted fake agents on the sample repo gives honest statuses (`cargo nextest run -p sentinel-daemon --test engine_run`). The workspace has about 1,250 passing tests. `cargo xtask ci` is nearly green: the remaining findings are smell fixes in the UI crate (workers U-S1 and U-S2 are on them). Not yet done: the real-phone rehearsal (P7-06), the dry run (P8-06), the MCP file server (P3-08), and a real agent run that finishes the sample backlog (P5-05).
 
 ## Phase Status
 
 | Phase | Name | Status |
 |---|---|---|
-| P0 | Foundations | todo |
-| P1 | State and Reserved Files | todo |
-| P2 | Single-Tree Guard | todo |
-| P3 | Workers and Detection | todo |
-| P4 | Planner, Verifier, Report | todo |
-| P5 | Daemon, Log, Resume | todo |
-| P6 | Web UI Core | todo |
-| P7 | Phone over Tailscale | todo |
-| P8 | Onboarding | todo |
-| P9 | Guided Tour | todo |
+| P0 | Foundations | review |
+| P1 | State and Reserved Files | done |
+| P2 | Single-Tree Guard | done |
+| P3 | Workers and Detection | review |
+| P4 | Planner, Verifier, Report | done |
+| P5 | Daemon, Log, Resume | review |
+| P6 | Web UI Core | review |
+| P7 | Phone over Tailscale | doing |
+| P8 | Onboarding | doing |
+| P9 | Guided Tour | review |
 | P10 | Hardening | todo |
-| P11 | Brain | todo |
-| P12 | Brain Care | todo |
-| P13 | Telegram | todo |
-| P14 | Always-On Host | todo |
-| P15 | How-To Site | todo |
+| P11 | Brain | review |
+| P12 | Brain Care | review |
+| P13 | Telegram | doing |
+| P14 | Always-On Host | doing |
+| P15 | How-To Site | review |
 
 Hackathon cut line: end of P7.
 
@@ -78,7 +78,7 @@ Hackathon cut line: end of P7.
 | P3-04 | CLI detection | opencode | done |
 | P3-05 | Profiles for claude, codex, opencode, gemini, goose, pi | opencode | review |
 | P3-06 | Profiles for agy, deepseek, mcode, generic | opencode | review |
-| P3-07 | OpenRouter worker loop | unassigned | todo |
+| P3-07 | OpenRouter worker loop (`sentinel-workers`: `openrouter.rs`, `agent_tools.rs`, `agent_schema.rs`, `transcript.rs`; not yet chosen by the daemon) | Haiku (CLI) | review |
 | P3-08 | MCP file server | unassigned | todo |
 | P3-09 | Router | opencode | done |
 | P3-10 | Context builder | opencode | done |
@@ -99,9 +99,16 @@ Hackathon cut line: end of P7.
 | P6-01 to P6-13 | Web UI core | Haiku (CLI and Agent tool), Claude | review |
 | P6-14 | Prototype moves to the chat model | Haiku (CLI), Claude | done |
 | P6-15 to P6-18 | Chats: core, store, routes, attachments, runs from a message | Claude | done |
-| P6-19 | Sidebar of chats (rows, menu, archive group, rename, delete) | Haiku | doing |
-| P6-20 | Composer plus menu, chips, file picker, empty chat state | Haiku | todo |
-| P7-01 to P7-06 | Phone over Tailscale | unassigned | todo |
+| P6-19 | Sidebar of chats (rows, menu, archive group, rename, delete) | Haiku (CLI), Claude | review |
+| P6-20 | Composer plus menu, chips, file picker, empty chat state | Haiku (CLI), Claude | review |
+| P7-01 to P7-05 | Phone over Tailscale: status, pairing, layouts, PWA, offline | Haiku, Claude | review |
+| P7-06 | Phone rehearsal on a real phone | owner | todo |
+| P8-01 to P8-05, P8-07 | Onboarding state, folder, tools, budget, pairing, install check | Haiku, Claude | review |
+| P8-06 | Dry run on the sample project (`POST /api/dry-run`) | Haiku (CLI) | doing |
+| P11-01 to P11-10 | Brain: vault, index, search, graph, memory selection in prompts, run journal, lessons, modes, daemon routes, panel | Haiku, Claude | review |
+| P12-01 to P12-05 | Brain care: schedule, care run, proposals, settings | Haiku, Claude | review |
+| P13-01 to P13-08 | Telegram: crate, poller, router, notifier, settings routes (UI card and panel are U-I) | Haiku, Claude | review |
+| P14-01 to P14-05 | Always-on host: heartbeat, back online, `sentinel service`, headless (card is U-K) | Haiku, Claude | review |
 
 Add the rows for later phases when a phase starts. Copy IDs from [build-plan.md](build-plan.md).
 
@@ -204,6 +211,11 @@ Paths listed in [project-structure.md](project-structure.md) that do not exist y
 | D73 | (autopilot, review) The composer plus menu has four entries: Add files (repository files or an upload), Add a folder (repository folder), Use a backlog file, Add a context note. Each becomes a removable chip and goes with the next message. Files and folders reach the planner and agents as paths, with small file text included. Uploads (at most 1 MB each, the API body limit) live under `.sentinel/chats/CHAT/attachments/`, never in the tracked tree. Attached files are hints and never reserve files | Same shape as Claude's plus button. Reservations stay the only write rule |
 | D74 | (autopilot, review) Chat menu: Rename (in place), Pin, Archive (and Unarchive), Delete with a confirm. Archived chats sit in a collapsed group. A chat with a live run cannot be archived or deleted. Delete removes the chat's messages and uploads, never repository files or commits. A phone may create, rename, pin, and archive. Deleting needs the computer | Matches Claude's chat list. A lost phone cannot wipe history |
 | D75 | (autopilot, review) One Sentinel daemon serves one project in this version. The API, the types, and the screens use the word project, so a project switcher and Add project button can come later without a redesign. See Q28 | Keeps this change inside the single-store design (`.sentinel/` per repository) |
+| D76 | (autopilot, review) Brain memory reaches the agents. Before each attempt Sentinel picks notes (pinned, proven lessons, notes linked to the task's files, then search hits on the task title) within 500 tokens and puts them under `## Project memory` in the prompt. A retry gets the same text through the notes section. The stream says `Brain loaded N notes: ...`. Mode `off` loads nothing. Code: `brain_run.rs`, `prompt.rs` | F12 step 3 |
+| D77 | (autopilot, review) The run journal is written when a run ends, in `learn` mode only: a run note, a note per task, and a note per checkpointed file. A file note keeps the task links it had from earlier runs, so backlinks grow. A write failure is logged and never changes how the run ended | F12 step 4. A lock held across the write once deadlocked the close-out: the guard is now dropped before the journal runs |
+| D78 | (autopilot, review) Telegram runs inside the daemon: a long poll loop, a router that turns a command or a button press into one Engine call as a phone caller after the level check, a notifier that sends events through the outbox, and settings routes. A paired chat starts polling at the newest update, so an old `/stop` cannot replay after a restart. An unpaired chat reads from the start, so the `/start` is never missed. The daemon starts Telegram at boot when a chat and token exist | F20. See Q30 and Q31 |
+| D79 | (autopilot, review) Owner rule (2026-10-24, latest): the Claude desktop Agent tool is paused because the owner's desktop usage is nearly used up. All workers run through the Claude CLI (`.build/claude_worker.sh`), Haiku only, at most 2 at a time. Reviews, merges, and checks stay in the main session. This replaces the 2 plus 2 pool in D67 until the owner says otherwise | Owner message |
+| D80 | (autopilot, review) The OpenRouter worker (P3-07) is a library: `OpenRouterWorker` implements `Worker` with its own tool loop (read, list, write inside scope, allowed cargo commands, finish), per-step cost from `usage.cost`, retries on 429 and 5xx, and the API key never printed. The daemon does not offer it as a tool yet; wiring it needs a tool entry that holds the key from the keychain (Q32) | F13 step 2 |
 
 ## Open Questions
 
@@ -238,6 +250,9 @@ Paths listed in [project-structure.md](project-structure.md) that do not exist y
 | Q27 | Phone rights: D68 lets a phone start a run, message an agent, and choose the repository (not during a run). `docs/mobile.md` used to say "Nothing else". Keep this, or narrow it to the old list? | Before P7 sign-off |
 | Q28 | When do we add more than one project to one daemon (a project switcher and an Add project button, one store per repository)? D75 keeps it out of this version | After P7 |
 | Q29 | Should an idle chat with a plain message ask "Plan only first?" before starting, or always follow the permission mode? D72 follows the permission mode | Before P6-18 |
+| Q30 | Telegram quiet hours use UTC because the daemon has no local-offset setting. Add a time zone setting (the owner is on EAT, UTC+3)? | Before P13 sign-off |
+| Q31 | `/task`, `/diff`, and `/daily` from Telegram answer "not available yet" because the Engine has no methods for them (append a task to `backlog.md`, summarize the latest checkpoint, send a daily report). Build them next? | Before P13 sign-off |
+| Q32 | How does the daemon offer the OpenRouter worker as a tool (key in the keychain, a model per tier)? | Before P3-07 is done |
 
 ## Session Log
 
@@ -245,6 +260,7 @@ Paths listed in [project-structure.md](project-structure.md) that do not exist y
 |---|---|
 | (undated) | Docs set drafted: README, overview, scope, architecture, structure, plan, standards, development, libraries, three UI docs, mobile, tracker |
 | 2026-10-24 | Checked docs against the prototype. Prototype matches tokens, breakpoints, panels, modes, 7-stop tour, 13-step guide, 11 settings pages. Found and fixed doc drift (see Doc Changes Log). Created the repo and pushed. Smoke-tested workers: opencode, pi, goose, and local Ornith pass; agy headless returns nothing. No code yet |
+| 2026-10-24 (late) | Merged the Brain panel (U-H), chat visuals (U-G2), duplicate cleanup (R-3), the OpenRouter worker (O-1), and Telegram in the daemon (T-2). Wrote the Brain memory and run journal (B-3b) with tests. Checked the chat UI in the browser at desktop and phone width: row menu, rename, plus menu, file picker, chips. Workspace tests: 1,243 pass before T-2. Queued U-I, U-K, and D-RUN briefs. The Agent tool is paused (D79) |
 
 ## File Changes Log
 
