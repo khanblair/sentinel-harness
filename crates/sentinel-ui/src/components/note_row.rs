@@ -25,7 +25,7 @@ pub fn NoteRow(note: NoteSummary, ctx: BrainCtx) -> impl IntoView {
         <button class="nrow" on:click=move |_| open_note(ctx, id.clone())>
             <span class="ntype" style=type_style>{type_label(note_type)}</span>
             <span class="nt">{title}</span>
-            {pinned.then(|| view! { <span class="chip">"always loaded"</span> })}
+            {pinned.then(|| view! { <span class="chip">"Always loaded"</span> })}
             {match lesson_state {
                 Some(state) => view! { <LessonBadge state=state /> }.into_any(),
                 None => view! { <StrengthBar strength=strength /> }.into_any(),

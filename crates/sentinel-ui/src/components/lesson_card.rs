@@ -8,12 +8,30 @@ use sentinel_core::{LessonState, NoteId};
 
 use crate::api;
 use crate::brain::{
-    lesson_state_color, lesson_state_label, lesson_state_shape, review_done_text, review_label,
-    review_offered,
+    lesson_state_color, lesson_state_label, review_done_text, review_label, review_offered,
 };
-use crate::components::status_badge::shape_markup;
 use crate::state::ToastKind;
 use crate::views::brain::{BrainCtx, bump, report_failure};
+
+/// The inner SVG of a lesson state's shape, from the prototype's `shape()` function. The four
+/// lesson shapes are not in `status_badge`, which serves task states.
+pub fn lesson_shape_markup(state: LessonState) -> String {
+    let col = format!("var(--{})", lesson_state_color(state));
+    match state {
+        LessonState::Candidate => format!(
+            r#"<circle cx="6" cy="6" r="4.2" fill="none" stroke="{col}" stroke-width="1.6" stroke-dasharray="1.2 1.6"/>"#
+        ),
+        LessonState::Proven => format!(
+            r#"<circle cx="6" cy="6" r="4.6" fill="none" stroke="{col}" stroke-width="1.4"/><path d="M3.8 6.2l1.6 1.6 2.9-3.4" fill="none" stroke="{col}" stroke-width="1.4"/>"#
+        ),
+        LessonState::Rejected => format!(
+            r#"<circle cx="6" cy="6" r="4.6" fill="none" stroke="{col}" stroke-width="1.4"/><path d="M3.6 6h4.8" stroke="{col}" stroke-width="1.5"/>"#
+        ),
+        LessonState::Retired => format!(
+            r#"<circle cx="6" cy="6" r="4.4" fill="none" stroke="{col}" stroke-width="1.4" stroke-dasharray="2.4 1.6"/>"#
+        ),
+    }
+}
 
 /// The state badge: a shape, a color, and a label.
 #[component]
@@ -22,7 +40,7 @@ pub fn LessonBadge(state: LessonState) -> impl IntoView {
     view! {
         <span class="stb" style=format!("color:var(--{color})")>
             <svg class="shp" viewBox="0 0 12 12" aria-hidden="true"
-                inner_html=shape_markup(lesson_state_shape(state), color)></svg>
+                inner_html=lesson_shape_markup(state)></svg>
             <span>{lesson_state_label(state)}</span>
         </span>
     }
@@ -85,4 +103,25 @@ fn review(ctx: BrainCtx, id: &NoteId, action: LessonReview) {
             Err(failure) => report_failure(ctx.ui, ctx.missing, &failure),
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn every_lesson_state_has_its_own_shape() {
+        for state in [
+            LessonState::Candidate,
+            LessonState::Proven,
+            LessonState::Rejected,
+            LessonState::Retired,
+        ] {
+            assert!(lesson_shape_markup(state).starts_with("<circle"));
+        }
+        assert_ne!(
+            lesson_shape_markup(LessonState::Proven),
+            lesson_shape_markup(LessonState::Rejected)
+        );
+    }
 }

@@ -41,8 +41,10 @@ pub fn MenuItem(
     #[prop(into)] on_pick: Callback<()>,
 ) -> impl IntoView {
     let class = if danger { "mi dng" } else { "mi" };
+    // theme.css has no disabled rule for .mi, so the dimming comes inline, as in the prototype.
+    let style = if disabled { "opacity:.4" } else { "" };
     view! {
-        <button class=class disabled=disabled on:click=move |_| on_pick.run(())>
+        <button class=class disabled=disabled style=style on:click=move |_| on_pick.run(())>
             <Icon name=icon size=16 />
             <span>
                 <span>{label}{ticked.then(tick_mark)}</span>

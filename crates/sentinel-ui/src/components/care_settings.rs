@@ -146,8 +146,8 @@ fn CareFields(form: CareForm) -> impl IntoView {
         {move || form.error.get().map(|message| view! {
             <div class="sub" style="color:var(--danger)">{message}</div>
         })}
-        <Field label="Apply without asking"
-            hint="Only to notes Sentinel wrote. A note you wrote is never changed without your OK.">
+        <Field label="Apply changes to notes Sentinel wrote without asking"
+            hint="A note you wrote never changes without your accept.">
             <Toggle checked=Signal::derive(move || form.auto_apply.get())
                 on_change=Callback::new(move |next: bool| form.auto_apply.set(next)) />
         </Field>

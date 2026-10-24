@@ -223,16 +223,6 @@ pub fn lesson_state_color(state: LessonState) -> &'static str {
     }
 }
 
-/// The shape name of a lesson state. `status_badge::shape_markup` draws the shapes.
-pub fn lesson_state_shape(state: LessonState) -> &'static str {
-    match state {
-        LessonState::Candidate => "dotted",
-        LessonState::Proven => "ringcheck",
-        LessonState::Rejected => "ringbar",
-        LessonState::Retired => "dashring",
-    }
-}
-
 /// `Proposals`, or `Proposals 2` when proposals are open.
 pub fn proposals_tab_label(open: usize) -> String {
     if open == 0 {
