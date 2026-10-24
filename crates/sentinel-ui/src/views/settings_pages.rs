@@ -6,10 +6,7 @@ use std::collections::BTreeMap;
 use gloo_storage::{LocalStorage, Storage};
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use sentinel_core::BrainMode;
-use sentinel_core::api::{
-    CheckRow, CheckStatus, RepoCheckRequest, RepoCheckResponse, SetBrainMode,
-};
+use sentinel_core::api::{CheckRow, CheckStatus, RepoCheckRequest, RepoCheckResponse};
 use serde::Deserialize;
 
 use crate::api;
@@ -18,27 +15,11 @@ use crate::components::status_badge::shape_markup;
 use crate::components::toggle::Toggle;
 use crate::components::top_bar::settle;
 use crate::components::tour_menu::TourMenu;
-use crate::layout::Layout;
 use crate::state::{Modal, ToastKind, Ui, use_ui};
 use crate::views::brain_settings::BrainSettings;
 use crate::views::settings::Field;
 
 const WAKE_LOCK_KEY: &str = "sentinel.wake_lock";
-
-/// The three Brain modes, with the words the prototype uses.
-const BRAIN_MODES: [(BrainMode, &str, &str); 3] = [
-    (BrainMode::Off, "Off", "No notes read or written."),
-    (
-        BrainMode::ReadOnly,
-        "Read only",
-        "Agents read notes. Nothing is written. Best for live runs.",
-    ),
-    (
-        BrainMode::Learn,
-        "Learn",
-        "Agents read notes. Each run writes a journal and lesson candidates.",
-    ),
-];
 
 /// A folder the user picked, with the daemon's checks for it.
 #[derive(Debug, Clone)]
@@ -233,39 +214,6 @@ pub fn setting_or(settings: &BTreeMap<String, String>, key: &str, fallback: &str
         .get(key)
         .cloned()
         .unwrap_or_else(|| fallback.to_owned())
-}
-
-fn brain_mode_button(
-    ui: Ui,
-    mode: BrainMode,
-    label: &'static str,
-    hint: &'static str,
-) -> impl IntoView {
-    let pressed = move || (ui.snapshot.get().brain_mode == mode).to_string();
-    let locked = move || phone_blocks(ui, mode);
-    view! {
-        <button aria-pressed=pressed disabled=locked on:click=move |_| set_brain_mode(ui, mode)>
-            <span><Icon name="brain" size=17 /></span>
-            <div>
-                <b>{label}</b>
-                <div class="d">{hint}</div>
-            </div>
-        </button>
-    }
-}
-
-/// On a phone, the Brain can only move toward Off. The daemon refuses the rest too.
-fn phone_blocks(ui: Ui, target: BrainMode) -> bool {
-    let current = ui.snapshot.get().brain_mode;
-    ui.layout.get() == Layout::Phone && !current.phone_may_set(target)
-}
-
-fn set_brain_mode(ui: Ui, mode: BrainMode) {
-    spawn_local(async move {
-        let result =
-            api::post::<_, serde_json::Value>("/api/brain/mode", &SetBrainMode { mode }).await;
-        settle(ui, result);
-    });
 }
 
 #[cfg(test)]

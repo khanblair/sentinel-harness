@@ -44,28 +44,6 @@ pub fn state_of(rows: &[DryRunStageRow], stage: DryRunStage) -> Option<StageStat
         .map(|row| row.state)
 }
 
-/// The position of a stage in the run order.
-fn order_of(stage: DryRunStage) -> usize {
-    DryRunStage::ALL
-        .iter()
-        .position(|candidate| *candidate == stage)
-        .unwrap_or(0)
-}
-
-/// Apply one stage event. A stage that has a row gets the new state. A new stage is inserted
-/// so that the rows stay in run order.
-pub fn apply_event(rows: &mut Vec<DryRunStageRow>, stage: DryRunStage, progress: StageState) {
-    if let Some(row) = rows.iter_mut().find(|row| row.stage == stage) {
-        row.state = progress;
-        return;
-    }
-    rows.push(DryRunStageRow {
-        stage,
-        state: progress,
-    });
-    rows.sort_by_key(|row| order_of(row.stage));
-}
-
 /// The first stage that failed, in run order.
 pub fn failed_stage(rows: &[DryRunStageRow]) -> Option<DryRunStage> {
     DryRunStage::ALL
@@ -142,29 +120,6 @@ mod tests {
         assert_eq!(stage_look(Some(StageState::Done)), ("dot", "ok"));
         assert_eq!(stage_look(Some(StageState::Failed)), ("oct", "danger"));
         assert_eq!(stage_class(Some(StageState::Done)), "done");
-    }
-
-    #[test]
-    fn an_event_for_a_new_stage_keeps_the_rows_in_run_order() {
-        let mut rows = vec![row(DryRunStage::Plan, StageState::Done)];
-        apply_event(&mut rows, DryRunStage::Review, StageState::Running);
-        apply_event(&mut rows, DryRunStage::AgentsWork, StageState::Running);
-        let order: Vec<DryRunStage> = rows.iter().map(|r| r.stage).collect();
-        assert_eq!(
-            order,
-            [
-                DryRunStage::Plan,
-                DryRunStage::AgentsWork,
-                DryRunStage::Review
-            ]
-        );
-    }
-
-    #[test]
-    fn an_event_for_a_known_stage_updates_it_without_adding_a_row() {
-        let mut rows = vec![row(DryRunStage::Plan, StageState::Running)];
-        apply_event(&mut rows, DryRunStage::Plan, StageState::Done);
-        assert_eq!(rows, [row(DryRunStage::Plan, StageState::Done)]);
     }
 
     #[test]

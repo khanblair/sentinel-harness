@@ -84,9 +84,6 @@ fn item_view(item: Item) -> AnyView {
     if let Item::System { text } = item {
         return view! { <SystemMessage text=text /> }.into_any();
     }
-    if let Item::Note { text, icon } = item {
-        return view! { <NoteLine text=text icon=icon /> }.into_any();
-    }
     if let Item::Plan {
         tasks,
         contradictions,

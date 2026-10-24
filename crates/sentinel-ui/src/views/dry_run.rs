@@ -88,18 +88,20 @@ fn poll_while_running(status: RwSignal<Option<DryRunStatus>>, alive: RwSignal<bo
 fn start_dry_run(ui: Ui, status: RwSignal<Option<DryRunStatus>>) {
     spawn_local(async move {
         match api::post_empty::<serde_json::Value>("/api/dry-run").await {
-            Ok(_) => {
-                status.set(Some(DryRunStatus {
-                    running: true,
-                    stages: Vec::new(),
-                    verified: None,
-                    total: None,
-                }));
-                ui.show_toast("The dry run started.", ToastKind::Info);
-            }
+            Ok(_) => mark_started(ui, status),
             Err(error) => ui.show_toast(dry_run_message(&error), ToastKind::Danger),
         }
     });
+}
+
+fn mark_started(ui: Ui, status: RwSignal<Option<DryRunStatus>>) {
+    status.set(Some(DryRunStatus {
+        running: true,
+        stages: Vec::new(),
+        verified: None,
+        total: None,
+    }));
+    ui.show_toast("The dry run started.", ToastKind::Info);
 }
 
 #[component]

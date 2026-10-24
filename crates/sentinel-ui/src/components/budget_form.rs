@@ -30,13 +30,6 @@ pub fn lower_cap_valid(text: &str, current: Cost) -> bool {
     }
 }
 
-/// Dollars with two decimals, rounded to the nearest cent. It uses integer math, so no float
-/// touches money.
-pub fn dollars_text(cost: Cost) -> String {
-    let cents = (cost.micro_usd() + 5_000) / 10_000;
-    format!("{}.{:02}", cents / 100, cents % 100)
-}
-
 /// The routing with one tier changed. The other two tiers keep their agents.
 pub fn routing_with(routing: &Routing, tier: Tier, tool: Option<ToolId>) -> Routing {
     let mut next = routing.clone();
@@ -294,13 +287,6 @@ mod tests {
     fn a_cap_equal_to_or_above_the_current_one_is_refused() {
         assert!(!lower_cap_valid("2.00", two_dollars()));
         assert!(!lower_cap_valid("9.00", two_dollars()));
-    }
-
-    #[test]
-    fn dollars_text_rounds_to_the_nearest_cent_without_floats() {
-        assert_eq!(dollars_text(two_dollars()), "2.00");
-        assert_eq!(dollars_text(Cost::from_micro_usd(1_505_000, false)), "1.51");
-        assert_eq!(dollars_text(Cost::from_micro_usd(4_000, false)), "0.00");
     }
 
     #[test]

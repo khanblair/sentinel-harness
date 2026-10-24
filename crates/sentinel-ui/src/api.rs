@@ -6,7 +6,7 @@ use std::fmt;
 use gloo_net::http::{Request, RequestBuilder, Response};
 use gloo_storage::{LocalStorage, Storage};
 use sentinel_core::api::{AddAttachment, ApiError, CreateChat, RunRequest, UpdateChat};
-use sentinel_core::{Attachment, AttachmentId, ChatId, ChatInfo, Snapshot, TaskId};
+use sentinel_core::{Attachment, AttachmentId, ChatId, ChatInfo, Snapshot};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
@@ -51,10 +51,6 @@ pub fn token() -> Option<String> {
 pub fn set_token(token: &str) {
     // Storage can be blocked (private window). The page then works until it is reloaded.
     let _ = LocalStorage::set(TOKEN_KEY, token);
-}
-
-pub fn clear_token() {
-    LocalStorage::delete(TOKEN_KEY);
 }
 
 /// The token in a `#t=TOKEN` fragment, if the fragment has one. `sentinel open` builds this link.
@@ -158,10 +154,6 @@ pub async fn snapshot_for(chat: Option<&ChatId>) -> Result<Snapshot, ApiFailure>
     }
 }
 
-pub async fn list_chats() -> Result<Vec<ChatInfo>, ApiFailure> {
-    get("/api/chats").await
-}
-
 pub async fn create_chat(title: Option<String>) -> Result<ChatInfo, ApiFailure> {
     post("/api/chats", &CreateChat { title }).await
 }
@@ -196,10 +188,6 @@ pub async fn remove_attachment(
 
 pub async fn start_run(request: &RunRequest) -> Result<serde_json::Value, ApiFailure> {
     post("/api/run", request).await
-}
-
-pub async fn kill_task(task: &TaskId) -> Result<serde_json::Value, ApiFailure> {
-    post_empty(&format!("/api/tasks/{task}/kill")).await
 }
 
 #[cfg(test)]

@@ -258,10 +258,6 @@ pub fn density_option(value: f64) -> Density {
         })
 }
 
-pub fn density_label(value: f64) -> &'static str {
-    density_option(value).label
-}
-
 /// The multiplier for a segment key. An unknown key gives the default spacing.
 pub fn density_from_key(key: &str) -> f64 {
     DENSITIES
@@ -273,19 +269,6 @@ pub fn density_from_key(key: &str) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn each_documented_density_has_its_label() {
-        assert_eq!(density_label(0.8), "Compact");
-        assert_eq!(density_label(1.0), "Default");
-        assert_eq!(density_label(1.25), "Spacious");
-    }
-
-    #[test]
-    fn a_drifted_density_shows_the_nearest_choice() {
-        assert_eq!(density_label(1.2), "Spacious");
-        assert_eq!(density_label(0.7), "Compact");
-    }
 
     #[test]
     fn a_segment_key_maps_back_to_its_multiplier() {

@@ -31,10 +31,6 @@ pub enum Item {
     System {
         text: String,
     },
-    Note {
-        text: String,
-        icon: &'static str,
-    },
     Plan {
         tasks: u32,
         contradictions: u32,

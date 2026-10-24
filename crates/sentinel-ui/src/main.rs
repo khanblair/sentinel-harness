@@ -1,8 +1,5 @@
 //! Browser entry point. Trunk compiles this to WASM.
 
-// TODO(P6-07): remove this allow once the shell uses every module.
-#![allow(dead_code)]
-
 mod api;
 mod app;
 mod brain;

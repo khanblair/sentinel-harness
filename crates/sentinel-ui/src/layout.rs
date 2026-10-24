@@ -83,27 +83,6 @@ impl PanelId {
         PanelId::Remote,
     ];
 
-    pub fn id(self) -> &'static str {
-        match self {
-            PanelId::Board => "board",
-            PanelId::Terminal => "terminal",
-            PanelId::Changes => "changes",
-            PanelId::Reserved => "reserved",
-            PanelId::Brain => "brain",
-            PanelId::Remote => "remote",
-            PanelId::Files => "files",
-            PanelId::Cost => "cost",
-            PanelId::Report => "report",
-            PanelId::Agents => "agents",
-            PanelId::Permissions => "permissions",
-            PanelId::Telegram => "telegram",
-        }
-    }
-
-    pub fn from_id(id: &str) -> Option<PanelId> {
-        Self::ALL.into_iter().find(|p| p.id() == id)
-    }
-
     /// The tab title.
     pub fn label(self) -> &'static str {
         match self {
@@ -122,9 +101,6 @@ impl PanelId {
         }
     }
 }
-
-/// The five phone tabs. `More` opens every other panel and settings.
-pub const PHONE_TABS: [&str; 5] = ["stream", "board", "reserved", "changes", "more"];
 
 #[cfg(test)]
 mod tests {
@@ -147,20 +123,12 @@ mod tests {
     }
 
     #[test]
-    fn every_panel_round_trips_through_its_id() {
-        for panel in PanelId::ALL {
-            assert_eq!(PanelId::from_id(panel.id()), Some(panel));
-        }
-        assert_eq!(PanelId::from_id("nope"), None);
-    }
-
-    #[test]
     fn top_bar_has_the_six_documented_panels() {
-        let ids: Vec<_> = PanelId::TOP_BAR.iter().map(|p| p.id()).collect();
+        let labels: Vec<_> = PanelId::TOP_BAR.iter().map(|p| p.label()).collect();
         assert_eq!(
-            ids,
+            labels,
             [
-                "board", "terminal", "changes", "reserved", "brain", "remote"
+                "Board", "Terminal", "Changes", "Reserved", "Brain", "Remote"
             ]
         );
     }

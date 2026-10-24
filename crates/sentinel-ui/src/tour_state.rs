@@ -81,10 +81,6 @@ pub fn end(ui: Ui) {
     finish(ui, tour);
 }
 
-pub fn seen() -> bool {
-    LocalStorage::get::<bool>(SEEN_KEY).unwrap_or(false)
-}
-
 fn mark_seen() {
     let _ = LocalStorage::set(SEEN_KEY, true);
 }
