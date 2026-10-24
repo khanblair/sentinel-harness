@@ -11,7 +11,7 @@ use crate::chats::{MenuAction, MenuEntry, RenameState, menu_items, title_menu_it
 use crate::components::icon::Icon;
 use crate::components::sidebar::is_live;
 use crate::components::top_bar::{post_action, settle};
-use crate::layout::{Layout, PanelId};
+use crate::layout::PanelId;
 use crate::state::{Modal, Ui, use_ui};
 
 const MORE_PREFIX: &str = "chat-more-";
@@ -59,7 +59,7 @@ pub fn ChatMenu(chat: ChatId, title: bool) -> impl IntoView {
     let ui = use_ui();
     view! {
         {move || {
-            let phone = ui.layout.get() == Layout::Phone;
+            let phone = ui.on_phone();
             let entries = ui.snapshot.with(|snapshot| entries_for(snapshot, &chat, title, phone));
             entries
                 .into_iter()

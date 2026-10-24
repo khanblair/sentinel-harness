@@ -14,7 +14,6 @@ use crate::components::icon::Icon;
 use crate::components::lesson_card::LessonCard;
 use crate::components::note_editor::NoteEditor;
 use crate::components::strength_bar::StrengthBar;
-use crate::layout::Layout;
 use crate::state::{ToastKind, use_ui};
 use crate::views::brain::{BrainCtx, bump, load_note, open_note, report_failure};
 
@@ -100,7 +99,7 @@ fn NoteBody(note: NoteDetail, editing: RwSignal<bool>, ctx: BrainCtx) -> impl In
                 .collect_view()}
         </div>
         {lesson_card}
-        {move || (ui.layout.get() != Layout::Phone)
+        {move || (!ui.on_phone())
             .then(|| edit_actions(ctx, editing, id.clone(), pinned))}
     }
 }

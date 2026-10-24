@@ -83,6 +83,7 @@ pub const ROUTES: &[Route] = &[
     Route::get("/api/tailscale/status", Access::Any),
     Route::post("/api/tailscale/signin", Access::Computer).json("{}"),
     Route::get("/api/host", Access::Any),
+    Route::get("/api/whoami", Access::Any),
     Route::post("/api/host/check", Access::Computer),
     Route::post("/api/fs/pick", Access::Computer),
     Route::get("/api/fs/list", Access::Any),

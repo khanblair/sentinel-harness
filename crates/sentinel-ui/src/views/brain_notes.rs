@@ -13,7 +13,6 @@ use crate::brain::{
 };
 use crate::components::note_row::NoteRow;
 use crate::components::note_view::NoteView;
-use crate::layout::Layout;
 use crate::state::ToastKind;
 use crate::views::brain::{BrainCtx, bump, report_failure};
 
@@ -71,7 +70,7 @@ fn NoteListView(ctx: BrainCtx) -> impl IntoView {
         <SearchRow query=query filter=filter />
         <div class="row sp" style="margin-bottom:.6em">
             <span class="sub">"Notes are plain markdown files. Edits in Obsidian show up here."</span>
-            {move || (ctx.ui.layout.get() != Layout::Phone).then(|| view! {
+            {move || (!ctx.ui.on_phone()).then(|| view! {
                 <button class="btn sm" on:click=move |_| new_open.update(|open| *open = !*open)>
                     "New note"
                 </button>

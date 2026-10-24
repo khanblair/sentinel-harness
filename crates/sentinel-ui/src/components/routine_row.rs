@@ -8,7 +8,6 @@ use sentinel_core::routines::{EditRoutine, Routine, RoutineKind, clock_text, par
 
 use crate::components::icon::Icon;
 use crate::components::routine_editor::EditorMode;
-use crate::layout::Layout;
 use crate::routines::{
     self, about_text, day_choices, days_from_label, days_label, last_text, time_choices,
 };
@@ -29,7 +28,7 @@ pub fn RoutineRow(routine: Routine, editor: RwSignal<Option<EditorMode>>) -> imp
 #[component]
 fn RoutineHead(routine: Routine, editor: RwSignal<Option<EditorMode>>) -> impl IntoView {
     let ui = use_ui();
-    let phone = move || ui.layout.get() == Layout::Phone;
+    let phone = move || ui.on_phone();
     let on = routine.enabled;
     let id = routine.id.clone();
     let name = routine.name.clone();
@@ -57,7 +56,7 @@ fn RoutineHead(routine: Routine, editor: RwSignal<Option<EditorMode>>) -> impl I
 #[component]
 fn EditButtons(routine: Routine, editor: RwSignal<Option<EditorMode>>) -> impl IntoView {
     let ui = use_ui();
-    let phone = move || ui.layout.get() == Layout::Phone;
+    let phone = move || ui.on_phone();
     let name = routine.name.clone();
     let edit_name = format!("Edit {name}");
     let delete_name = format!("Delete {name}");
@@ -81,7 +80,7 @@ fn EditButtons(routine: Routine, editor: RwSignal<Option<EditorMode>>) -> impl I
 #[component]
 fn RoutineSchedule(routine: Routine) -> impl IntoView {
     let ui = use_ui();
-    let phone = move || ui.layout.get() == Layout::Phone;
+    let phone = move || ui.on_phone();
     let send_id = routine.id.clone();
     let time_id = routine.id.clone();
     let days_id = routine.id.clone();

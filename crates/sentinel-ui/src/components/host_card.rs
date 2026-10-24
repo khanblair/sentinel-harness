@@ -7,7 +7,6 @@ use sentinel_core::api::HostStatus;
 use crate::components::icon::Icon;
 use crate::components::status_badge::shape_markup;
 use crate::host::{self, CheckRow};
-use crate::layout::Layout;
 use crate::state::use_ui;
 
 #[component]
@@ -77,7 +76,7 @@ fn SetupSteps() -> impl IntoView {
 #[component]
 fn CheckButton(status: RwSignal<Option<HostStatus>>) -> impl IntoView {
     let ui = use_ui();
-    let phone = move || ui.layout.get() == Layout::Phone;
+    let phone = move || ui.on_phone();
     view! {
         <div class="row wrap" style="margin-top:.6em">
             <button class="btn" disabled=phone on:click=move |_| host::check(status, ui)>

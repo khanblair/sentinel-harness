@@ -17,7 +17,7 @@ use crate::components::icon::Icon;
 use crate::components::telegram_levels::{
     DetailRow, EventToggles, LevelToggles, LockedNote, QuietHours,
 };
-use crate::layout::{Layout, PanelId};
+use crate::layout::PanelId;
 use crate::state::{Modal, ToastKind, Ui, use_ui};
 use crate::telegram::{self, chip_label, valid_user_id};
 
@@ -318,7 +318,7 @@ impl TelegramCtx {
 
     /// Phones read the state but cannot change it. Every control locks there.
     pub fn locked(self) -> bool {
-        self.ui.layout.get() == Layout::Phone
+        self.ui.on_phone()
     }
 
     pub fn is_waiting(self) -> bool {

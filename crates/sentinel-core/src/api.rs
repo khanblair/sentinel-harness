@@ -257,6 +257,13 @@ pub enum ServiceState {
     NotInstalled,
 }
 
+/// `GET /api/whoami`. Who is calling: the computer, or a paired phone.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WhoAmI {
+    pub from_pc: bool,
+    pub name: String,
+}
+
 /// `GET /api/host`. What the host card in Settings shows.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HostStatus {

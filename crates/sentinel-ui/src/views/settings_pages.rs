@@ -15,7 +15,6 @@ use crate::components::status_badge::shape_markup;
 use crate::components::toggle::Toggle;
 use crate::components::top_bar::settle;
 use crate::components::tour_menu::TourMenu;
-use crate::layout::Layout;
 use crate::state::{Modal, ToastKind, Ui, use_ui};
 use crate::views::brain_settings::BrainSettings;
 use crate::views::settings::Field;
@@ -199,7 +198,7 @@ fn WakeLockField() -> impl IntoView {
 #[component]
 fn QuitField() -> impl IntoView {
     let ui = use_ui();
-    let phone = move || ui.layout.get() == Layout::Phone;
+    let phone = move || ui.on_phone();
     view! {
         <Field label="Quit Sentinel" hint="Stops the daemon on this computer. Runs, routines, and Telegram stop with it.">
             <button class="btn dng" disabled=phone title=move || if phone() { "Needs the computer" } else { "" }

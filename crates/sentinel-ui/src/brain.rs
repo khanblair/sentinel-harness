@@ -14,7 +14,6 @@ pub use crate::brain_text::{
     mode_sentence, new_note_error, note_meta_line, pin_done_text, proposal_kind_label,
     proposals_tab_label, review_done_text, review_label, type_label,
 };
-use crate::layout::Layout;
 
 /// Shown in place of a Brain view when the daemon has no Brain route for it yet.
 pub const UNAVAILABLE: &str = "The Brain is not available yet in this build.";
@@ -153,9 +152,9 @@ pub fn strength_class(strength: f32) -> &'static str {
     }
 }
 
-/// A phone can only tighten the mode. Every other layout may pick any mode.
-pub fn phone_may_pick(current: BrainMode, target: BrainMode, layout: Layout) -> bool {
-    layout != Layout::Phone || current.phone_may_set(target)
+/// A paired phone can only tighten the mode. The computer may pick any mode, in any window width.
+pub fn phone_may_pick(current: BrainMode, target: BrainMode, phone: bool) -> bool {
+    !phone || current.phone_may_set(target)
 }
 
 /// True for the 404 a daemon without the Brain routes gives.
@@ -367,31 +366,15 @@ mod tests {
 
     #[test]
     fn a_phone_can_tighten_the_brain_mode_only() {
-        assert!(phone_may_pick(
-            BrainMode::Learn,
-            BrainMode::Off,
-            Layout::Phone
-        ));
-        assert!(phone_may_pick(
-            BrainMode::Learn,
-            BrainMode::ReadOnly,
-            Layout::Phone
-        ));
-        assert!(!phone_may_pick(
-            BrainMode::Off,
-            BrainMode::Learn,
-            Layout::Phone
-        ));
-        assert!(phone_may_pick(
-            BrainMode::Off,
-            BrainMode::Learn,
-            Layout::Desktop
-        ));
-        assert!(phone_may_pick(
-            BrainMode::Off,
-            BrainMode::Learn,
-            Layout::Tablet
-        ));
+        assert!(phone_may_pick(BrainMode::Learn, BrainMode::Off, true));
+        assert!(phone_may_pick(BrainMode::Learn, BrainMode::ReadOnly, true));
+        assert!(!phone_may_pick(BrainMode::Off, BrainMode::Learn, true));
+    }
+
+    #[test]
+    fn a_computer_in_a_narrow_window_may_loosen_the_brain_mode() {
+        assert!(phone_may_pick(BrainMode::Off, BrainMode::Learn, false));
+        assert!(phone_may_pick(BrainMode::Off, BrainMode::ReadOnly, false));
     }
 
     #[test]

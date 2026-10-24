@@ -243,13 +243,13 @@ const BRAIN_CHOICES: [(BrainMode, &str, &str); 3] = [
 
 fn brain_menu(ui: Ui) -> impl IntoView {
     let current = ui.snapshot.with(|snapshot| snapshot.brain_mode);
-    let layout = ui.layout.get();
+    let phone = ui.on_phone();
     view! {
         {BRAIN_CHOICES
             .into_iter()
             .map(|(mode, label, desc)| view! {
                 <MenuItem icon="brain" label=label desc=desc ticked={current == mode}
-                    disabled={!phone_may_pick(current, mode, layout)}
+                    disabled={!phone_may_pick(current, mode, phone)}
                     on_pick=move |()| pick_brain(ui, mode) />
             })
             .collect_view()}
