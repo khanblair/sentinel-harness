@@ -19,6 +19,7 @@ const TOP_LEVEL_KEYS: &[&str] = &[
     "enabled_tools",
     "models",
     "free_models",
+    "openrouter_base_url",
     "test_command",
     "hackathon_mode",
     "dev_loopback",
@@ -31,6 +32,7 @@ const TOP_LEVEL_KEYS: &[&str] = &[
 const ROUTING_KEYS: &[&str] = &["cheap", "mid", "smart"];
 const TELEGRAM_KEYS: &[&str] = &["enabled", "detail", "base_url"];
 const TELEGRAM_API_URL: &str = "https://api.telegram.org";
+const OPENROUTER_API_URL: &str = "https://openrouter.ai/api/v1";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -47,6 +49,8 @@ pub struct Config {
     /// Model ids that cost nothing, such as a local model. A model whose name ends in `-free` or
     /// `:free` counts as free without being listed.
     pub free_models: Vec<String>,
+    /// The API root of `OpenRouter`. Tests point it at a local mock server.
+    pub openrouter_base_url: String,
     pub test_command: Vec<String>,
     pub hackathon_mode: bool,
     pub dev_loopback: bool,
@@ -103,6 +107,7 @@ impl Default for Config {
             enabled_tools: Vec::new(),
             models: std::collections::BTreeMap::new(),
             free_models: Vec::new(),
+            openrouter_base_url: OPENROUTER_API_URL.to_owned(),
             test_command: vec!["cargo".to_owned(), "test".to_owned()],
             hackathon_mode: false,
             dev_loopback: false,
@@ -249,6 +254,7 @@ mod tests {
             enabled_tools: vec![ToolId::new("claude")],
             models: std::collections::BTreeMap::from([("claude".to_owned(), "sonnet".to_owned())]),
             free_models: vec!["ornith/ornith".to_owned()],
+            openrouter_base_url: "http://127.0.0.1:9/api/v1".to_owned(),
             test_command: vec!["cargo".to_owned(), "nextest".to_owned()],
             hackathon_mode: true,
             dev_loopback: true,

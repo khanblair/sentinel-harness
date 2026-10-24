@@ -22,6 +22,7 @@ use sentinel_workers::{CommandLine, RunControl, RunOutcome, RunSpec, Worker};
 use tokio::sync::{mpsc, watch};
 
 use crate::engine::{Engine, EngineError, FakeAgents, Result};
+use crate::openrouter_tool::{is_openrouter_adapter, openrouter_entry, openrouter_worker};
 use crate::run_ctx::RunCtx;
 
 /// The three pretend agents. One per tier, each with its own adapter name, so the run satisfies
@@ -100,7 +101,11 @@ impl Engine {
             home: Some(self.home().to_path_buf()),
             ..DetectOptions::default()
         };
-        Ok(detect_all(&profiles, &options).await)
+        let mut found = detect_all(&profiles, &options).await;
+        // Last on purpose: the first-scan routing takes the first ready CLI of a tier, so a saved
+        // key only serves a tier that no CLI covers.
+        found.push(openrouter_entry(self.inner.secrets.as_ref()));
+        Ok(found)
     }
 
     /// Turn on the ready tools and route each tier to one of them. A config file that already
@@ -121,17 +126,10 @@ impl Engine {
         if config.routing != sentinel_core::Routing::default() {
             return Ok(());
         }
-        let for_tier = |tier: Tier| {
-            ready
-                .iter()
-                .find(|t| t.tier == tier)
-                .or_else(|| ready.first())
-                .map(|t| t.id.clone())
-        };
         self.set_routing(sentinel_core::Routing {
-            cheap: for_tier(Tier::Cheap),
-            mid: for_tier(Tier::Mid),
-            smart: for_tier(Tier::Smart),
+            cheap: route_for_tier(&ready, Tier::Cheap),
+            mid: route_for_tier(&ready, Tier::Mid),
+            smart: route_for_tier(&ready, Tier::Smart),
         })
     }
 
@@ -169,6 +167,9 @@ impl Engine {
                 tier: tool.tier,
             }));
         }
+        if is_openrouter_adapter(&tool.adapter) {
+            return openrouter_worker(self.inner.secrets.as_ref(), &self.config());
+        }
         let profile = profile_for(&tool.adapter)?;
         if tool.path.is_empty() {
             return Err(EngineError::Invalid(format!(
@@ -182,6 +183,15 @@ impl Engine {
         let worker = CliWorker::new(profile, tool.path.clone().into()).with_free_cost(free);
         Ok(Arc::new(worker))
     }
+}
+
+/// The first ready tool of the tier, else the first ready tool of any tier.
+fn route_for_tier(ready: &[&ToolInfo], tier: Tier) -> Option<ToolId> {
+    ready
+        .iter()
+        .find(|t| t.tier == tier)
+        .or_else(|| ready.first())
+        .map(|t| t.id.clone())
 }
 
 fn profile_for(adapter: &str) -> Result<Profile> {
@@ -303,4 +313,64 @@ pub(crate) async fn run_for_text(engine: &Engine, job: TextJob<'_>) -> String {
     };
     let outcome = job.worker.run(spec, control).await;
     outcome.output_tail.join("\n")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn ready_tool(id: &str, tier: Tier) -> ToolInfo {
+        ToolInfo {
+            id: ToolId::new(id),
+            name: id.to_owned(),
+            path: format!("/usr/bin/{id}"),
+            version: "1.0".to_owned(),
+            adapter: id.to_owned(),
+            status: ToolStatus::Ready,
+            tier,
+            enabled: false,
+        }
+    }
+
+    #[test]
+    fn a_tier_takes_its_own_ready_tool_before_any_other() {
+        let cli = ready_tool("claude", Tier::Cheap);
+        let key = ready_tool("openrouter", Tier::Cheap);
+        let ready = [&cli, &key];
+        assert_eq!(
+            route_for_tier(&ready, Tier::Cheap),
+            Some(ToolId::new("claude"))
+        );
+    }
+
+    #[test]
+    fn a_saved_key_only_serves_a_tier_no_cli_covers() {
+        let mid = ready_tool("claude", Tier::Mid);
+        let smart = ready_tool("codex", Tier::Smart);
+        let key = ready_tool("openrouter", Tier::Cheap);
+        let ready = [&mid, &smart, &key];
+        assert_eq!(
+            route_for_tier(&ready, Tier::Cheap),
+            Some(ToolId::new("openrouter"))
+        );
+        assert_eq!(
+            route_for_tier(&ready, Tier::Mid),
+            Some(ToolId::new("claude"))
+        );
+        assert_eq!(
+            route_for_tier(&ready, Tier::Smart),
+            Some(ToolId::new("codex"))
+        );
+    }
+
+    #[test]
+    fn a_tier_with_no_ready_tool_falls_back_to_the_first_ready_one() {
+        let key = ready_tool("openrouter", Tier::Cheap);
+        let ready = [&key];
+        assert_eq!(
+            route_for_tier(&ready, Tier::Smart),
+            Some(ToolId::new("openrouter"))
+        );
+        assert_eq!(route_for_tier(&[], Tier::Smart), None);
+    }
 }
