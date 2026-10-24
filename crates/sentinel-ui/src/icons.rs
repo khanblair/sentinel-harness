@@ -3,6 +3,20 @@
 /// `(name, svg inner markup)`.
 pub const ICONS: &[(&str, &str)] = &[
     (
+        "pin",
+        r#"<path d="M9 4h6l-1 6 3 3v2H7v-2l3-3z"/><path d="M12 15v6"/>"#,
+    ),
+    (
+        "archive",
+        r#"<rect x="3" y="4" width="18" height="5" rx="1.5"/><path d="M5 9v9a2 2 0 002 2h10a2 2 0 002-2V9M10 13h4"/>"#,
+    ),
+    ("trash", r#"<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>"#),
+    (
+        "edit",
+        r#"<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>"#,
+    ),
+    ("upload", r#"<path d="M12 16V4M7 9l5-5 5 5M5 20h14"/>"#),
+    (
         "sidebar",
         r#"<rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/>"#,
     ),

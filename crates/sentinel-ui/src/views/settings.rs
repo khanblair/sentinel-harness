@@ -240,7 +240,8 @@ fn PermissionsPage() -> impl IntoView {
     }
 }
 
-const SHORTCUTS: [(&str, &str); 7] = [
+const SHORTCUTS: [(&str, &str); 8] = [
+    ("New chat", "Ctrl or Cmd + Shift + O"),
     ("Command palette", "Ctrl or Cmd + K"),
     ("Toggle sidebar", "Ctrl or Cmd + B"),
     ("Toggle panels", "Ctrl or Cmd + J"),
