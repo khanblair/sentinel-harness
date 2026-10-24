@@ -14,7 +14,7 @@ pub struct Retry<'a> {
 
 const RULES: &str = "Rules:\n\
 - Write only the files listed above. Another agent works in the same folder on other files.\n\
-- Add or change a test for what you build. Never edit an existing test file to make code pass.\n\
+- Prove what you build with a test, in one of the files listed above. Never edit an existing test file that is not listed.\n\
 - Keep functions short, name things for what they are, and leave no placeholder code.\n\
 - Do not run git commands that change history. Do not install or remove tools.\n\
 - When you are done, stop. Do not claim success in text: the test suite decides.";
