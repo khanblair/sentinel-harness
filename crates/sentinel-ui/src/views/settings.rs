@@ -10,6 +10,7 @@ use crate::components::connection_card::{ConnectionsPage, DevicesPage};
 use crate::components::icon::Icon;
 use crate::state::{Modal, Ui, use_ui};
 use crate::views::appearance::AppearancePage;
+use crate::views::routines_page::RoutinesPage;
 use crate::views::settings_pages::{BrainPage, GeneralPage};
 use crate::views::telegram_slot::{HostCardSlot, TelegramSettingsSlot};
 
@@ -21,8 +22,9 @@ pub struct SettingsPage {
     pub label: &'static str,
 }
 
-/// The eleven pages, in the prototype's order.
-pub static SET_PAGES: [SettingsPage; 11] = [
+/// The twelve pages, in the prototype's order. Skills is not built yet, so Routines follows
+/// Permissions.
+pub static SET_PAGES: [SettingsPage; 12] = [
     SettingsPage {
         id: "general",
         icon: "gear",
@@ -52,6 +54,11 @@ pub static SET_PAGES: [SettingsPage; 11] = [
         id: "perms",
         icon: "shield",
         label: "Permissions",
+    },
+    SettingsPage {
+        id: "routines",
+        icon: "clock",
+        label: "Routines",
     },
     SettingsPage {
         id: "brain",
@@ -205,6 +212,7 @@ fn page_body(id: &str) -> AnyView {
         "connections" => view! { <ConnectionsPage /> }.into_any(),
         "integrations" => view! { <IntegrationsPage /> }.into_any(),
         "perms" => view! { <PermissionsPage /> }.into_any(),
+        "routines" => view! { <RoutinesPage /> }.into_any(),
         "brain" => view! { <BrainPage /> }.into_any(),
         "budget" => view! { <BudgetPage /> }.into_any(),
         "devices" => view! { <DevicesPage /> }.into_any(),
@@ -315,6 +323,7 @@ mod tests {
                 "Connections",
                 "Integrations",
                 "Permissions",
+                "Routines",
                 "Brain",
                 "Budget",
                 "Devices",

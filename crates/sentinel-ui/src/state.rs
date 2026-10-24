@@ -6,6 +6,7 @@ use std::collections::HashMap;
 
 use leptos::prelude::*;
 use sentinel_core::chat::ChatChange;
+use sentinel_core::routines::{Brief, Routine};
 use sentinel_core::{Attachment, ChatId, Event, EventRecord, Snapshot, ToolId};
 
 use crate::chats::RenameState;
@@ -106,6 +107,10 @@ pub struct Ui {
     pub loaded: RwSignal<bool>,
     /// The setup wizard was opened on purpose, for example from a menu.
     pub setup_open: RwSignal<bool>,
+    /// The routines as `GET /api/routines` last returned them. The sidebar counts them.
+    pub routines: RwSignal<Vec<Routine>>,
+    /// The latest briefs, newest first, as `GET /api/briefs` last returned them.
+    pub briefs: RwSignal<Vec<Brief>>,
 }
 
 /// Which menu a popover shows. Each kind has one body in `components/menus.rs`.
@@ -169,6 +174,8 @@ impl Ui {
             popover: RwSignal::new(None),
             loaded: RwSignal::new(false),
             setup_open: RwSignal::new(false),
+            routines: RwSignal::new(Vec::new()),
+            briefs: RwSignal::new(Vec::new()),
         }
     }
 
