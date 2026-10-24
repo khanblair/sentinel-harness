@@ -32,6 +32,7 @@ pub(crate) async fn daemon(args: DaemonArgs) -> Result<ExitCode> {
     engine.ensure_desktop_token()?;
     engine.set_headless(args.headless);
     engine.start_host_loop();
+    sentinel_daemon::telegram::start_if_active(&engine).context("could not start Telegram")?;
     let bind = if args.dev_bind {
         BindMode::DevLoopback
     } else {

@@ -510,3 +510,27 @@ fn shell_and_bypass_are_not_commands() {
     assert!(matches!(parse("/shell ls"), Err(ParseProblem::Unknown(_))));
     assert!(matches!(parse("/bypass"), Err(ParseProblem::Unknown(_))));
 }
+
+#[tokio::test]
+async fn a_restarted_poller_skips_updates_that_arrived_while_it_was_down() {
+    let mut rig = rig().await;
+    connect_and_pair(&mut rig, OWNER).await;
+    set_levels(&rig, &["notify", "control"]).await;
+    sentinel_daemon::telegram::stop(&rig.engine).unwrap();
+    expect_event(&mut rig.events, |e| {
+        matches!(e, Event::ConnectionChanged { name, state: ConnectionState::Missing } if name == "telegram")
+    })
+    .await;
+
+    // Sent while the daemon was down: a replay would answer it.
+    push(&rig, owner_text(OWNER, "/status"));
+    while rig.polls.try_recv().is_ok() {}
+    sentinel_daemon::telegram::start(&rig.engine).unwrap();
+    timeout(WAIT, rig.polls.recv())
+        .await
+        .expect("the new poller never asked for updates")
+        .expect("the mock closed");
+
+    let replayed = timeout(Duration::from_millis(500), rig.sent.recv()).await;
+    assert!(replayed.is_err(), "the old /status was answered");
+}

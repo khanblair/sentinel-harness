@@ -21,7 +21,7 @@ pub(crate) async fn run(
     shared: Arc<Shared>,
     mut stop: broadcast::Receiver<EventRecord>,
 ) {
-    let mut offset = 0_i64;
+    let mut offset = starting_offset(&weak, &shared).await;
     let mut failures = 0_usize;
     loop {
         let polled = tokio::select! {
@@ -51,6 +51,22 @@ pub(crate) async fn run(
         if !alive {
             return;
         }
+    }
+}
+
+/// Where a new poller starts. A paired chat skips what arrived while the daemon was down, so an
+/// old `/pause` or `/stop` cannot replay. A chat that is not paired yet reads from the start, so
+/// the `/start` that connects it is never missed.
+async fn starting_offset(weak: &Weak<Inner>, shared: &Shared) -> i64 {
+    let paired =
+        upgrade(weak).is_some_and(|engine| telegram_store::is_paired(&engine).unwrap_or(false));
+    if !paired {
+        return 0;
+    }
+    // Telegram answers an offset of -1 with only the newest update.
+    match shared.client.get_updates(-1, 0).await {
+        Ok(updates) => next_offset(&updates, 0),
+        Err(_) => 0,
     }
 }
 
