@@ -14,6 +14,8 @@ Settings holds the options Sentinel keeps, grouped into sections.
    - Connections shows the state of Tailscale, OpenRouter, the MCP file server, git, and the keychain. Each one has a test action.
    - Integrations holds the Telegram setup. See [Telegram](../remote/telegram.md).
    - Permissions sets the permission mode. See [Permissions and approvals](../using/permissions.md).
+   - Skills lists your skills and sets Off, Auto, or Always for each. See [Skills](../skills/index.md).
+   - Routines holds the Morning brief, the Sundown wrap-up, and your reminders. See [Routines](../routines/index.md).
    - Brain sets the Brain mode and the care schedule. See [Brain care](../brain/care.md).
    - Budget sets the cap.
    - Devices lists the paired phones and the Telegram chat. You can revoke any of them.

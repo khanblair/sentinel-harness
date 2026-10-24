@@ -14,6 +14,7 @@ Shortcuts and slash commands run controls without the mouse.
    - `/agent` sends a message to one agent. `/focus` shows one agent's output. `/kill` stops one agent.
    - `/plan` and `/report` open those views.
    - `/brain` opens the Brain. `/help` shows the command list.
+   - `/skill NAME` adds a skill to your next message.
 4. Press Tab to move focus in reading order. The focus outline is always visible.
 
 ## Screenshot

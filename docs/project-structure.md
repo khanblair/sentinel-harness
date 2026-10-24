@@ -131,7 +131,9 @@ crates/sentinel-core/
   src/permission.rs                    PermissionMode, Capability, Approval
   src/quality.rs                       QualityNote
   src/reservation.rs                   Reservation, ReservationState
+  src/routines.rs                      Routines: jobs that run at a set time, such as the Morning brief (`docs/product-scope.md`, F25)
   src/scope.rs                         Scope and path set math (overlap, contains)
+  src/skills.rs                        Skills: folders with a `SKILL.md` that teach agents one thing (`docs/product-scope.md`, F24)
   src/snapshot.rs                      The full state the daemon sends to a device on connect (`GET /api/state`). The UI builds every
   src/state.rs                         HarnessState, TailscaleState, ConnectionState, Decision
   src/task.rs                          Task, TaskStatus, Tier
@@ -157,6 +159,7 @@ crates/sentinel-store/
   src/migrations/0001_init.sql         first schema
   src/migrations/0002_extras.sql       schema
   src/migrations/0003_chats.sql        schema
+  src/migrations/0004_skills_routines.sql schema
   src/quality.rs                       QualityNote
   src/reservations.rs                  reservation queries
   src/reset.rs                         Clear what belongs to one run, so the next run starts from an empty board. Events, runs, cost
@@ -351,6 +354,7 @@ crates/sentinel-daemon/
   src/lib.rs                           exports
   src/live.rs                          What the engine keeps while a run is live: control channels, the budget, and the questions the
   src/onboarding.rs                    onboarding state and steps
+  src/openrouter_tool.rs               The `OpenRouter` worker offered as a tool: its entry in the tool list and the worker built for
   src/pairing.rs                       QR payload and one-time code
   src/plan_phase.rs                    The first phase of a run: read the backlog, plan it, settle contradictions, and mark which
   src/prompt.rs                        The text each worker gets. Rules go in the prompt as guidance; the guard enforces the real
@@ -393,6 +397,11 @@ crates/sentinel-daemon/
   tests/engine_run.rs                  A whole run with the fake agents on the sample repository. It proves the harness end to end:
   tests/folders.rs                     Folder browser, repository checks, and starter backlog behavior
   tests/host.rs                        The always-on host: the heartbeat, the back-online gap, and the host card
+  tests/openrouter_tool.rs             The `OpenRouter` worker offered as a tool in a real-mode engine: its entry after a scan, and a
+  tests/security.rs                    The route access matrix. Every route answers the right way to a caller with no token, a paired
+  tests/security/coverage.rs           Reads the route source at test time. A `.route(` call with no row in `ROUTES` fails the build,
+  tests/security/harness.rs            Starts the daemon for one test and sends it requests. A test gets its own engine, so a row
+  tests/security/table.rs              Every route of the daemon and who may call it. Add a row for each new `.route(` line; the
   tests/telegram.rs                    Telegram inside the daemon, against a `wiremock` Bot API. The tests drive the real routes with a
   tests/telegram_code.rs               The phone commands `/task`, `/diff`, and `/daily`, against a `wiremock` Bot API. The rig is a
 ```
@@ -403,10 +412,13 @@ crates/sentinel-daemon/
 crates/sentinel-cli/
   Cargo.toml                           manifest
   src/commands.rs                      run, scan, pair, report, doctor
+  src/doctor_host.rs                   The host checks of `sentinel doctor` (P14-06, `docs/product-scope.md` F21). Each row says
   src/main.rs                          entry
   src/serve.rs                         The commands that run or reach the daemon: `daemon`, `open`, `pair`, and `keys`
   src/service.rs                       `sentinel service`: run the daemon at boot and restart it when it stops. A launchd job on
+  src/writeup.rs                       The one-page write-up of the last run (P10-04, `sentinel report --writeup`). It reads the
   tests/resume.rs                      Crash resume, end to end: start a run, kill the whole process with SIGKILL after the first
+  tests/writeup.rs                     The write-up draft, built from a fixed report and a fixed run log
 ```
 
 ## crates/sentinel-ui
@@ -584,6 +596,23 @@ crates/sentinel-gate/
   src/lib.rs                           module exports
   src/policy.rs                        What a permission mode asks for, straight from F15 and the disposition
   tests/policy.rs                      file
+```
+
+## crates/sentinel-mcp
+
+```
+crates/sentinel-mcp/
+  Cargo.toml                           workspace members and shared dependency versions
+  src/brain_tools.rs                   The Brain tools. Agents search and read notes, and propose new ones. Nothing here writes a note:
+  src/files.rs                         lists repo files (git ls-files, or a folder walk)
+  src/lib.rs                           module exports
+  src/protocol.rs                      The JSON-RPC 2.0 messages MCP needs, and the tool list. Replies are built as `serde_json`
+  src/server.rs                        Binds the daemon to the tailnet address and serves the API, the WebSocket, and the UI
+  tests/mcp/brain.rs                   file
+  tests/mcp/files.rs                   file
+  tests/mcp/main.rs                    Integration tests for the MCP server: the protocol, the file tools, and the Brain tools
+  tests/mcp/protocol.rs                file
+  tests/mcp/support.rs                 Helpers shared by the test modules: run the server over lines and read the replies
 ```
 
 ## fixtures/ and tests/

@@ -25,4 +25,6 @@ Use Plan only until you trust the plan Sentinel makes.
 - [Chats](using/chats/index.md)
 - [Try the prototype](try-it/index.md)
 - [Remote](remote/index.md)
+- [Skills](skills/index.md)
+- [Routines](routines/index.md)
 - [Brain](brain/index.md)

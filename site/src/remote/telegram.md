@@ -21,7 +21,7 @@ Levels, set for the chat:
 | Code | Message one agent, ask for a short diff summary, add a task to `backlog.md`, start a run |
 | Reports | A summary when a run finishes, and a daily summary with cost and Brain proposals |
 
-Commands: `/status`, `/pause`, `/resume`, `/stop`, `/cap`, `/kill`, `/agent`, `/diff`, `/task`, `/run`, `/report`, `/daily`, `/brain`, `/help`.
+Commands: `/status`, `/pause`, `/resume`, `/stop`, `/cap`, `/kill`, `/agent`, `/diff`, `/task`, `/run`, `/report`, `/daily`, `/brief`, `/wrapup`, `/brain`, `/help`.
 
 ## Screenshot
 
