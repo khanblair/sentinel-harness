@@ -11,6 +11,7 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+use base64::Engine as _;
 use futures::future::BoxFuture;
 use reqwest::StatusCode;
 use reqwest::header::{AUTHORIZATION, ORIGIN};
@@ -18,6 +19,7 @@ use sentinel_core::api::TailscaleStatus;
 use sentinel_core::snapshot::Snapshot;
 use sentinel_core::state::TailscaleState;
 use sentinel_daemon::cmd::{CmdOutput, CommandRunner, SystemRunner};
+use sentinel_daemon::controls::Caller;
 use sentinel_daemon::engine::{Engine, EngineOptions, FakeAgents};
 use sentinel_daemon::secrets::MemoryStore;
 
@@ -493,4 +495,97 @@ async fn the_openrouter_key_is_stored_and_never_echoed() {
     )
     .await;
     assert_eq!(empty, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn a_phone_may_make_rename_and_archive_a_chat_but_not_delete_one() {
+    let dir = tempfile::tempdir().unwrap();
+    let engine = engine_in(dir.path());
+    let desktop = desktop_token(&engine);
+    let base = start(engine).await;
+    let phone = pair_phone(&base, &desktop).await;
+
+    let (made, chat) = post_json(&base, "/api/chats", &phone, &json!({})).await;
+    assert_eq!(made, StatusCode::OK, "{chat}");
+    let id = chat["id"].as_str().unwrap().to_owned();
+    let path = format!("/api/chats/{id}");
+    let (renamed, named) = send_json(
+        &base,
+        (reqwest::Method::PUT, &path),
+        &phone,
+        &json!({ "title": "From the phone", "pinned": true }),
+    )
+    .await;
+    assert_eq!(renamed, StatusCode::OK, "{named}");
+    assert_eq!(named["title"], "From the phone");
+    let (archived, _) = send_json(
+        &base,
+        (reqwest::Method::PUT, &path),
+        &phone,
+        &json!({ "archived": true }),
+    )
+    .await;
+    assert_eq!(archived, StatusCode::OK);
+    let (refused, _) = send_json(&base, (reqwest::Method::DELETE, &path), &phone, &json!({})).await;
+    assert_eq!(refused, StatusCode::FORBIDDEN);
+    let (deleted, _) = send_json(
+        &base,
+        (reqwest::Method::DELETE, &path),
+        &desktop,
+        &json!({}),
+    )
+    .await;
+    assert_eq!(deleted, StatusCode::OK);
+}
+
+#[tokio::test]
+async fn an_upload_of_a_megabyte_passes_and_a_bigger_body_gets_413() {
+    let dir = tempfile::tempdir().unwrap();
+    let engine = engine_in(dir.path());
+    let token = desktop_token(&engine);
+    let chat = engine.list_chats().unwrap().remove(0).id;
+    let base = start(engine).await;
+    let path = format!("/api/chats/{chat}/attachments");
+
+    let megabyte = base64::engine::general_purpose::STANDARD.encode(vec![7_u8; 1_000_000]);
+    let (ok, reply) = post_json(
+        &base,
+        &path,
+        &token,
+        &json!({ "kind": "upload", "name": "dump.bin", "content_base64": megabyte }),
+    )
+    .await;
+    assert_eq!(ok, StatusCode::OK, "{reply}");
+    let huge = base64::engine::general_purpose::STANDARD.encode(vec![7_u8; 2_000_000]);
+    let (too_big, _) = post_json(
+        &base,
+        &path,
+        &token,
+        &json!({ "kind": "upload", "name": "huge.bin", "content_base64": huge }),
+    )
+    .await;
+    assert_eq!(too_big, StatusCode::PAYLOAD_TOO_LARGE);
+}
+
+#[tokio::test]
+async fn the_state_carries_the_chat_list_and_the_events_of_the_asked_chat() {
+    let dir = tempfile::tempdir().unwrap();
+    let engine = engine_in(dir.path());
+    let token = desktop_token(&engine);
+    let first = engine.list_chats().unwrap().remove(0).id;
+    let second = engine
+        .create_chat(Some("Second"), &Caller::pc("You"))
+        .unwrap()
+        .id;
+    let base = start(engine).await;
+
+    let (status, state) = get_json(&base, &format!("/api/state?chat={second}"), Some(&token)).await;
+    assert_eq!(status, StatusCode::OK, "{state}");
+    assert_eq!(state["chats"].as_array().unwrap().len(), 2);
+    let events = state["events"].as_array().unwrap();
+    assert!(
+        events.iter().all(|e| e["chat"] == second.as_str()),
+        "{events:?}"
+    );
+    assert!(events.iter().all(|e| e["chat"] != first.as_str()));
 }
