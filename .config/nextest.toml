@@ -1,0 +1,4 @@
+# A hung test fails after four minutes instead of stalling the whole job.
+[profile.default]
+slow-timeout = { period = "60s", terminate-after = 4 }
+fail-fast = false
