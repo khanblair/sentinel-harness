@@ -44,6 +44,7 @@ async fn repo_check(
 
 async fn starter_backlog(
     State(engine): State<Engine>,
+    Computer(_): Computer,
     Json(body): Json<RepoCheckRequest>,
 ) -> ApiResult<Value> {
     blocking(engine, move |e| {

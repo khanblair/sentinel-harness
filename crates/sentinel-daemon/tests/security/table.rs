@@ -151,9 +151,7 @@ pub const ROUTES: &[Route] = &[
     Route::post("/api/connections/nope/test", Access::Computer),
     Route::get("/api/files", Access::Any),
     Route::post("/api/repo/check", Access::Any).json(r#"{"path":"{repo}"}"#),
-    // BUG: the phone may not edit files (docs/mobile.md, Security). This writes backlog.md into
-    // the repository, so it should be Computer. Kept as Any until the guard is fixed.
-    Route::post("/api/repo/starter-backlog", Access::Any).json(r#"{"path":"{repo}"}"#),
+    Route::post("/api/repo/starter-backlog", Access::Computer).json(r#"{"path":"{repo}"}"#),
     Route::put("/api/repo", Access::Any).json(r#"{"path":"{repo}"}"#),
     Route::get("/api/onboarding", Access::Any),
     Route::post("/api/onboarding/1", Access::Computer),
