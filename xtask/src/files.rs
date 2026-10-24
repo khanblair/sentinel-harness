@@ -7,7 +7,15 @@ use std::process::Command;
 use anyhow::{Context, Result};
 
 /// Folders that never hold source we own.
-const SKIP_DIRS: [&str; 7] = [".git", "target", ".sentinel", ".build", "node_modules", "dist", "book"];
+const SKIP_DIRS: [&str; 7] = [
+    ".git",
+    "target",
+    ".sentinel",
+    ".build",
+    "node_modules",
+    "dist",
+    "book",
+];
 
 /// Files under `root` as paths relative to `root`, sorted.
 ///
@@ -28,7 +36,13 @@ fn git_files(root: &Path) -> Option<Vec<PathBuf>> {
         return None;
     }
     let out = Command::new("git")
-        .args(["ls-files", "-z", "--cached", "--others", "--exclude-standard"])
+        .args([
+            "ls-files",
+            "-z",
+            "--cached",
+            "--others",
+            "--exclude-standard",
+        ])
         .current_dir(root)
         .output()
         .ok()?;
@@ -36,7 +50,12 @@ fn git_files(root: &Path) -> Option<Vec<PathBuf>> {
         return None;
     }
     let text = String::from_utf8(out.stdout).ok()?;
-    Some(text.split('\0').filter(|s| !s.is_empty()).map(PathBuf::from).collect())
+    Some(
+        text.split('\0')
+            .filter(|s| !s.is_empty())
+            .map(PathBuf::from)
+            .collect(),
+    )
 }
 
 fn walk(root: &Path, dir: &Path) -> Result<Vec<PathBuf>> {
@@ -44,7 +63,10 @@ fn walk(root: &Path, dir: &Path) -> Result<Vec<PathBuf>> {
     for entry in fs::read_dir(dir).with_context(|| format!("read {}", dir.display()))? {
         let path = entry?.path();
         if path.is_dir() {
-            let skip = path.file_name().and_then(|n| n.to_str()).is_some_and(|n| SKIP_DIRS.contains(&n));
+            let skip = path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .is_some_and(|n| SKIP_DIRS.contains(&n));
             if !skip {
                 found.extend(walk(root, &path)?);
             }
@@ -73,7 +95,10 @@ mod tests {
             fs::write(path, "x").unwrap();
         }
         let files = repo_files(dir.path()).unwrap();
-        assert_eq!(files, vec![PathBuf::from("docs/d.md"), PathBuf::from("src/a.rs")]);
+        assert_eq!(
+            files,
+            vec![PathBuf::from("docs/d.md"), PathBuf::from("src/a.rs")]
+        );
     }
 
     #[test]

@@ -28,21 +28,62 @@ struct CargoStep {
 }
 
 const FIRST_STEPS: [CargoStep; 3] = [
-    CargoStep { name: "fmt", args: &["fmt", "--all", "--check"], needs: None },
     CargoStep {
-        name: "clippy",
-        args: &["clippy", "--workspace", "--exclude", "sentinel-ui", "--all-targets", "--", "-D", "warnings"],
+        name: "fmt",
+        args: &["fmt", "--all", "--check"],
         needs: None,
     },
-    CargoStep { name: "nextest", args: &["nextest", "run", "--workspace", "--exclude", "sentinel-ui", "--no-tests=pass"], needs: None },
+    CargoStep {
+        name: "clippy",
+        args: &[
+            "clippy",
+            "--workspace",
+            "--exclude",
+            "sentinel-ui",
+            "--all-targets",
+            "--",
+            "-D",
+            "warnings",
+        ],
+        needs: None,
+    },
+    CargoStep {
+        name: "nextest",
+        args: &[
+            "nextest",
+            "run",
+            "--workspace",
+            "--exclude",
+            "sentinel-ui",
+            "--no-tests=pass",
+        ],
+        needs: None,
+    },
 ];
 
 const TOOL_STEPS: [CargoStep; 3] = [
-    CargoStep { name: "deny", args: &["deny", "check"], needs: None },
-    CargoStep { name: "machete", args: &["machete"], needs: None },
+    CargoStep {
+        name: "deny",
+        args: &["deny", "check"],
+        needs: None,
+    },
+    CargoStep {
+        name: "machete",
+        args: &["machete"],
+        needs: None,
+    },
     CargoStep {
         name: "clippy-wasm",
-        args: &["clippy", "-p", "sentinel-ui", "--target", "wasm32-unknown-unknown", "--", "-D", "warnings"],
+        args: &[
+            "clippy",
+            "-p",
+            "sentinel-ui",
+            "--target",
+            "wasm32-unknown-unknown",
+            "--",
+            "-D",
+            "warnings",
+        ],
         needs: Some("crates/sentinel-ui"),
     },
 ];
@@ -67,17 +108,28 @@ pub fn run_checks(root: &Path) -> Result<ExitCode> {
 /// `cargo xtask <name>`: one file check.
 pub fn run_one(name: &str, root: &Path) -> Result<ExitCode> {
     let Some((_, check)) = CHECKS.iter().find(|(n, _)| *n == name) else {
-        bail!("unknown command `{name}`. Use ci, checks, or one of: {}", names());
+        bail!(
+            "unknown command `{name}`. Use ci, checks, or one of: {}",
+            names()
+        );
     };
     let findings = check(root)?;
     for f in &findings {
         println!("{f}");
     }
-    summarize(&if findings.is_empty() { vec![] } else { vec![name] })
+    summarize(&if findings.is_empty() {
+        vec![]
+    } else {
+        vec![name]
+    })
 }
 
 fn names() -> String {
-    CHECKS.iter().map(|(n, _)| *n).collect::<Vec<_>>().join(", ")
+    CHECKS
+        .iter()
+        .map(|(n, _)| *n)
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 fn failed_checks(root: &Path) -> Result<Vec<&'static str>> {
@@ -87,7 +139,10 @@ fn failed_checks(root: &Path) -> Result<Vec<&'static str>> {
         for f in &findings {
             println!("{f}");
         }
-        println!("{name}: {}", if findings.is_empty() { "ok" } else { "FAILED" });
+        println!(
+            "{name}: {}",
+            if findings.is_empty() { "ok" } else { "FAILED" }
+        );
         if !findings.is_empty() {
             failed.push(name);
         }
@@ -100,7 +155,11 @@ fn run_cargo(step: &CargoStep, root: &Path) -> Result<bool> {
         println!("{}: skipped (not created yet)", step.name);
         return Ok(true);
     }
-    let ok = Command::new("cargo").args(step.args).current_dir(root).status()?.success();
+    let ok = Command::new("cargo")
+        .args(step.args)
+        .current_dir(root)
+        .status()?
+        .success();
     println!("{}: {}", step.name, if ok { "ok" } else { "FAILED" });
     Ok(ok)
 }

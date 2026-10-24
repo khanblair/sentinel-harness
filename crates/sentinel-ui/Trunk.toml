@@ -1,0 +1,12 @@
+[build]
+target = "index.html"
+dist = "dist"
+
+[serve]
+port = 8081
+# Send API and WebSocket calls to a local daemon started with --dev-bind.
+[[proxy]]
+backend = "http://127.0.0.1:7480/api"
+[[proxy]]
+backend = "ws://127.0.0.1:7480/ws"
+ws = true

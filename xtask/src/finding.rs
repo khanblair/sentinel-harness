@@ -19,13 +19,25 @@ impl Finding {
         line: usize,
         message: impl Into<String>,
     ) -> Self {
-        Self { check, path: path.into(), line, message: message.into() }
+        Self {
+            check,
+            path: path.into(),
+            line,
+            message: message.into(),
+        }
     }
 }
 
 impl fmt::Display for Finding {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}:{}: [{}] {}", self.path.display(), self.line, self.check, self.message)
+        write!(
+            f,
+            "{}:{}: [{}] {}",
+            self.path.display(),
+            self.line,
+            self.check,
+            self.message
+        )
     }
 }
 

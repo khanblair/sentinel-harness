@@ -1,5 +1,6 @@
 //! Shared types for the daemon and the UI. One definition, no schema drift.
 
+pub mod api;
 pub mod cost;
 pub mod error;
 pub mod event;
@@ -9,6 +10,7 @@ pub mod permission;
 pub mod quality;
 pub mod reservation;
 pub mod scope;
+pub mod snapshot;
 pub mod state;
 pub mod task;
 pub mod tool;
@@ -22,6 +24,10 @@ pub use permission::{Approval, ApprovalKind, ApprovalState, Capability, Permissi
 pub use quality::{QualityKind, QualityNote};
 pub use reservation::{Reservation, ReservationState};
 pub use scope::Scope;
+pub use snapshot::{
+    AgentCapabilities, AgentCost, CostSnapshot, DeviceInfo, DeviceKind, OnboardingState, RepoInfo,
+    Routing, RunInfo, Snapshot,
+};
 pub use state::{ConnectionState, Decision, DecisionState, HarnessState, TailscaleState};
 pub use task::{Dependency, DependencyKind, Task, TaskFlags, TaskStatus, Tier};
 pub use tool::{ToolInfo, ToolStatus};

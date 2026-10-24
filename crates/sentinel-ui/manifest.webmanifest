@@ -1,0 +1,10 @@
+{
+  "name": "Sentinel",
+  "short_name": "Sentinel",
+  "description": "Run many coding agents in one shared working tree.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#191919",
+  "theme_color": "#191919",
+  "icons": []
+}

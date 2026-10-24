@@ -28,7 +28,9 @@ fn main() -> ExitCode {
 fn run() -> Result<ExitCode> {
     let mut args = std::env::args().skip(1);
     let Some(cmd) = args.next() else {
-        bail!("usage: cargo xtask <ci|checks|slop-check|smell-check|dup-check|doc-check|ban-check|contrast-check> [--root DIR]");
+        bail!(
+            "usage: cargo xtask <ci|checks|slop-check|smell-check|dup-check|doc-check|ban-check|contrast-check> [--root DIR]"
+        );
     };
     let root = match (args.next().as_deref(), args.next()) {
         (Some("--root"), Some(dir)) => PathBuf::from(dir),
