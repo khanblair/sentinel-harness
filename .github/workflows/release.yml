@@ -111,19 +111,21 @@ jobs:
           packaging/macos/build-app.sh dist/sentinel "${{ steps.tag.outputs.version }}" \
             "${{ github.run_number }}" dist
 
+      # Notarize the app first and staple the ticket to it, so the copy inside the image also opens
+      # offline. Then the image is notarized too. The script prints Apple's log when Apple says no,
+      # and checks with Gatekeeper itself (spctl) that the result opens. A failure here fails the run.
+      - name: Notarize the app
+        if: env.APPLE_CERTIFICATE != '' && env.APPLE_ID != '' && env.APPLE_TEAM_ID != '' && env.APPLE_APP_PASSWORD != ''
+        run: packaging/macos/notarize.sh dist/Sentinel.app
+
       - name: Build the disk image
         env:
           SIGNING_IDENTITY: ${{ steps.cert.outputs.identity }}
         run: packaging/macos/make-dmg.sh dist/Sentinel.app "dist/Sentinel-${{ steps.tag.outputs.version }}.dmg"
 
-      - name: Notarize and staple
+      - name: Notarize the disk image
         if: env.APPLE_CERTIFICATE != '' && env.APPLE_ID != '' && env.APPLE_TEAM_ID != '' && env.APPLE_APP_PASSWORD != ''
-        run: |
-          dmg="dist/Sentinel-${{ steps.tag.outputs.version }}.dmg"
-          xcrun notarytool submit "$dmg" --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" \
-            --password "$APPLE_APP_PASSWORD" --wait
-          xcrun stapler staple "$dmg"
-          xcrun stapler validate "$dmg"
+        run: packaging/macos/notarize.sh "dist/Sentinel-${{ steps.tag.outputs.version }}.dmg"
 
       - name: Say what was built
         run: |

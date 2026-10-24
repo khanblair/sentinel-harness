@@ -99,6 +99,14 @@ Linux x86_64, macOS (Apple silicon and Intel), Windows x86_64. Hackathon build t
 
 ## Release Steps
 
+To install the latest release on a Mac, run the one-line installer:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/khanblair/sentinel-harness/main/install.sh | sh
+```
+
+`install.sh` downloads the .dmg with `curl`, checks its SHA-256 against the release, and copies Sentinel.app to /Applications (or to `SENTINEL_INSTALL_DIR`). A file fetched this way has no quarantine flag, so Gatekeeper does not block it, even though the build is ad hoc signed. It does not turn off any macOS protection.
+
 CI and releases run on GitHub, not on your computer. Do not run `cargo xtask ci` or a release build locally: it fills the disk (the build output reached 60 GB). Locally, run the tests of the crate you changed: `cargo nextest run -p CRATE`.
 
 1. Update `progress-tracker.md` and the changelog section there.
@@ -120,7 +128,9 @@ With no setup the .dmg is signed ad hoc: it works, but macOS blocks the first op
 | `APPLE_TEAM_ID` | The 10 character team id |
 | `APPLE_APP_PASSWORD` | An app-specific password for that Apple ID, made at appleid.apple.com |
 
-With the first two the app and image are signed with the hardened runtime. With all five the image is also notarized and stapled. The files are in `packaging/macos/`. Linux and Windows builds are not part of the release yet.
+With the first two the app and image are signed with the hardened runtime. With all five the image is also notarized and stapled. The files are in `packaging/macos/`: `build-app.sh` (app bundle and signature), `make-dmg.sh` (disk image), `notarize.sh` (sends the app and the image to Apple, staples the ticket, and fails the build if Gatekeeper would still reject the result), and `set-signing-secrets.sh` (run it in your own terminal: it checks the .p12 file and stores the five secrets with `gh secret set`, without printing them).
+
+To get the Developer ID certificate: in your Apple Developer account open Certificates, add a "Developer ID Application" certificate, open the downloaded .cer in Keychain Access, export it with its private key as a .p12 file, then run `packaging/macos/set-signing-secrets.sh path/to/file.p12` and `gh workflow run release.yml -f tag=v0.1.1`. Linux and Windows builds are not part of the release yet.
 
 ## Telegram Setup
 

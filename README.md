@@ -4,7 +4,17 @@ Sentinel runs many coding agents in one shared working tree without collisions. 
 
 Open the how-to site: <https://khanblair.github.io/sentinel-harness/>
 
-**Download for Mac:** [Sentinel 0.1.0 (.dmg)](https://github.com/khanblair/sentinel-harness/releases/latest) for Apple silicon and Intel. Open the image, drag Sentinel to Applications, and open it. The first build is signed ad hoc, so macOS blocks the first open. Click Done, then open System Settings, Privacy & Security, and choose Open Anyway (or run `xattr -dr com.apple.quarantine /Applications/Sentinel.app`).
+## Install on a Mac
+
+One command in Terminal:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/khanblair/sentinel-harness/main/install.sh | sh
+```
+
+It downloads the latest release, checks its SHA-256, and puts Sentinel in Applications. macOS opens it with no warning, because a file fetched with `curl` carries no quarantine flag. The script is short; read it first at [install.sh](install.sh) if you like.
+
+Or download the disk image by hand: [Sentinel .dmg](https://github.com/khanblair/sentinel-harness/releases/latest) (Apple silicon and Intel). A downloaded image is blocked the first time until the build is signed with a Developer ID certificate: click Done, open System Settings, Privacy & Security, and choose Open Anyway.
 
 ## What it does
 

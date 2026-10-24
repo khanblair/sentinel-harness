@@ -14,6 +14,7 @@
 sentinel/
   Cargo.toml              workspace members and shared dependency versions
   README.md               what Sentinel is and how to try it
+  install.sh              one-line installer for the latest macOS release
   Cargo.lock              pinned dependency versions, committed
   rustfmt.toml            format rules
   clippy.toml             lint thresholds
@@ -649,6 +650,8 @@ packaging/
   macos/Info.plist.in     the app's Info.plist, with the version and build number filled in
   macos/build-app.sh      builds Sentinel.app from the release binary and signs it
   macos/make-dmg.sh       puts the app in Sentinel.dmg with an Applications shortcut and signs it
+  macos/notarize.sh       notarizes and staples an app or image, and checks Gatekeeper accepts it
+  macos/set-signing-secrets.sh  stores the five Apple signing secrets on the repository from your terminal
 ```
 
 ## fixtures/ and tests/

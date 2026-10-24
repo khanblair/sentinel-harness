@@ -52,7 +52,9 @@ jobs:
         run: mdbook build site
       # The Try it page embeds the interactive prototype.
       - if: steps.site.outputs.present == 'true'
-        run: mkdir -p site/book/prototype && cp design/sentinel-prototype.html site/book/prototype/
+        run: |
+          mkdir -p site/book/prototype && cp design/sentinel-prototype.html site/book/prototype/
+          cp install.sh site/book/install.sh
       - if: steps.site.outputs.present == 'true'
         uses: actions/configure-pages@v5
       - if: steps.site.outputs.present == 'true'
