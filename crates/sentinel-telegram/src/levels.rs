@@ -40,7 +40,8 @@ pub enum Action {
     BrainSearch,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+/// How much of an event a chat gets. The order goes from least to most.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Detail {
     Status,
     Summary,
