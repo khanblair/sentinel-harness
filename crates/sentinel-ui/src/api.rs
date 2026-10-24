@@ -57,6 +57,32 @@ pub fn clear_token() {
     LocalStorage::delete(TOKEN_KEY);
 }
 
+/// The token in a `#t=TOKEN` fragment, if the fragment has one. `sentinel open` builds this link.
+pub fn token_from_fragment(fragment: &str) -> Option<String> {
+    let value = fragment.trim_start_matches('#').strip_prefix("t=")?;
+    (!value.is_empty() && !value.contains(['&', '=', ' '])).then(|| value.to_owned())
+}
+
+/// Keep a token from the address bar, then remove it from the address so it is not shared or
+/// bookmarked. The fragment never goes to the server.
+pub fn capture_token_from_url() {
+    let Some(window) = web_sys::window() else {
+        return;
+    };
+    let location = window.location();
+    let Some(token) = location
+        .hash()
+        .ok()
+        .and_then(|hash| token_from_fragment(&hash))
+    else {
+        return;
+    };
+    set_token(&token);
+    if let Ok(history) = window.history() {
+        let _ = history.replace_state_with_url(&wasm_bindgen::JsValue::NULL, "", Some("/"));
+    }
+}
+
 fn authorize(builder: RequestBuilder) -> RequestBuilder {
     match token() {
         Some(token) => builder.header("Authorization", &format!("Bearer {token}")),
@@ -129,4 +155,22 @@ pub async fn start_run(request: &RunRequest) -> Result<serde_json::Value, ApiFai
 
 pub async fn kill_task(task: &TaskId) -> Result<serde_json::Value, ApiFailure> {
     post_empty(&format!("/api/tasks/{task}/kill")).await
+}
+
+#[cfg(test)]
+mod fragment_tests {
+    use super::token_from_fragment;
+
+    #[test]
+    fn a_token_fragment_gives_the_token() {
+        assert_eq!(token_from_fragment("#t=abc123"), Some("abc123".to_owned()));
+    }
+
+    #[test]
+    fn other_fragments_give_nothing() {
+        assert_eq!(token_from_fragment(""), None);
+        assert_eq!(token_from_fragment("#t="), None);
+        assert_eq!(token_from_fragment("#x=abc"), None);
+        assert_eq!(token_from_fragment("#t=a&b=c"), None);
+    }
 }

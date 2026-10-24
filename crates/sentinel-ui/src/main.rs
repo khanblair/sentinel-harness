@@ -16,5 +16,6 @@ mod ws;
 
 fn main() {
     console_error_panic_hook::set_once();
+    api::capture_token_from_url();
     leptos::mount::mount_to_body(app::App);
 }

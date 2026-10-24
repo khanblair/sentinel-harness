@@ -12,7 +12,7 @@ use sentinel_daemon::cmd::SystemRunner;
 use sentinel_daemon::engine::{Engine, EngineOptions, FakeAgents};
 use sentinel_daemon::secrets::{EnvFallback, KeychainStore};
 
-fn repo_or_current(repo: Option<PathBuf>) -> Result<PathBuf> {
+pub(crate) fn repo_or_current(repo: Option<PathBuf>) -> Result<PathBuf> {
     let path = match repo {
         Some(path) => path,
         None => std::env::current_dir().context("could not read the current folder")?,
@@ -104,6 +104,10 @@ pub(crate) async fn run(
     print_summary(&engine, &repo)
 }
 
+#[expect(
+    clippy::wildcard_enum_match_arm,
+    reason = "the terminal shows only a few of the many event kinds"
+)]
 fn print_event(event: &Event) {
     match event {
         Event::WaveStarted { wave, tasks } => println!(
@@ -120,7 +124,7 @@ fn print_event(event: &Event) {
             reason,
         } => println!("{task}: {} - {reason}", status.label()),
         Event::WriteBlocked { path, restored, .. } => {
-            println!("blocked a write to {path} (restored: {restored})")
+            println!("blocked a write to {path} (restored: {restored})");
         }
         Event::BarrierEnd { wave, passed } => println!(
             "barrier {wave}: {}",

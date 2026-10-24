@@ -113,6 +113,15 @@ pub struct Popover {
     pub kind: PopoverKind,
 }
 
+/// The tabs open at the start: Board and Reserved on desktop, none elsewhere.
+fn default_tabs(layout: Layout) -> Vec<PanelId> {
+    if layout.panel_open_by_default() {
+        vec![PanelId::Board, PanelId::Reserved]
+    } else {
+        Vec::new()
+    }
+}
+
 impl Ui {
     pub fn new(layout: Layout, prefs: Prefs) -> Self {
         Self {
@@ -120,10 +129,10 @@ impl Ui {
             connection: RwSignal::new(Connection::Connecting),
             layout: RwSignal::new(layout),
             sidebar_open: RwSignal::new(layout.sidebar_open_by_default()),
-            panel_open: RwSignal::new(false),
+            panel_open: RwSignal::new(layout.panel_open_by_default()),
             panel_wide: RwSignal::new(false),
-            panel_tabs: RwSignal::new(Vec::new()),
-            active_panel: RwSignal::new(None),
+            panel_tabs: RwSignal::new(default_tabs(layout)),
+            active_panel: RwSignal::new(default_tabs(layout).first().copied()),
             focus: RwSignal::new(None),
             target: RwSignal::new(Target::Sentinel),
             modal: RwSignal::new(None),

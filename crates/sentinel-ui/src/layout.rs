@@ -33,6 +33,11 @@ impl Layout {
     pub fn sidebar_open_by_default(self) -> bool {
         self != Layout::Phone
     }
+
+    /// The right panel starts open with the Board and Reserved tabs on desktop only.
+    pub fn panel_open_by_default(self) -> bool {
+        self == Layout::Desktop
+    }
 }
 
 /// A panel that slides in beside the stream.
@@ -158,5 +163,17 @@ mod tests {
                 "board", "terminal", "changes", "reserved", "brain", "remote"
             ]
         );
+    }
+}
+
+#[cfg(test)]
+mod panel_default_tests {
+    use super::Layout;
+
+    #[test]
+    fn only_desktop_opens_the_panel_at_the_start() {
+        assert!(Layout::Desktop.panel_open_by_default());
+        assert!(!Layout::Tablet.panel_open_by_default());
+        assert!(!Layout::Phone.panel_open_by_default());
     }
 }
