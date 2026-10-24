@@ -5,11 +5,12 @@ use leptos::html;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use sentinel_core::api::{LowerCap, PermissionsUpdate, RunRequest, SetBrainMode};
-use sentinel_core::{BrainMode, HarnessState, PermissionMode, ToolId};
+use sentinel_core::{BrainMode, ChatId, HarnessState, PermissionMode, ToolId};
 use serde::Serialize;
 use web_sys::{HtmlElement, HtmlTextAreaElement, KeyboardEvent};
 
 use crate::api::{self, ApiFailure};
+use crate::chats::busy_notice;
 use crate::components::agent_stack::ready_agents;
 use crate::components::brain_chip::BrainChip;
 use crate::components::icon::Icon;
@@ -91,6 +92,31 @@ pub fn completed_text(name: &str) -> String {
 /// A run starts when no run is live. Any other state takes the message as an instruction.
 pub fn starts_run(state: HarnessState) -> bool {
     matches!(state, HarnessState::Idle | HarnessState::Done)
+}
+
+/// Where a sent message goes: a new run, a note to the live run, or nowhere because another chat
+/// holds the live run.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SendRoute {
+    StartRun,
+    NoteToAgents,
+    Busy,
+}
+
+/// The route for a message typed in `open`. `live_chat` is the chat of the run that is live, if
+/// any.
+pub fn send_route(
+    harness: HarnessState,
+    live_chat: Option<&ChatId>,
+    open: Option<&ChatId>,
+) -> SendRoute {
+    if starts_run(harness) {
+        SendRoute::StartRun
+    } else if live_chat.is_some_and(|live| Some(live) != open) {
+        SendRoute::Busy
+    } else {
+        SendRoute::NoteToAgents
+    }
 }
 
 #[component]
@@ -230,11 +256,24 @@ pub fn dispatch(ui: Ui, message: &str) {
 }
 
 fn send_message(ui: Ui, text: &str) {
-    let harness = ui.snapshot.with_untracked(|s| s.harness);
-    if starts_run(harness) {
-        launch(ui, None, Some(text.to_owned()));
-        return;
+    let open = ui.open_chat.get_untracked();
+    let (harness, live) = ui
+        .snapshot
+        .with_untracked(|s| (s.harness, s.run.as_ref().map(|run| run.chat.clone())));
+    match send_route(harness, live.as_ref(), open.as_ref()) {
+        SendRoute::StartRun => launch(ui, None, Some(text.to_owned())),
+        SendRoute::Busy => {
+            let notice = ui
+                .snapshot
+                .with_untracked(|s| busy_notice(s, live.as_ref()));
+            ui.show_toast(notice, ToastKind::Warn);
+        }
+        SendRoute::NoteToAgents => send_note(ui, text),
     }
+}
+
+/// Sends a message to the live run: to Sentinel, or to the agent the target chip chose.
+fn send_note(ui: Ui, text: &str) {
     let target = ui.target.get_untracked();
     let to = match &target {
         Target::Sentinel => None,
@@ -258,24 +297,28 @@ fn send_message(ui: Ui, text: &str) {
 /// Starts a run, optionally in plan-only mode, and optionally sends one instruction to Sentinel
 /// once the run has started.
 pub fn launch(ui: Ui, mode: Option<PermissionMode>, instruction: Option<String>) {
+    let chat = ui.open_chat.get_untracked();
     spawn_local(async move {
-        settle(ui, start_flow(mode, instruction).await);
+        settle(ui, start_flow(chat, mode, instruction).await);
     });
 }
 
+/// Starts a run in `chat` (a new chat when `None`). The instruction goes into the run request, so
+/// the planner reads it with the run.
 async fn start_flow(
+    chat: Option<ChatId>,
     mode: Option<PermissionMode>,
     instruction: Option<String>,
 ) -> Result<(), ApiFailure> {
     if let Some(mode) = mode {
         set_mode(mode).await?;
     }
-    api::start_run(&RunRequest::default()).await?;
-    if let Some(text) = instruction {
-        let request = MessageRequest { text, to: None };
-        api::post::<_, serde_json::Value>("/api/message", &request).await?;
-    }
-    Ok(())
+    let request = RunRequest {
+        chat,
+        text: instruction,
+        ..RunRequest::default()
+    };
+    api::start_run(&request).await.map(|_| ())
 }
 
 async fn set_mode(mode: PermissionMode) -> Result<serde_json::Value, ApiFailure> {
@@ -388,6 +431,46 @@ mod tests {
     fn a_bare_command_gets_a_space_and_a_full_one_does_not() {
         assert_eq!(completed_text("/report"), "/report ");
         assert_eq!(completed_text("/cap 1.50"), "/cap 1.50");
+    }
+
+    #[test]
+    fn a_message_starts_a_run_only_when_nothing_is_live() {
+        let chat = ChatId::new("c1");
+        assert_eq!(
+            send_route(HarnessState::Idle, None, Some(&chat)),
+            SendRoute::StartRun
+        );
+        assert_eq!(
+            send_route(HarnessState::Done, Some(&chat), Some(&chat)),
+            SendRoute::StartRun
+        );
+    }
+
+    #[test]
+    fn a_live_run_in_the_open_chat_takes_a_note() {
+        let chat = ChatId::new("c1");
+        assert_eq!(
+            send_route(HarnessState::Running, Some(&chat), Some(&chat)),
+            SendRoute::NoteToAgents
+        );
+        assert_eq!(
+            send_route(HarnessState::Paused, None, Some(&chat)),
+            SendRoute::NoteToAgents
+        );
+    }
+
+    #[test]
+    fn a_live_run_in_another_chat_is_busy() {
+        let live = ChatId::new("c1");
+        let open = ChatId::new("c2");
+        assert_eq!(
+            send_route(HarnessState::Running, Some(&live), Some(&open)),
+            SendRoute::Busy
+        );
+        assert_eq!(
+            send_route(HarnessState::Running, Some(&live), None),
+            SendRoute::Busy
+        );
     }
 
     #[test]

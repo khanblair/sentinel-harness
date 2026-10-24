@@ -5,7 +5,8 @@
 use std::collections::HashMap;
 
 use leptos::prelude::*;
-use sentinel_core::{Event, EventRecord, Snapshot, ToolId};
+use sentinel_core::chat::ChatChange;
+use sentinel_core::{ChatId, Event, EventRecord, Snapshot, ToolId};
 
 use crate::layout::{Layout, PanelId};
 use crate::prefs::Prefs;
@@ -79,6 +80,8 @@ pub struct Ui {
     /// Show only this agent in the stream.
     pub focus: RwSignal<Option<ToolId>>,
     pub target: RwSignal<Target>,
+    /// The chat the stream shows. `None` until the first snapshot picks one.
+    pub open_chat: RwSignal<Option<ChatId>>,
     pub modal: RwSignal<Option<Modal>>,
     pub toast: RwSignal<Option<Toast>>,
     pub prefs: RwSignal<Prefs>,
@@ -139,6 +142,7 @@ impl Ui {
             active_panel: RwSignal::new(default_tabs(layout).first().copied()),
             focus: RwSignal::new(None),
             target: RwSignal::new(Target::Sentinel),
+            open_chat: RwSignal::new(None),
             modal: RwSignal::new(None),
             toast: RwSignal::new(None),
             prefs: RwSignal::new(prefs),
@@ -153,6 +157,14 @@ impl Ui {
     pub fn apply_snapshot(&self, snapshot: Snapshot) {
         self.snapshot.set(snapshot);
         self.loaded.set(true);
+    }
+
+    /// Show a chat in the stream. On phone the sidebar drawer closes.
+    pub fn open(&self, id: ChatId) {
+        self.open_chat.set(Some(id));
+        if self.layout.get_untracked() == Layout::Phone {
+            self.sidebar_open.set(false);
+        }
     }
 
     /// Open a panel as a tab and show it.
@@ -182,7 +194,8 @@ impl Ui {
         }));
     }
 
-    /// Add a live event: it joins the stream list, and agent output joins the terminal buffer.
+    /// Add a live event. Agent output joins the terminal buffer. Every event moves the last
+    /// event id on, and only events of the open chat join the stream.
     pub fn ingest(&self, record: EventRecord) {
         if let Event::AgentOutput { agent, line, .. } = &record.event {
             self.terminal.update(|map| {
@@ -192,13 +205,38 @@ impl Ui {
                 lines.drain(..extra);
             });
         }
+        self.drop_deleted_open_chat(&record.event);
+        let open = self.open_chat.get_untracked();
+        let shown = belongs_to(record.chat.as_ref(), open.as_ref());
         self.snapshot.update(|snapshot| {
             snapshot.last_event_id = snapshot.last_event_id.max(record.id);
-            snapshot.events.push(record);
-            let extra = snapshot.events.len().saturating_sub(STREAM_EVENTS);
-            snapshot.events.drain(..extra);
+            if shown {
+                snapshot.events.push(record);
+                let extra = snapshot.events.len().saturating_sub(STREAM_EVENTS);
+                snapshot.events.drain(..extra);
+            }
         });
     }
+
+    /// A deleted chat cannot stay open. Clearing it makes the next reload pick another chat.
+    fn drop_deleted_open_chat(&self, event: &Event) {
+        if let Event::ChatChanged {
+            chat,
+            change: ChatChange::Deleted,
+        } = event
+        {
+            self.open_chat.update(|open| {
+                if open.as_ref() == Some(chat) {
+                    *open = None;
+                }
+            });
+        }
+    }
+}
+
+/// Whether an event shows in the stream of the open chat. An event with no chat shows everywhere.
+pub fn belongs_to(record_chat: Option<&ChatId>, open: Option<&ChatId>) -> bool {
+    record_chat.is_none_or(|chat| open == Some(chat))
 }
 
 pub fn provide_ui(ui: Ui) {
@@ -209,13 +247,34 @@ pub fn use_ui() -> Ui {
     expect_context::<Ui>()
 }
 
-/// Fetch a fresh snapshot and replace the current one. Call this after any change you sent to
-/// the daemon, and when the socket reconnects.
+/// Fetch a fresh snapshot of the open chat and replace the current one. Call this after any change
+/// sent to the daemon, and when the socket reconnects.
 pub fn refresh(ui: Ui) {
-    leptos::task::spawn_local(async move {
-        match crate::api::snapshot().await {
-            Ok(snapshot) => ui.apply_snapshot(snapshot),
-            Err(error) => ui.show_toast(error.to_string(), ToastKind::Danger),
-        }
-    });
+    crate::ws::reload(ui);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn id(text: &str) -> ChatId {
+        ChatId::new(text)
+    }
+
+    #[test]
+    fn an_event_with_no_chat_shows_in_every_stream() {
+        assert!(belongs_to(None, Some(&id("c1"))));
+        assert!(belongs_to(None, None));
+    }
+
+    #[test]
+    fn an_event_of_the_open_chat_shows() {
+        assert!(belongs_to(Some(&id("c1")), Some(&id("c1"))));
+    }
+
+    #[test]
+    fn an_event_of_another_chat_stays_out_of_the_stream() {
+        assert!(!belongs_to(Some(&id("c1")), Some(&id("c2"))));
+        assert!(!belongs_to(Some(&id("c1")), None));
+    }
 }

@@ -3,13 +3,14 @@
 
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use sentinel_core::{Cost, HarnessState, Snapshot};
+use sentinel_core::{Cost, HarnessState};
 
 use crate::api::{self, ApiFailure};
+use crate::chats::chat_title;
 use crate::components::agent_stack::AgentStack;
 use crate::components::icon::Icon;
 use crate::components::popover::toggle_popover;
-use crate::components::sidebar::{RunStatus, is_live, runs_from};
+use crate::components::sidebar::is_live;
 use crate::layout::{Layout, PanelId};
 use crate::state::{self, Align, PopoverKind, ToastKind, Ui, use_ui};
 
@@ -43,15 +44,6 @@ pub fn cost_chip_class(percent: u8) -> &'static str {
     }
 }
 
-/// The run title: the live run when there is one, else the latest run, else a fallback.
-pub fn run_title(snapshot: &Snapshot) -> String {
-    let rows = runs_from(snapshot);
-    rows.iter()
-        .find(|row| matches!(row.status, RunStatus::Running | RunStatus::Paused))
-        .or_else(|| rows.last())
-        .map_or_else(|| "No run yet".to_owned(), |row| row.title.clone())
-}
-
 /// Sends a POST with an empty body and then refreshes the snapshot or shows the error.
 pub fn post_action(ui: Ui, path: String) {
     spawn_local(async move {
@@ -81,9 +73,12 @@ pub fn TopBar() -> impl IntoView {
                     </button>
                 })
             }}
-            <button class="title-btn" id="titleBtn" aria-label="Run menu"
+            <button class="title-btn" id="titleBtn" aria-label="Chat menu"
                 on:click=move |_| toggle_popover(ui, "titleBtn", Align::Left, PopoverKind::Title)>
-                <span>{move || ui.snapshot.with(run_title)}</span>
+                <span>{move || {
+                    let open = ui.open_chat.get();
+                    ui.snapshot.with(|snapshot| chat_title(snapshot, open.as_ref()))
+                }}</span>
                 <Icon name="down" size=14 />
             </button>
             <AgentStack />
@@ -177,6 +172,7 @@ fn PanelIcons() -> impl IntoView {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sentinel_core::{ChatId, Snapshot};
 
     #[test]
     fn cost_chip_turns_warn_at_seventy_percent_and_danger_at_ninety_five() {
@@ -193,7 +189,28 @@ mod tests {
     }
 
     #[test]
-    fn run_title_falls_back_when_no_run_exists() {
-        assert_eq!(run_title(&Snapshot::empty()), "No run yet");
+    fn the_title_falls_back_to_new_chat_when_no_chat_is_open() {
+        assert_eq!(chat_title(&Snapshot::empty(), None), "New chat");
+    }
+
+    #[test]
+    fn the_title_is_the_open_chat_title() {
+        let snapshot = Snapshot {
+            chats: vec![sentinel_core::ChatInfo {
+                id: ChatId::new("c1"),
+                project: "api".to_owned(),
+                title: "Fees".to_owned(),
+                pinned: false,
+                archived: false,
+                created_at: time::OffsetDateTime::UNIX_EPOCH,
+                updated_at: time::OffsetDateTime::UNIX_EPOCH,
+                run: sentinel_core::ChatRunState::Idle,
+                verified: 0,
+                total: 0,
+                needs_you: false,
+            }],
+            ..Snapshot::empty()
+        };
+        assert_eq!(chat_title(&snapshot, Some(&ChatId::new("c1"))), "Fees");
     }
 }

@@ -9,11 +9,12 @@ use gloo_net::websocket::futures::WebSocket;
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use sentinel_core::Event;
 use sentinel_core::api::{ClientFrame, ServerFrame};
+use sentinel_core::{ChatId, Event, Snapshot};
 use time::{Duration, OffsetDateTime};
 
 use crate::api::{self, ApiFailure};
+use crate::chats::pick_open_chat;
 use crate::state::{Connection, Toast, ToastKind, Ui};
 
 /// Bursts of events make one reload: the reload waits this long after the last event.
@@ -59,14 +60,32 @@ pub fn connect(ui: Ui) {
     });
 }
 
-/// Fetches the snapshot and replaces the current one. A 401 means this device is not paired.
+/// Fetches the snapshot of the open chat and replaces the current one. A 401 means this device is
+/// not paired.
 pub fn reload(ui: Ui) {
+    let asked = ui.open_chat.get_untracked();
     spawn_local(async move {
-        match api::snapshot().await {
-            Ok(snapshot) => ui.apply_snapshot(snapshot),
+        match api::snapshot_for(asked.as_ref()).await {
+            Ok(snapshot) => adopt(ui, asked.as_ref(), snapshot),
             Err(failure) => report_failure(ui, &failure),
         }
     });
+}
+
+/// Applies a snapshot fetched for `asked`. When the chat the page should show differs (none was
+/// open, or it is gone), it stores the new choice and fetches again for that chat. An answer for a
+/// chat the user has left is dropped, because a newer fetch for the open chat is on its way.
+fn adopt(ui: Ui, asked: Option<&ChatId>, snapshot: Snapshot) {
+    if ui.open_chat.get_untracked().as_ref() != asked {
+        return;
+    }
+    let chosen = pick_open_chat(&snapshot, asked);
+    if chosen.as_ref() == asked {
+        ui.apply_snapshot(snapshot);
+    } else {
+        ui.open_chat.set(chosen);
+        reload(ui);
+    }
 }
 
 fn report_failure(ui: Ui, failure: &ApiFailure) {

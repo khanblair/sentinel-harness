@@ -5,8 +5,8 @@ use std::fmt;
 
 use gloo_net::http::{Request, RequestBuilder, Response};
 use gloo_storage::{LocalStorage, Storage};
-use sentinel_core::api::{ApiError, RunRequest};
-use sentinel_core::{Snapshot, TaskId};
+use sentinel_core::api::{AddAttachment, ApiError, CreateChat, RunRequest, UpdateChat};
+use sentinel_core::{Attachment, AttachmentId, ChatId, ChatInfo, Snapshot, TaskId};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
@@ -147,6 +147,51 @@ pub async fn post_empty<T: DeserializeOwned>(path: &str) -> Result<T, ApiFailure
 
 pub async fn snapshot() -> Result<Snapshot, ApiFailure> {
     get("/api/state").await
+}
+
+/// The snapshot for `chat`: its stream events come with it. Without a chat the daemon picks the
+/// live run's chat, or else the first chat that is not archived.
+pub async fn snapshot_for(chat: Option<&ChatId>) -> Result<Snapshot, ApiFailure> {
+    match chat {
+        Some(id) => get(&format!("/api/state?chat={}", id.as_str())).await,
+        None => snapshot().await,
+    }
+}
+
+pub async fn list_chats() -> Result<Vec<ChatInfo>, ApiFailure> {
+    get("/api/chats").await
+}
+
+pub async fn create_chat(title: Option<String>) -> Result<ChatInfo, ApiFailure> {
+    post("/api/chats", &CreateChat { title }).await
+}
+
+pub async fn update_chat(id: &ChatId, update: &UpdateChat) -> Result<ChatInfo, ApiFailure> {
+    send("PUT", &chat_path(id), update).await
+}
+
+pub async fn delete_chat(id: &ChatId) -> Result<serde_json::Value, ApiFailure> {
+    send("DELETE", &chat_path(id), &serde_json::json!({})).await
+}
+
+fn chat_path(id: &ChatId) -> String {
+    format!("/api/chats/{}", id.as_str())
+}
+
+pub async fn pending_attachments(chat: &ChatId) -> Result<Vec<Attachment>, ApiFailure> {
+    get(&format!("{}/attachments", chat_path(chat))).await
+}
+
+pub async fn add_attachment(chat: &ChatId, body: &AddAttachment) -> Result<Attachment, ApiFailure> {
+    post(&format!("{}/attachments", chat_path(chat)), body).await
+}
+
+pub async fn remove_attachment(
+    chat: &ChatId,
+    attachment: &AttachmentId,
+) -> Result<serde_json::Value, ApiFailure> {
+    let path = format!("{}/attachments/{}", chat_path(chat), attachment.as_str());
+    send("DELETE", &path, &serde_json::json!({})).await
 }
 
 pub async fn start_run(request: &RunRequest) -> Result<serde_json::Value, ApiFailure> {
