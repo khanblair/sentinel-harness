@@ -111,7 +111,10 @@ fn start(ctx: &RunCtx, task: &Task, tool: &ToolInfo) -> Result<()> {
     let guard_dir = engine.repo_path().join(".sentinel/guard");
     write_guard_files(&guard_dir, &task.id, &task.scope)
         .map_err(|e| EngineError::Invalid(e.to_string()))?;
-    ctx.budget.set_ceiling(&task.id, default_ceiling(task.tier));
+    // A tool that reports its cost only at the end is charged by the clock at its own tier's rate,
+    // so the ceiling must be at least that tier's, or the guess trips it before the tool reports.
+    ctx.budget
+        .set_ceiling(&task.id, default_ceiling(task.tier.max(tool.tier)));
     Ok(())
 }
 

@@ -312,7 +312,18 @@ pub(crate) async fn run_for_text(engine: &Engine, job: TextJob<'_>) -> String {
         timeout: Duration::from_secs(180),
     };
     let outcome = job.worker.run(spec, control).await;
-    outcome.output_tail.join("\n")
+    answer_text(&outcome.output_tail.join("\n"))
+}
+
+/// The answer in a tool's output. A tool run with a JSON output format (claude) wraps its answer
+/// in an object with a `result` text. Anything else is the plain output.
+fn answer_text(output: &str) -> String {
+    output
+        .lines()
+        .rev()
+        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line.trim()).ok())
+        .find_map(|value| value.get("result")?.as_str().map(str::to_owned))
+        .unwrap_or_else(|| output.to_owned())
 }
 
 #[cfg(test)]
@@ -372,5 +383,17 @@ mod tests {
             Some(ToolId::new("openrouter"))
         );
         assert_eq!(route_for_tier(&[], Tier::Smart), None);
+    }
+
+    #[test]
+    fn a_json_envelope_gives_its_result_text() {
+        let output = r#"{"type":"result","result":"{\"tasks\":[]}","total_cost_usd":0.01}"#;
+        assert_eq!(answer_text(output), r#"{"tasks":[]}"#);
+    }
+
+    #[test]
+    fn plain_output_stays_as_it_is() {
+        assert_eq!(answer_text("line one\nline two"), "line one\nline two");
+        assert_eq!(answer_text(r#"{"tasks":[]}"#), r#"{"tasks":[]}"#);
     }
 }
