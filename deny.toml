@@ -6,6 +6,14 @@ all-features = true
 [advisories]
 version = 2
 yanked = "deny"
+# Unmaintained crates that come in through other crates. None is a known vulnerability. Recheck
+# when leptos and the keyring crate move on (see docs/progress-tracker.md, Notes for Later).
+ignore = [
+    { id = "RUSTSEC-2024-0436", reason = "paste is a build-time macro crate used by the UI framework" },
+    { id = "RUSTSEC-2026-0370", reason = "zvariant_derive comes in through the Linux secret service keychain client" },
+    { id = "RUSTSEC-2026-0371", reason = "zbus_names comes in through the Linux secret service keychain client" },
+    { id = "RUSTSEC-2026-0372", reason = "zvariant comes in through the Linux secret service keychain client" },
+]
 
 [licenses]
 version = 2
@@ -23,11 +31,13 @@ allow = [
     "0BSD",
     "CDLA-Permissive-2.0",
     "OpenSSL",
+    "BSL-1.0",
 ]
 
 [bans]
 multiple-versions = "warn"
 wildcards = "deny"
+allow-wildcard-paths = true
 deny = [
     # Hackathon rule: no prebuilt multi-agent orchestration framework.
     { crate = "rig-core" },
@@ -41,8 +51,8 @@ deny = [
     { crate = "openssl" },
     { crate = "openssl-sys" },
     { crate = "native-tls" },
-    # Superseded by std::sync::LazyLock.
-    { crate = "lazy_static" },
+    # Superseded by std::sync::LazyLock. Only the test mock server (wiremock, through deadpool) uses it.
+    { crate = "lazy_static", wrappers = ["deadpool"] },
 ]
 
 [sources]

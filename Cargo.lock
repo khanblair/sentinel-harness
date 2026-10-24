@@ -3398,7 +3398,6 @@ name = "sentinel-gate"
 version = "0.1.0"
 dependencies = [
  "sentinel-core",
- "thiserror 2.0.21",
  "time",
 ]
 
@@ -3450,7 +3449,6 @@ dependencies = [
  "serde_json",
  "tempfile",
  "thiserror 2.0.21",
- "time",
  "tokio",
 ]
 
@@ -3470,7 +3468,6 @@ dependencies = [
  "serde_json",
  "time",
  "wasm-bindgen",
- "wasm-bindgen-futures",
  "web-sys",
 ]
 
@@ -3478,11 +3475,8 @@ dependencies = [
 name = "sentinel-verify"
 version = "0.1.0"
 dependencies = [
- "futures",
  "insta",
  "sentinel-core",
- "serde",
- "serde_json",
  "tempfile",
  "thiserror 2.0.21",
  "time",
@@ -3496,14 +3490,11 @@ dependencies = [
  "futures",
  "sentinel-core",
  "serde",
- "serde_json",
  "tempfile",
  "thiserror 2.0.21",
  "time",
  "tokio",
- "tokio-util",
  "toml",
- "tracing",
  "which",
 ]
 

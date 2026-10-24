@@ -8,7 +8,6 @@ license.workspace = true
 
 [dependencies]
 sentinel-core = { path = "../sentinel-core" }
-thiserror = { workspace = true }
 time = { workspace = true }
 
 [lints]
