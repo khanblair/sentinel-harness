@@ -1,6 +1,8 @@
 //! A reverted checkpoint puts files back and keeps history append only.
-#![allow(clippy::unwrap_used, reason = "test helpers fail the test by panicking")]
-
+#![allow(
+    clippy::unwrap_used,
+    reason = "test helpers fail the test by panicking"
+)]
 
 use std::fs;
 use std::path::Path;
