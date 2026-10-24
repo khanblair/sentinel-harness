@@ -65,7 +65,11 @@ async fn delete_skill(
     .await
 }
 
-async fn found_skills(State(engine): State<Engine>) -> ApiResult<Vec<FoundSkill>> {
+/// The folders it reads are on this computer, and the answer names their paths: the computer only.
+async fn found_skills(
+    State(engine): State<Engine>,
+    Computer(_): Computer,
+) -> ApiResult<Vec<FoundSkill>> {
     blocking(engine, Engine::found_skills).await
 }
 

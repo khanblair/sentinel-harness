@@ -147,6 +147,15 @@ pub const ROUTES: &[Route] = &[
         r#"{"frequency":{"every":"off"},"budget":"1.00","auto_apply":false,"last_run":null}"#,
     ),
     Route::post("/api/brain/care/run", Access::Computer),
+    Route::get("/api/skills", Access::Any),
+    Route::post("/api/skills", Access::Computer)
+        .json(r#"{"name":"house-style","description":"Rules for this repository.","body":"Be short.","scope":"project"}"#),
+    Route::get("/api/skills/found", Access::Computer),
+    Route::post("/api/skills/import", Access::Computer)
+        .json(r#"{"path":"/nowhere","scope":"project"}"#),
+    Route::get("/api/skills/nope", Access::Any),
+    Route::put("/api/skills/nope", Access::Any).json(r#"{"mode":"off"}"#),
+    Route::delete("/api/skills/nope", Access::Computer),
     Route::post("/api/quit", Access::Computer),
     Route::get("/api/routines", Access::Any),
     Route::post("/api/routines", Access::Computer).json(
