@@ -32,7 +32,10 @@ pub fn TelegramCard() -> impl IntoView {
             <div class="card" style="margin-bottom:.8em">
                 <CardHeader ctx />
                 <p class="sub" style="margin:.4em 0">{EXPLAIN}</p>
-                <Show when=move || !has_bot(ctx) fallback=move || view! { <BotFound ctx /> }>
+                <Show when=move || has_bot(ctx) fallback=|| ()>
+                    <BotFound ctx />
+                </Show>
+                <Show when=move || !has_chat(ctx) fallback=|| ()>
                     <SetupForm ctx />
                 </Show>
             </div>
@@ -74,19 +77,22 @@ fn SetupSteps() -> impl IntoView {
     }
 }
 
-/// The token and user ID fields, and the button that saves and checks them.
+/// The token and user ID fields, and the button that saves and checks them. The token field and
+/// the steps show only while no bot is saved. After a revoke the user ID alone re-pairs the chat.
 #[component]
 fn SetupForm(ctx: TelegramCtx) -> impl IntoView {
     let token_input = NodeRef::<html::Input>::new();
     let user_input = NodeRef::<html::Input>::new();
     view! {
-        <SetupSteps />
-        <div class="fld col" style="border:0;padding:.3em 0">
-            <label class="sub" for="tgToken">"Bot token"</label>
-            <input class="field" id="tgToken" type="password" autocomplete="off"
-                placeholder="123456789:ABCdefGhIJKlmNoPQRsTUVwxyz" node_ref=token_input
-                disabled=move || ctx.locked() />
-        </div>
+        <Show when=move || !has_bot(ctx) fallback=|| ()>
+            <SetupSteps />
+            <div class="fld col" style="border:0;padding:.3em 0">
+                <label class="sub" for="tgToken">"Bot token"</label>
+                <input class="field" id="tgToken" type="password" autocomplete="off"
+                    placeholder="123456789:ABCdefGhIJKlmNoPQRsTUVwxyz" node_ref=token_input
+                    disabled=move || ctx.locked() />
+            </div>
+        </Show>
         <div class="fld col" style="border:0;padding:.3em 0">
             <label class="sub" for="tgUid">"Your Telegram user ID"</label>
             <input class="field" id="tgUid" inputmode="numeric" autocomplete="off"
@@ -111,7 +117,11 @@ fn BotFound(ctx: TelegramCtx) -> impl IntoView {
         <div class="row wrap" style="margin-top:.5em">
             <span class="row" style="color:var(--ok)">
                 <Icon name="check" size=15 />
-                <span>"Bot " <b>{bot}</b> " found. The token is in the OS keychain. Allowed user ID: " <span class="k">{user}</span> "."</span>
+                <span>"Bot " <b>{bot}</b> " found. The token is in the OS keychain."
+                    <Show when=move || user_id_of(ctx).is_some() fallback=|| ()>
+                        " Allowed user ID: " <span class="k">{user}</span> "."
+                    </Show>
+                </span>
             </span>
             <span style="flex:1"></span>
             <button class="btn sm dng" disabled=move || ctx.locked() || user_id_of(ctx).is_none()
@@ -188,6 +198,14 @@ fn has_bot(ctx: TelegramCtx) -> bool {
         .with(|s| s.as_ref().is_some_and(|s| s.token_saved))
 }
 
+/// A chat is paired or waiting for `/start`. Without one, the user ID form shows.
+fn has_chat(ctx: TelegramCtx) -> bool {
+    ctx.state.with(|s| {
+        s.as_ref()
+            .is_some_and(|s| s.connected || s.waiting_for_start)
+    })
+}
+
 fn bot_of(ctx: TelegramCtx) -> String {
     ctx.state.with(|s| {
         s.as_ref()
@@ -209,34 +227,44 @@ fn chat_title(ctx: TelegramCtx) -> String {
     }
 }
 
-/// Reads the two fields once. The token leaves the input here and the field is cleared before
-/// the request starts. The token is not kept in any signal or log.
+/// Reads the fields once. The token leaves the input here and the field is cleared before the
+/// request starts. The token is not kept in any signal or log. With a bot already saved there is
+/// no token field, and only the user ID is sent.
 fn submit_token(
     ctx: TelegramCtx,
     token_input: NodeRef<html::Input>,
     user_input: NodeRef<html::Input>,
 ) {
-    let (Some(token_field), Some(user_field)) = (token_input.get(), user_input.get()) else {
+    let Some(user_field) = user_input.get() else {
         return;
     };
-    let token = token_field.value().trim().to_owned();
-    if token.is_empty() {
-        ctx.ui
-            .show_toast("Paste the bot token from BotFather.", ToastKind::Warn);
-        return;
-    }
-    let user_text = user_field.value();
-    let Some(user_id) = valid_user_id(user_text.trim()) else {
+    let Some(user_id) = valid_user_id(user_field.value().trim()) else {
         ctx.ui.show_toast(
             "Enter your Telegram user ID. It is a number, not your @username.",
             ToastKind::Warn,
         );
         return;
     };
-    token_field.set_value("");
+    let token_field = token_input.get();
+    let token = token_field
+        .as_ref()
+        .map(|field| field.value().trim().to_owned())
+        .unwrap_or_default();
+    if token.is_empty() && !has_bot(ctx) {
+        ctx.ui
+            .show_toast("Paste the bot token from BotFather.", ToastKind::Warn);
+        return;
+    }
+    if let Some(field) = token_field {
+        field.set_value("");
+    }
     spawn_local(async move {
-        let result = telegram::save_and_check(token, user_id).await;
-        finish(ctx, result, "Bot found. Send /start to it in Telegram.");
+        let result = if token.is_empty() {
+            telegram::connect(user_id).await
+        } else {
+            telegram::save_and_check(token, user_id).await
+        };
+        finish(ctx, result, "Send /start to the bot in Telegram.");
     });
 }
 

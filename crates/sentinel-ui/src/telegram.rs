@@ -226,11 +226,17 @@ pub async fn save_settings(update: &SettingsUpdate) -> Result<TelegramState, Api
 /// keeps the token in the keychain and never sends it back.
 pub async fn save_and_check(token: String, user_id: i64) -> Result<TelegramState, ApiFailure> {
     let _: TokenSaved = api::post("/api/telegram/token", &TokenOut { token: &token }).await?;
-    let connect = ConnectOut {
+    connect(user_id).await
+}
+
+/// Waits for `/start` from `user_id` with the token already saved. The daemon checks the saved
+/// token again, so this works after a revoke too.
+pub async fn connect(user_id: i64) -> Result<TelegramState, ApiFailure> {
+    let body = ConnectOut {
         token: None,
         user_id,
     };
-    api::post("/api/telegram/connect", &connect).await
+    api::post("/api/telegram/connect", &body).await
 }
 
 pub async fn send_test() -> Result<serde_json::Value, ApiFailure> {
