@@ -2,7 +2,7 @@
 
 ## What it is
 
-Sentinel runs several coding agents on one repository, keeps them out of each other's files, and shows the whole run in one stream.
+Sentinel is a coding tool you talk to. You open a chat in a project and say what you want built. Sentinel runs several coding agents on one repository, keeps them out of each other's files, and shows the whole run in one stream.
 
 ## Steps
 
@@ -22,6 +22,7 @@ Use Plan only until you trust the plan Sentinel makes.
 ## Related
 
 - [Get started](get-started/index.md)
+- [Chats](using/chats/index.md)
 - [Try the prototype](try-it/index.md)
 - [Remote](remote/index.md)
 - [Brain](brain/index.md)

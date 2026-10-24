@@ -6,14 +6,15 @@ Shortcuts and slash commands run controls without the mouse.
 
 ## Steps
 
-1. Press Ctrl+K on Windows or Linux, or Cmd+K on macOS, to open the command palette. It finds agents, panels, and settings.
-2. Type a slash command in the composer:
+1. Press Ctrl + Shift + O on Windows or Linux, or Cmd + Shift + O on macOS, to open a new chat in the project.
+2. Press Ctrl+K on Windows or Linux, or Cmd+K on macOS, to open the command palette. It finds chats, agents, panels, and settings.
+3. Type a slash command in the composer:
    - `/pause`, `/resume`, and `/stop` control the run.
    - `/cap` sets the cap. It can lower the cap, never raise it.
    - `/agent` sends a message to one agent. `/focus` shows one agent's output. `/kill` stops one agent.
    - `/plan` and `/report` open those views.
    - `/brain` opens the Brain. `/help` shows the command list.
-3. Press Tab to move focus in reading order. The focus outline is always visible.
+4. Press Tab to move focus in reading order. The focus outline is always visible.
 
 ## Screenshot
 

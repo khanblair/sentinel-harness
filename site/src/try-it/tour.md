@@ -9,7 +9,7 @@ The guided tour points at seven parts of the run screen, one stop at a time, wit
 1. Open the tour from the prototype toolbar. You can replay it later from Settings.
 2. Move to the next stop with the keyboard, or with a swipe on a touch screen.
 3. Read each stop in order:
-   - The run list.
+   - The chat list.
    - The agent switcher.
    - The panel icons.
    - The stream.
