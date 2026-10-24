@@ -11,6 +11,7 @@ mod chats;
 mod components;
 mod dry_run;
 mod guide;
+mod host;
 mod icons;
 mod layout;
 mod palette;
