@@ -13,8 +13,10 @@ use time::format_description::well_known::Rfc3339;
 use time::{OffsetDateTime, UtcOffset};
 
 pub mod approvals;
+pub mod attachments;
 pub mod barriers;
 pub mod capabilities;
+pub mod chats;
 pub mod checkpoints;
 pub mod decisions;
 pub mod devices;
@@ -29,6 +31,7 @@ pub mod tools;
 pub mod verifications;
 
 pub use barriers::BarrierRecord;
+pub use chats::ChatRecord;
 pub use checkpoints::CheckpointRecord;
 pub use devices::{Device, DeviceKind};
 pub use runs::RunRecord;
@@ -91,6 +94,7 @@ fn migrations() -> Migrations<'static> {
     Migrations::new(vec![
         M::up(include_str!("migrations/0001_init.sql")),
         M::up(include_str!("migrations/0002_extras.sql")),
+        M::up(include_str!("migrations/0003_chats.sql")),
     ])
 }
 

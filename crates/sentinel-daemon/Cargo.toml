@@ -17,6 +17,7 @@ sentinel-tree = { path = "../sentinel-tree" }
 sentinel-verify = { path = "../sentinel-verify" }
 sentinel-workers = { path = "../sentinel-workers" }
 axum = { workspace = true }
+base64 = { workspace = true }
 futures = { workspace = true }
 hex = { workspace = true }
 keyring = { workspace = true, features = ["v1"] }

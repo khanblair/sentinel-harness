@@ -211,6 +211,7 @@ mod tests {
 
     fn record(id: i64, event: Event) -> EventRecord {
         EventRecord {
+            chat: None,
             id,
             at: OffsetDateTime::UNIX_EPOCH,
             event,

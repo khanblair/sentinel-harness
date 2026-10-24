@@ -233,6 +233,7 @@ mod tests {
     #[test]
     fn spend_points_come_from_cost_updates_only() {
         let events = vec![EventRecord {
+            chat: None,
             id: 1,
             at: time::OffsetDateTime::UNIX_EPOCH,
             event: Event::CostUpdate {

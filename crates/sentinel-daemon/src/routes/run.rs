@@ -41,9 +41,10 @@ pub(super) fn routes() -> Router<Engine> {
 
 async fn start_run(
     State(engine): State<Engine>,
+    caller: Caller,
     Json(request): Json<RunRequest>,
 ) -> ApiResult<RunInfo> {
-    Ok(Json(engine.start_run(request).await?))
+    Ok(Json(engine.start_run_as(request, &caller).await?))
 }
 
 async fn pause(State(engine): State<Engine>) -> ApiResult<Value> {

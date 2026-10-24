@@ -2,6 +2,7 @@
 //! Errors leave as `ApiError` bodies. Blocking store work runs off the async runtime.
 
 mod access;
+mod chats;
 mod run;
 mod setup;
 mod state;
@@ -134,9 +135,15 @@ pub fn public_routes() -> Router<Engine> {
         .merge(access::public())
 }
 
+/// The routes that carry file bytes and need a device token. They get their own body limit.
+pub fn upload_routes() -> Router<Engine> {
+    chats::upload_routes()
+}
+
 /// The routes that need a device token.
 pub fn protected_routes() -> Router<Engine> {
     Router::new()
+        .merge(chats::routes())
         .merge(state::routes())
         .merge(run::routes())
         .merge(access::routes())

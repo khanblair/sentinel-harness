@@ -75,6 +75,7 @@ mod tests {
 
     fn note_for(task: &str) -> EventRecord {
         EventRecord {
+            chat: None,
             id: 1,
             at: OffsetDateTime::UNIX_EPOCH,
             event: Event::QualityNote {

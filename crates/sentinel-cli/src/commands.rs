@@ -86,7 +86,7 @@ pub(crate) async fn run(
     engine
         .start_run(RunRequest {
             backlog: Some(backlog.to_owned()),
-            task: None,
+            ..RunRequest::default()
         })
         .await?;
     loop {

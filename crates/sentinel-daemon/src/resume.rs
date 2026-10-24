@@ -4,11 +4,12 @@
 
 use std::sync::Arc;
 
-use sentinel_core::{ApprovalState, Event, HarnessState, TaskId, TaskStatus};
+use sentinel_core::{ApprovalState, ChatId, Event, HarnessState, TaskId, TaskStatus};
 use sentinel_tree::{Checkpoint, Git, restore_path};
 use time::OffsetDateTime;
 use time::format_description::well_known::Rfc3339;
 
+use crate::controls::Caller;
 use crate::engine::{Engine, EngineError, Result, lock};
 use crate::run_ctx::RunCtx;
 use crate::wave::barrier_and_verify;
@@ -16,6 +17,8 @@ use crate::wave::barrier_and_verify;
 /// The setting that holds the start time of a run that has not finished. It is removed when the
 /// run closes out, so a value left behind means the daemon stopped in the middle.
 const LIVE_KEY: &str = "run.live";
+/// The chat of the run that has not finished.
+const CHAT_KEY: &str = "run.chat";
 
 impl Engine {
     /// When the interrupted run started, or `None` when the last run finished or never planned.
@@ -36,12 +39,30 @@ impl Engine {
         Ok(planned.then_some(started))
     }
 
-    pub(crate) fn mark_run_live(&self, started: OffsetDateTime) -> Result<()> {
+    pub(crate) fn mark_run_live(&self, started: OffsetDateTime, chat: &ChatId) -> Result<()> {
         let text = started
             .format(&Rfc3339)
             .map_err(|e| EngineError::Invalid(e.to_string()))?;
         self.store().set_setting(LIVE_KEY, &text)?;
+        self.store().set_setting(CHAT_KEY, chat.as_str())?;
         Ok(())
+    }
+
+    /// The chat of the interrupted run. A store from before chats has none, so a chat is made.
+    pub(crate) fn interrupted_chat(&self) -> Result<ChatId> {
+        let saved = self
+            .store()
+            .get_setting(CHAT_KEY)?
+            .filter(|id| !id.is_empty());
+        if let Some(id) = saved {
+            let id = ChatId::new(id);
+            if self.store().get_chat(&id)?.is_some() {
+                return Ok(id);
+            }
+        }
+        Ok(self
+            .create_chat(Some("Earlier runs"), &Caller::pc("Sentinel"))?
+            .id)
     }
 
     pub(crate) fn clear_run_live(&self) {

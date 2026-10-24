@@ -7,8 +7,7 @@
 )]
 
 use std::fs;
-use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -21,6 +20,9 @@ use sentinel_core::state::TailscaleState;
 use sentinel_daemon::cmd::{CmdOutput, CommandRunner, SystemRunner};
 use sentinel_daemon::engine::{Engine, EngineOptions, FakeAgents};
 use sentinel_daemon::secrets::MemoryStore;
+
+mod common;
+use common::{copy_dir, git, repo_root};
 use sentinel_daemon::server::{self, ServerOptions};
 use sentinel_daemon::tailscale::{self, BindError, BindMode};
 use serde_json::{Value, json};
@@ -42,13 +44,6 @@ impl CommandRunner for TailnetRunner {
             }
         })
     }
-}
-
-fn repo_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../..")
-        .canonicalize()
-        .unwrap()
 }
 
 fn engine_in(repo: &Path) -> Engine {
@@ -361,32 +356,6 @@ fn two_task_repo() -> tempfile::TempDir {
     git(dir.path(), &["add", "-A"]);
     git(dir.path(), &["commit", "-m", "start"]);
     dir
-}
-
-fn copy_dir(from: &Path, to: &Path) {
-    fs::create_dir_all(to).unwrap();
-    for entry in fs::read_dir(from).unwrap() {
-        let entry = entry.unwrap();
-        let target = to.join(entry.file_name());
-        if entry.file_type().unwrap().is_dir() {
-            copy_dir(&entry.path(), &target);
-        } else {
-            fs::copy(entry.path(), target).unwrap();
-        }
-    }
-}
-
-fn git(dir: &Path, args: &[&str]) {
-    let output = Command::new("git")
-        .current_dir(dir)
-        .args(args)
-        .output()
-        .unwrap();
-    assert!(
-        output.status.success(),
-        "git {args:?}: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]

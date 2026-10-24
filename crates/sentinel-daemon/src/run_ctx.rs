@@ -17,6 +17,7 @@ use tokio::sync::watch;
 
 use crate::config::Config;
 use crate::engine::{Engine, lock};
+use crate::run_source::RunSource;
 
 /// What a run remembers between attempts of one task.
 #[derive(Default)]
@@ -43,6 +44,8 @@ pub(crate) struct RunCtx {
     pub memory: Arc<Mutex<RunMemory>>,
     pub reviewer: Arc<dyn DiffReviewer>,
     pub suite_dir: PathBuf,
+    /// Where the run came from: the chat, the backlog or words, and the attached context.
+    pub source: RunSource,
     /// True when this run picks up a run that stopped without finishing.
     pub resuming: bool,
     /// Checkpoints share one private git index, so only one may stage, write, and commit at a time.

@@ -7,9 +7,10 @@ use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 
+use crate::chat::ChatInfo;
 use crate::cost::Cost;
 use crate::event::EventRecord;
-use crate::ids::{DeviceId, RunId, ToolId};
+use crate::ids::{ChatId, DeviceId, RunId, ToolId};
 use crate::note::BrainMode;
 use crate::permission::{Approval, Capability, PermissionMode};
 use crate::reservation::Reservation;
@@ -87,6 +88,8 @@ pub struct RepoInfo {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RunInfo {
     pub id: RunId,
+    /// The chat that started the run.
+    pub chat: ChatId,
     pub backlog: String,
     pub wave: u32,
     #[serde(with = "time::serde::rfc3339")]
@@ -107,6 +110,8 @@ pub struct Snapshot {
     pub harness: HarnessState,
     pub repo: Option<RepoInfo>,
     pub run: Option<RunInfo>,
+    /// The chats of the project: pinned first, newest first, archived ones last.
+    pub chats: Vec<ChatInfo>,
     pub tasks: Vec<Task>,
     pub dependencies: Vec<Dependency>,
     /// Granted and waiting reservations only.
@@ -140,6 +145,7 @@ impl Snapshot {
             harness: HarnessState::Idle,
             repo: None,
             run: None,
+            chats: Vec::new(),
             tasks: Vec::new(),
             dependencies: Vec::new(),
             reservations: Vec::new(),

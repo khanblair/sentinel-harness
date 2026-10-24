@@ -229,6 +229,7 @@ mod tests {
 
     fn output(id: i64, task: &str, agent: &str, line: &str) -> EventRecord {
         EventRecord {
+            chat: None,
             id,
             at: OffsetDateTime::UNIX_EPOCH,
             event: Event::AgentOutput {

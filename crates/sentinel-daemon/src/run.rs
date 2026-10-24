@@ -3,47 +3,56 @@
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 
 use sentinel_core::api::RunRequest;
-use sentinel_core::{Event, HarnessState, RunId, RunInfo, TaskId, ToolId};
+use sentinel_core::{ChatId, Event, HarnessState, RunId, RunInfo, TaskId, ToolId};
 use sentinel_gate::ApprovalBook;
 use sentinel_reserve::Scheduler;
 use sentinel_tree::{Git, GuardOptions, start_guard};
 use sentinel_verify::verifier::DiffReviewer;
 use sentinel_workers::Budget;
-use sentinel_workers::budget::BudgetEvent;
 use sentinel_workers::context::ContextLimits;
 use time::OffsetDateTime;
 use tokio::sync::{mpsc, watch};
 
 use crate::close_out::finish;
 use crate::config::Config;
+use crate::controls::Caller;
 use crate::engine::{Engine, EngineError, Result, lock};
 use crate::plan_phase::plan_phase;
+use crate::pumps::{budget_pump, forward_guard_events};
 use crate::resume::{restored_git, resume_phase};
 use crate::reviewer::{AgentReviewer, ScopeReviewer};
 use crate::run_ctx::{RunCtx, RunMemory, RunPolicy};
+use crate::run_source::RunSource;
 use crate::wave::{WaveEnd, run_wave};
 
 /// A run longer than this many waves is a bug, not a big backlog.
 const MAX_WAVES: u32 = 200;
-const PUMP_INTERVAL: Duration = Duration::from_millis(500);
 
 impl Engine {
     /// Start a run in the background. Returns as soon as it is started: the stream and the
     /// snapshot show the rest.
     pub async fn start_run(&self, request: RunRequest) -> Result<RunInfo> {
-        self.check_can_start().await?;
+        self.start_run_as(request, &Caller::pc("You")).await
+    }
+
+    /// Like `start_run`, naming who asked, so the stream shows their words under their name.
+    pub async fn start_run_as(&self, request: RunRequest, caller: &Caller) -> Result<RunInfo> {
+        self.check_can_start(request.chat.as_ref()).await?;
         let resume = self.interrupted_since()?;
-        let (ctx, stop_tx) = self.prepare_run(&request, resume)?;
-        let (guard_tx, guard_rx) = mpsc::unbounded_channel();
+        let source = match resume {
+            Some(_) => RunSource::resumed(self.interrupted_chat()?),
+            None => self.resolve_source(&request)?,
+        };
+        let (ctx, stop_tx) = self.prepare_run(source, resume)?;
         let run_info = lock(&self.inner.live)
             .run
             .clone()
             .ok_or_else(|| EngineError::Invalid("run not registered".to_owned()))?;
         if resume.is_none() {
-            self.mark_run_live(run_info.started_at)?;
+            self.mark_run_live(run_info.started_at, &run_info.chat)?;
+            self.announce_request(&ctx.source, caller)?;
             self.emit(&Event::RunStarted {
                 run: run_info.id.clone(),
                 backlog: run_info.backlog.clone(),
@@ -54,23 +63,28 @@ impl Engine {
         } else {
             HarnessState::Running
         });
-        let guard = start_guard(
-            ctx.git.clone(),
-            Arc::new(RunPolicy {
-                scheduler: ctx.scheduler.clone(),
-            }),
-            guard_tx,
-            GuardOptions::default(),
-        )
-        .map_err(|e| EngineError::Invalid(e.to_string()))?;
-        tokio::spawn(forward_guard_events(self.clone(), guard_rx));
-        tokio::spawn(budget_pump(
-            self.clone(),
-            ctx.budget.clone(),
-            ctx.stop.clone(),
-        ));
-        tokio::spawn(run_main(ctx, request, guard, stop_tx));
+        self.launch(ctx, request, stop_tx)?;
         Ok(run_info)
+    }
+
+    /// Start the write guard, the budget pump, and the run loop in the background.
+    fn launch(
+        &self,
+        ctx: Arc<RunCtx>,
+        request: RunRequest,
+        stop_tx: watch::Sender<bool>,
+    ) -> Result<()> {
+        let (guard_tx, guard_rx) = mpsc::unbounded_channel();
+        let policy = Arc::new(RunPolicy {
+            scheduler: ctx.scheduler.clone(),
+        });
+        let guard = start_guard(ctx.git.clone(), policy, guard_tx, GuardOptions::default())
+            .map_err(|e| EngineError::Invalid(e.to_string()))?;
+        tokio::spawn(forward_guard_events(self.clone(), guard_rx));
+        let budget = ctx.budget.clone();
+        tokio::spawn(budget_pump(self.clone(), budget, ctx.stop.clone()));
+        tokio::spawn(run_main(ctx, request, guard, stop_tx));
+        Ok(())
     }
 
     /// A run needs no live run, and at least one agent that is on and ready.
@@ -84,8 +98,11 @@ impl Engine {
         )
     }
 
-    async fn check_can_start(&self) -> Result<()> {
+    async fn check_can_start(&self, chat: Option<&ChatId>) -> Result<()> {
         if self.is_run_live() {
+            if let Some(chat) = chat {
+                self.refuse_if_another_chat_is_live(chat)?;
+            }
             return Err(EngineError::Refused("A run is already live.".to_owned()));
         }
         if self.store().list_tools()?.is_empty() {
@@ -144,16 +161,19 @@ impl Engine {
 
     fn new_run_info(
         &self,
-        request: &RunRequest,
+        source: &RunSource,
         config: &Config,
         resume: Option<OffsetDateTime>,
     ) -> RunInfo {
+        let backlog = match (&source.words, &source.backlog) {
+            (Some(_), _) => "your message".to_owned(),
+            (None, Some(name)) => name.clone(),
+            (None, None) => config.backlog.clone(),
+        };
         RunInfo {
             id: RunId::generate(),
-            backlog: request
-                .backlog
-                .clone()
-                .unwrap_or_else(|| config.backlog.clone()),
+            chat: source.chat.clone(),
+            backlog,
             wave: 0,
             started_at: resume.unwrap_or_else(|| self.now()),
         }
@@ -181,7 +201,7 @@ impl Engine {
 
     fn prepare_run(
         &self,
-        request: &RunRequest,
+        source: RunSource,
         resume: Option<OffsetDateTime>,
     ) -> Result<(Arc<RunCtx>, watch::Sender<bool>)> {
         let config = self.config();
@@ -196,7 +216,7 @@ impl Engine {
         let (stop_tx, stop_rx) = watch::channel(false);
         let memory = Arc::new(Mutex::new(RunMemory::default()));
         let reviewer = self.reviewer_for(&memory, &stop_rx, &budget);
-        let run_info = self.new_run_info(request, &config, resume);
+        let run_info = self.new_run_info(&source, &config, resume);
         let ctx = Arc::new(RunCtx {
             engine: self.clone(),
             git,
@@ -211,6 +231,7 @@ impl Engine {
             memory,
             reviewer,
             suite_dir: repo.join(".sentinel/logs"),
+            source,
             checkpoint_lock: Mutex::new(()),
             resuming: resume.is_some(),
         });
@@ -281,55 +302,6 @@ impl Engine {
             .cloned()
             .ok_or_else(|| EngineError::NotFound(format!("a running task for {agent}")))?;
         self.kill_task(&task)
-    }
-}
-
-/// Events from the write guard thread become stream events.
-async fn forward_guard_events(engine: Engine, mut events: mpsc::UnboundedReceiver<Event>) {
-    while let Some(event) = events.recv().await {
-        engine.emit_quiet(&event);
-    }
-}
-
-/// The supervisor records spend without knowing about the stream. This turns budget events and
-/// cost changes into events every half second.
-async fn budget_pump(engine: Engine, budget: Arc<Budget>, mut stop: watch::Receiver<bool>) {
-    let mut last = None;
-    while !*stop.borrow() {
-        for event in budget.drain_events() {
-            engine.emit_quiet(&budget_event(event));
-        }
-        let spent = budget.spent();
-        if last != Some(spent) {
-            engine.emit_quiet(&Event::CostUpdate {
-                total: spent,
-                cap: budget.cap(),
-            });
-            last = Some(spent);
-        }
-        tokio::select! {
-            () = tokio::time::sleep(PUMP_INTERVAL) => {}
-            _ = stop.changed() => {}
-        }
-    }
-    for event in budget.drain_events() {
-        engine.emit_quiet(&budget_event(event));
-    }
-}
-
-fn budget_event(event: BudgetEvent) -> Event {
-    match event {
-        BudgetEvent::Threshold70 => Event::BudgetThreshold { percent: 70 },
-        BudgetEvent::Threshold95 => Event::BudgetThreshold { percent: 95 },
-        BudgetEvent::CeilingHit {
-            task,
-            cost,
-            ceiling,
-        } => Event::TaskCeilingHit {
-            task,
-            cost,
-            ceiling,
-        },
     }
 }
 

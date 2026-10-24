@@ -104,6 +104,7 @@ mod tests {
 
     fn output(task: &str, agent: &str, id: i64) -> EventRecord {
         EventRecord {
+            chat: None,
             id,
             at: OffsetDateTime::UNIX_EPOCH,
             event: Event::AgentOutput {

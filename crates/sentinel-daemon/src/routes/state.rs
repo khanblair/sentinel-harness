@@ -29,9 +29,9 @@ pub fn page_limit(requested: Option<usize>) -> usize {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct PageQuery {
-    after: Option<i64>,
-    limit: Option<usize>,
+pub(super) struct PageQuery {
+    pub(super) after: Option<i64>,
+    pub(super) limit: Option<usize>,
 }
 
 #[derive(Debug, Serialize)]
@@ -67,8 +67,21 @@ pub(super) fn routes() -> Router<Engine> {
         .route("/api/connections", get(connections))
 }
 
-async fn get_state(State(engine): State<Engine>) -> ApiResult<Snapshot> {
-    blocking(engine, Engine::snapshot).await
+#[derive(Debug, Deserialize)]
+struct StateQuery {
+    /// The chat whose stream events the snapshot carries.
+    chat: Option<String>,
+}
+
+async fn get_state(
+    State(engine): State<Engine>,
+    Query(query): Query<StateQuery>,
+) -> ApiResult<Snapshot> {
+    blocking(engine, move |e| {
+        let chat = query.chat.map(sentinel_core::ChatId::new);
+        e.snapshot_for(chat.as_ref())
+    })
+    .await
 }
 
 async fn events(

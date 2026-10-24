@@ -373,6 +373,7 @@ mod tests {
 
     fn record(id: i64, event: Event) -> EventRecord {
         EventRecord {
+            chat: None,
             id,
             at: OffsetDateTime::UNIX_EPOCH,
             event,
@@ -422,6 +423,7 @@ mod tests {
             harness: HarnessState::Running,
             run: Some(RunInfo {
                 id: RunId::new("r1"),
+                chat: sentinel_core::ChatId::new("c1"),
                 backlog: "backlog.md".to_owned(),
                 wave: 1,
                 started_at: OffsetDateTime::UNIX_EPOCH,

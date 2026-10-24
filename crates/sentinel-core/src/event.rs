@@ -5,8 +5,9 @@
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 
+use crate::chat::{AttachmentRef, ChatChange};
 use crate::cost::Cost;
-use crate::ids::{ApprovalId, DeviceId, NoteId, RunId, TaskId, ToolId};
+use crate::ids::{ApprovalId, ChatId, DeviceId, NoteId, RunId, TaskId, ToolId};
 use crate::note::LessonState;
 use crate::permission::{Approval, ApprovalState, PermissionMode};
 use crate::quality::QualityNote;
@@ -41,6 +42,16 @@ pub enum Event {
         total: u32,
     },
     ReportReady,
+    /// A chat was created, renamed, pinned, archived, or deleted.
+    ChatChanged {
+        chat: ChatId,
+        #[serde(flatten)]
+        change: ChatChange,
+    },
+    /// The attachments that went with the message just before this event.
+    AttachmentsSent {
+        attachments: Vec<AttachmentRef>,
+    },
     /// Text in the stream: a user instruction, a Sentinel note, or a message to one agent.
     Message {
         from: String,
@@ -201,6 +212,9 @@ impl Event {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct EventRecord {
     pub id: i64,
+    /// The chat the event belongs to. Events of no chat, such as a tool scan, have none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub chat: Option<ChatId>,
     #[serde(with = "time::serde::rfc3339")]
     pub at: OffsetDateTime,
     pub event: Event,
@@ -209,6 +223,31 @@ pub struct EventRecord {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_chat_change_event_round_trips_through_json() {
+        let event = Event::ChatChanged {
+            chat: ChatId::new("c1"),
+            change: ChatChange::Renamed {
+                title: "Rate limit".to_owned(),
+            },
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("\"kind\":\"ChatChanged\""), "{json}");
+        assert!(json.contains("\"change\":\"renamed\""), "{json}");
+        assert_eq!(serde_json::from_str::<Event>(&json).unwrap(), event);
+    }
+
+    #[test]
+    fn an_event_record_without_a_chat_omits_the_field() {
+        let record = EventRecord {
+            id: 1,
+            chat: None,
+            at: OffsetDateTime::UNIX_EPOCH,
+            event: Event::HostHeartbeat,
+        };
+        assert!(!serde_json::to_string(&record).unwrap().contains("chat"));
+    }
 
     #[test]
     fn kind_is_the_variant_name() {

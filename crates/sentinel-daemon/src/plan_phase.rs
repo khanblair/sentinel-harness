@@ -18,6 +18,7 @@ use sentinel_store::VerificationRecord;
 use crate::ask::{ask_approval, ask_decision};
 use crate::engine::{EngineError, Result, lock};
 use crate::run_ctx::RunCtx;
+use crate::run_source::{backlog_path, with_context, words_item};
 
 /// What the plan phase found.
 pub(crate) struct PlanOutcome {
@@ -59,12 +60,16 @@ fn count(n: usize) -> u32 {
 }
 
 fn read_items(ctx: &RunCtx, request: &RunRequest) -> Result<Vec<BacklogItem>> {
+    let source = &ctx.source;
+    if let Some(words) = &source.words {
+        return Ok(with_context(vec![words_item(words)], &source.context));
+    }
     let engine = &ctx.engine;
-    let name = request
+    let name = source
         .backlog
         .clone()
         .unwrap_or_else(|| ctx.config.backlog.clone());
-    let path = resolve(&engine.repo_path(), &name);
+    let path = resolve(&engine.repo_path(), &backlog_path(&name)?);
     let text = fs::read_to_string(&path).map_err(|e| {
         EngineError::Invalid(format!(
             "Could not read the backlog {}: {e}",
@@ -78,7 +83,7 @@ fn read_items(ctx: &RunCtx, request: &RunRequest) -> Result<Vec<BacklogItem>> {
             return Err(EngineError::NotFound(format!("task {only} in the backlog")));
         }
     }
-    Ok(items)
+    Ok(with_context(items, &source.context))
 }
 
 fn resolve(repo: &Path, name: &str) -> PathBuf {

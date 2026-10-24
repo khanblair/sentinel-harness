@@ -18,6 +18,9 @@ use crate::ws;
 /// The largest request body the API takes. Bigger bodies get `413`.
 pub const BODY_LIMIT_BYTES: usize = 1024 * 1024;
 
+/// The body limit of the routes that carry an uploaded file (1 MB of bytes, as base64 in JSON).
+pub const UPLOAD_BODY_LIMIT_BYTES: usize = 2 * 1024 * 1024;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ServerOptions {
     pub port: u16,
@@ -61,16 +64,18 @@ pub async fn bind(engine: Engine, options: &ServerOptions) -> Result<BoundServer
 
 /// The whole app. Only the routes that are not public pass through the device check.
 pub fn router(engine: Engine) -> Router {
-    let protected = routes::protected_routes().route_layer(middleware::from_fn_with_state(
+    let small = routes::protected_routes().layer(RequestBodyLimitLayer::new(BODY_LIMIT_BYTES));
+    let big = routes::upload_routes().layer(RequestBodyLimitLayer::new(UPLOAD_BODY_LIMIT_BYTES));
+    let protected = small.merge(big).route_layer(middleware::from_fn_with_state(
         engine.clone(),
         auth::require_device,
     ));
+    let public = routes::public_routes().layer(RequestBodyLimitLayer::new(BODY_LIMIT_BYTES));
     Router::new()
-        .merge(routes::public_routes())
+        .merge(public)
         .merge(protected)
         .route("/ws", get(ws::upgrade))
         .fallback(assets::serve)
         .layer(middleware::from_fn(auth::check_origin))
-        .layer(RequestBodyLimitLayer::new(BODY_LIMIT_BYTES))
         .with_state(engine)
 }

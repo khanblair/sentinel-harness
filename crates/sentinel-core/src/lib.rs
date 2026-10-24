@@ -1,6 +1,7 @@
 //! Shared types for the daemon and the UI. One definition, no schema drift.
 
 pub mod api;
+pub mod chat;
 pub mod cost;
 pub mod error;
 pub mod event;
@@ -15,10 +16,14 @@ pub mod state;
 pub mod task;
 pub mod tool;
 
+pub use chat::{Attachment, AttachmentKind, AttachmentRef, ChatChange, ChatInfo, ChatRunState};
 pub use cost::Cost;
 pub use error::CoreError;
 pub use event::{Event, EventRecord};
-pub use ids::{ApprovalId, DecisionId, DeviceId, NoteId, ReservationId, RunId, TaskId, ToolId};
+pub use ids::{
+    ApprovalId, AttachmentId, ChatId, DecisionId, DeviceId, NoteId, ReservationId, RunId, TaskId,
+    ToolId,
+};
 pub use note::{BrainMode, LessonState, NoteType, ProposalKind};
 pub use permission::{Approval, ApprovalKind, ApprovalState, Capability, PermissionMode};
 pub use quality::{QualityKind, QualityNote};

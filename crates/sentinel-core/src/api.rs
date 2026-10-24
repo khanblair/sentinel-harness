@@ -3,8 +3,9 @@
 
 use serde::{Deserialize, Serialize};
 
+use crate::chat::AttachmentKind;
 use crate::event::EventRecord;
-use crate::ids::{DeviceId, TaskId};
+use crate::ids::{AttachmentId, ChatId, DeviceId, TaskId};
 use crate::note::BrainMode;
 use crate::permission::PermissionMode;
 use crate::snapshot::{AgentCapabilities, Routing};
@@ -23,6 +24,52 @@ pub struct RunRequest {
     pub backlog: Option<String>,
     /// Run only this task.
     pub task: Option<TaskId>,
+    /// The chat the run belongs to. A chat is made when this is `None`.
+    #[serde(default)]
+    pub chat: Option<ChatId>,
+    /// What the user asked for in plain words. The planner turns it into tasks.
+    #[serde(default)]
+    pub text: Option<String>,
+    /// Attachments of the chat that go with this request.
+    #[serde(default)]
+    pub attachments: Vec<AttachmentId>,
+}
+
+/// `POST /api/chats`.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct CreateChat {
+    /// A title. Empty means "New chat" until the first message names it.
+    #[serde(default)]
+    pub title: Option<String>,
+}
+
+/// `PUT /api/chats/:id`. Every field is optional. Only what is present changes.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct UpdateChat {
+    #[serde(default)]
+    pub title: Option<String>,
+    #[serde(default)]
+    pub pinned: Option<bool>,
+    #[serde(default)]
+    pub archived: Option<bool>,
+}
+
+/// `POST /api/chats/:id/attachments`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AddAttachment {
+    pub kind: AttachmentKind,
+    /// A repository path, for a file, folder, or backlog.
+    #[serde(default)]
+    pub path: Option<String>,
+    /// The text of a note.
+    #[serde(default)]
+    pub text: Option<String>,
+    /// The file name of an upload.
+    #[serde(default)]
+    pub name: Option<String>,
+    /// The bytes of an upload, base64.
+    #[serde(default)]
+    pub content_base64: Option<String>,
 }
 
 /// `POST /api/cap/lower`. There is no route that raises the cap.

@@ -8,8 +8,8 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use sentinel_core::{
-    AgentCost, CostSnapshot, DeviceInfo, Event, EventRecord, HarnessState, RepoInfo, Snapshot,
-    TailscaleState, ToolId,
+    AgentCost, ChatId, CostSnapshot, DeviceInfo, Event, EventRecord, HarnessState, RepoInfo,
+    Snapshot, TailscaleState, ToolId,
 };
 use sentinel_store::{Store, StoreError};
 use time::OffsetDateTime;
@@ -111,6 +111,8 @@ impl Engine {
             }),
         };
         engine.refresh_repo();
+        engine.adopt_old_events()?;
+        engine.ensure_a_chat()?;
         engine.note_crash_on_open();
         Ok(engine)
     }
@@ -155,7 +157,14 @@ impl Engine {
 
     /// Store an event, append it to `.sentinel/log.jsonl`, and send it to every device.
     pub fn emit(&self, event: &Event) -> Result<EventRecord> {
-        let record = self.inner.store.append_event(event, self.now())?;
+        // Everything a run says belongs to the chat that started it.
+        let chat = self.live_chat();
+        self.emit_in(chat.as_ref(), event)
+    }
+
+    /// Like `emit`, for an event that belongs to a given chat (or to none).
+    pub fn emit_in(&self, chat: Option<&ChatId>, event: &Event) -> Result<EventRecord> {
+        let record = self.inner.store.append_event_in(chat, event, self.now())?;
         self.append_log(&record);
         // Nobody listening is fine: the event is already stored.
         let _ = self.inner.bus.send(record.clone());
@@ -215,6 +224,12 @@ impl Engine {
     }
 
     pub fn snapshot(&self) -> Result<Snapshot> {
+        self.snapshot_for(None)
+    }
+
+    /// The snapshot with the stream events of one chat. With no chat given, the chat that owns
+    /// the live run, else the chat changed last.
+    pub fn snapshot_for(&self, chat: Option<&ChatId>) -> Result<Snapshot> {
         let store = &self.inner.store;
         let config = self.config();
         let live = self.live_summary();
@@ -245,13 +260,30 @@ impl Engine {
         snapshot.onboarding = onboarding::load(store)?;
         snapshot.hackathon_mode = config.hackathon_mode;
         snapshot.settings = settings_for_ui(&config);
-        self.fill_events(&mut snapshot)?;
+        snapshot.chats = self.list_chats()?;
+        self.fill_events(&mut snapshot, chat)?;
         Ok(snapshot)
     }
 
-    fn fill_events(&self, snapshot: &mut Snapshot) -> Result<()> {
+    fn fill_events(&self, snapshot: &mut Snapshot, chat: Option<&ChatId>) -> Result<()> {
+        let open = chat.cloned().or_else(|| {
+            let live = snapshot.run.as_ref().map(|run| run.chat.clone());
+            live.or_else(|| {
+                snapshot
+                    .chats
+                    .iter()
+                    .find(|c| !c.archived)
+                    .map(|c| c.id.clone())
+            })
+        });
         snapshot.last_event_id = self.inner.store.last_event_id()?;
-        snapshot.events = self.inner.store.recent_stream_events(SNAPSHOT_EVENTS)?;
+        snapshot.events = match open {
+            Some(id) => self
+                .inner
+                .store
+                .recent_chat_stream_events(&id, SNAPSHOT_EVENTS)?,
+            None => self.inner.store.recent_stream_events(SNAPSHOT_EVENTS)?,
+        };
         Ok(())
     }
 

@@ -63,6 +63,28 @@ string_id!(
     /// One Brain note.
     NoteId
 );
+string_id!(
+    /// One chat: a conversation with Sentinel in a project.
+    ChatId
+);
+string_id!(
+    /// One attachment added with the composer plus button.
+    AttachmentId
+);
+
+impl ChatId {
+    /// A fresh random id.
+    pub fn generate() -> Self {
+        Self::new(uuid::Uuid::new_v4().to_string())
+    }
+}
+
+impl AttachmentId {
+    /// A fresh random id.
+    pub fn generate() -> Self {
+        Self::new(uuid::Uuid::new_v4().to_string())
+    }
+}
 
 impl RunId {
     /// A fresh random id.
