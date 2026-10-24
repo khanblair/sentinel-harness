@@ -35,7 +35,7 @@ petgraph = "0.8.3"
 proptest = "1.12.0"
 qrcode = { version = "0.14.1", default-features = false, features = ["svg"] }
 reqwest = { version = "0.13.5", features = ["json"] }
-rfd = "0.17.2"
+rfd = { version = "0.17.2", default-features = false, features = ["xdg-portal"] }
 rmcp = "3.7.0"
 rusqlite = { version = "0.40.0", features = ["bundled"] }
 rusqlite_migration = "2.6.0"
