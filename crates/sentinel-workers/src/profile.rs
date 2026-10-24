@@ -110,11 +110,7 @@ impl Profile {
         } else {
             spec.model.as_str()
         };
-        let args = self
-            .args
-            .iter()
-            .map(|arg| fill_placeholders(arg, model, spec))
-            .collect();
+        let args = drop_empty_model(&self.args, model, spec);
         let stdin = match self.prompt_via {
             PromptVia::Arg => None,
             PromptVia::Stdin => Some(spec.prompt.clone()),
@@ -176,6 +172,22 @@ impl Profile {
         env.push((AGENT_ENV.to_string(), spec.agent.to_string()));
         env
     }
+}
+
+/// Fill the placeholders. With no model at all, an argument that is only `{model}` goes away with
+/// the flag before it, so the tool picks its own default instead of getting an empty `--model`.
+fn drop_empty_model(args: &[String], model: &str, spec: &RunSpec) -> Vec<String> {
+    let mut out: Vec<String> = Vec::with_capacity(args.len());
+    for arg in args {
+        if model.is_empty() && arg == MODEL_PLACEHOLDER {
+            if out.last().is_some_and(|last| last.starts_with('-')) {
+                out.pop();
+            }
+            continue;
+        }
+        out.push(fill_placeholders(arg, model, spec));
+    }
+    out
 }
 
 fn fill_placeholders(arg: &str, model: &str, spec: &RunSpec) -> String {
@@ -279,6 +291,21 @@ mod tests {
         .unwrap();
         let command = profile.command_line(&run_spec(""), Path::new("/bin/fake"));
         assert_eq!(command.args, ["fake/default-1", "fix the test"]);
+    }
+
+    #[test]
+    fn an_empty_model_drops_its_flag_and_keeps_the_rest() {
+        let profile = Profile::parse(&profile_text(
+            "binary = \"fake\"\nargs = [\"-p\", \"{prompt}\", \"--model\", \"{model}\", \"--auto\"]",
+        ))
+        .unwrap();
+        let none = profile.command_line(&run_spec(""), Path::new("/bin/fake"));
+        assert_eq!(none.args, ["-p", "fix the test", "--auto"]);
+        let some = profile.command_line(&run_spec("haiku"), Path::new("/bin/fake"));
+        assert_eq!(
+            some.args,
+            ["-p", "fix the test", "--model", "haiku", "--auto"]
+        );
     }
 
     #[test]
