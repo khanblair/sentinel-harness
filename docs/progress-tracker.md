@@ -70,7 +70,7 @@ Add the rows for later phases when a phase starts. Copy IDs from [build-plan.md]
 | D2 | No git worktrees. One shared working tree with reserved files | Worktrees cost disk and hide what is happening |
 | D3 | Name is Sentinel | Chosen by the owner |
 | D4 | Phone shows the whole harness over Tailscale as a PWA | Full control away from the desk, no cloud |
-| D5 | Daemon auto-detects agent CLIs on the PC (claude, codex, opencode, gemini, agy, deepseek, mcode, others) | No hand-written setup |
+| D5 | Daemon auto-detects agent CLIs on the PC (claude, codex, opencode, gemini, goose, pi, agy, deepseek, mcode, others) | No hand-written setup. goose and pi added by D42 |
 | D6 | Five-step onboarding and a guided tour are v1 features | First use must be easy |
 | D7 | The cap can only be lowered, never raised, including from the phone | Keeps the budget guard hard |
 | D8 | Only the verifier can mark a task VERIFIED | Honesty of "done" |
@@ -106,13 +106,17 @@ Add the rows for later phases when a phase starts. Copy IDs from [build-plan.md]
 | D38 | Telegram runs on an always-on host (server or spare computer). Sentinel gets a headless mode, a service install, a heartbeat, and a back-online message | Owner answer |
 | D39 | A how-to site on GitHub Pages, built with mdBook in `site/`, structure in `design/site-structure.html`. Built later in coding (Phases 15) | Owner request |
 | D40 | Settings is drawn as a cog and the theme switch as a sun or moon, so they never look alike. The accent row has round swatches plus labeled Custom and Reset to default | Owner feedback |
+| D41 | The repo root is `sentinel-harness/`. Docs live in `docs/`, the prototype in `design/`. Private GitHub repo `khanblair/sentinel-harness`, remote over HTTPS (SSH alias failed). Make it public before the hackathon submission | Owner answer. Matches project-structure.md |
+| D42 | goose and pi join the detected CLI list, each with a profile (P3-05) | Owner answer. Both run headless today |
+| D43 | Build method: free CLI workers write code (opencode, goose, pi, local Ornith model for small drafts). Claude reviews, fixes, and merges. One brief per task ID in `.build/briefs/` (git-ignored). Workers get disjoint files per wave, never commit, and are rotated across free models on quota or error. agy joins when its headless mode returns output | Owner request. Saves paid tokens. Briefs point to docs by path |
+| D44 | Q1 closed: a stray write to an unreserved file is restored at once and logged. Q2 closed: an extension for a free file becomes an approval card, or is granted and logged in Bypass permissions | Owner answer. Matches architecture and F15 |
 
 ## Open Questions
 
 | # | Question | Needed by |
 |---|---|---|
-| Q1 | Watcher backstop: restore immediately or hold for review? | P2-04 |
-| Q2 | Scope extension policy: always ask the scheduler, or allow small free-path edits? | P1-05 |
+| Q1 | Watcher backstop: restore immediately or hold for review? Answered: restore at once and log it (D44) | Done |
+| Q2 | Scope extension policy: always ask the scheduler, or allow small free-path edits? Answered: approval card, or grant and log in Bypass permissions (D44) | Done |
 | Q3 | Exact headless flags for `agy`, `mcode`, `deepseek` | P3-06 |
 | Q4 | HTTPS via `tailscale serve` by default? | P7-04 |
 | Q5 | Can the phone start a run, or only steer one? | P7-06 |
@@ -141,13 +145,15 @@ Add the rows for later phases when a phase starts. Copy IDs from [build-plan.md]
 
 | Date | Summary |
 |---|---|
-| (add dates as sessions happen) | Docs set drafted: README, overview, scope, architecture, structure, plan, standards, development, libraries, three UI docs, mobile, tracker |
+| (undated) | Docs set drafted: README, overview, scope, architecture, structure, plan, standards, development, libraries, three UI docs, mobile, tracker |
+| 2026-10-24 | Checked docs against the prototype. Prototype matches tokens, breakpoints, panels, modes, 7-stop tour, 13-step guide, 11 settings pages. Found and fixed doc drift (see Doc Changes Log). Created the repo and pushed. Smoke-tested workers: opencode, pi, goose, and local Ornith pass; agy headless returns nothing. No code yet |
 
 ## File Changes Log
 
 | Date | File | Change |
 |---|---|---|
-| (add) | `docs/*` | Created the 13 doc files, README included |
+| (undated) | `docs/*` | Created the 13 doc files, README included |
+| 2026-10-24 | `docs/`, `design/` | Moved from `sentinel-docs/` to the repo root. Added `.gitignore` |
 
 ## Doc Changes Log
 
@@ -159,6 +165,8 @@ Add the rows for later phases when a phase starts. Copy IDs from [build-plan.md]
 | (add) | README, scope, architecture, structure, plan, development, libraries, ui-rules, ui-registry, ui-tokens, mobile, tracker | Telegram: token plus user ID, one chat, `/task` and `/run`. Always-on host (F21). How-to site (F22) with Phases 14 and 15. Cog icon and swatch row fixes |
 | (add) | scope, architecture, structure, plan, standards, development, libraries, ui-rules, ui-registry, ui-tokens, mobile, tracker | Leases renamed Reserved files. Lessons folded into the Brain (F12) with scheduled care (F19). Telegram scoped (F20) with Phase 13 |
 | (add) | README, overview, scope, architecture, structure, plan, standards, development, libraries, ui-tokens (rewritten), ui-rules, ui-registry, mobile, tracker | Synced with the interactive prototype: stream-first workspace (F14), permissions (F15), agent switching (F16), appearance settings (F17), install and connections (F18), user flow, new tokens and breakpoints |
+
+| 2026-10-24 | overview, scope, architecture, structure, development, build-plan, ui-rules, ui-registry, tracker | Drift fixes against the prototype and decisions: feature list numbers match F1 to F22, Telegram default detail is Detail, Telegram setup has no pairing code, structure doc fence and heading, `--r` radius, eleven settings pages, open questions live only here. Added goose and pi (D42). Closed Q1 and Q2 (D44) |
 
 ## Notes for Later
 

@@ -111,10 +111,9 @@ Linux x86_64, macOS (Apple silicon and Intel), Windows x86_64. Hackathon build t
 
 1. In Telegram, message @BotFather and send `/newbot`. Choose a name and a username.
 2. Copy the token BotFather sends.
-3. In Sentinel, open Settings, Integrations, Telegram. Paste the token. Sentinel checks it and shows the bot's name.
-4. Send `/start` to your bot in Telegram. Sentinel shows a one-time code.
-5. Send that code to the bot. Your chat is now paired.
-6. Choose a level, the events you want, and the detail level. Press Send test message.
+3. In Sentinel, open Settings, Integrations, Telegram. Paste the token and your numeric Telegram user ID (not your @username). Sentinel checks the token, shows the bot's name, and stores the token in the OS keychain.
+4. Open your bot in Telegram and send `/start` from that account. Sentinel connects the chat. There is no pairing code.
+5. Choose a level, the events you want, and the detail level. Press Send test message.
 
 ## Always-On Host
 

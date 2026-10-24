@@ -236,7 +236,7 @@ Each tell, and the product's rule for it. Reviewers tick every line.
 |---|---|
 | Purple to blue gradients | Banned. Flat surfaces only |
 | Glass blur cards | Banned. Bordered surfaces |
-| Everything rounded and soft | Radius limited to `--radius-sm` and `--radius-md` |
+| Everything rounded and soft | Radius set by `--r` (2 to 16 px, default 8 px) |
 | Emoji as icons or bullets | Banned. Use the icon set |
 | Generic hero with a tagline | None. The app opens on the board or onboarding |
 | Stock illustrations of robots | Banned |

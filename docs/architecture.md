@@ -292,7 +292,7 @@ Defined once in `sentinel-core` and used by both daemon and UI (same Rust types,
 | Phone loosens learning | Phone can only move the mode toward `off`. Moving toward `learn` needs the PC |
 | Runaway cost | Hard budget guard |
 | Folder browsing | Browser limited to the home folder. Paths outside it are rejected. The native dialog is used on the PC |
-| Telegram reads messages | Telegram can read bot messages. Default detail is Summary. Contents of files, keys, env values, and Brain notes are never sent. Hackathon mode sends status only |
+| Telegram reads messages | Telegram can read bot messages. Default detail is Detail, with redaction and the never-sent list. Contents of files, keys, env values, and Brain notes are never sent. Hackathon mode sends status only |
 | Stolen Telegram account | Allowlist plus level. Control and Code can be turned off. Risky actions need the PC. The cap only goes down. Revoke from the PC. Messages never hold whole files, keys, or note text |
 | Telegram button replay | One-time tokens, 10 minute expiry, bound to chat and action |
 

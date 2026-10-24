@@ -59,8 +59,6 @@ site/
 
 ## docs/
 
-## docs/
-
 ```
 docs/
   README.md               doc map, reading order, upkeep rule
@@ -173,6 +171,8 @@ crates/sentinel-workers/
   profiles/codex.toml     profile for Codex
   profiles/opencode.toml  profile for OpenCode
   profiles/gemini.toml    profile for Gemini CLI
+  profiles/goose.toml     profile for goose
+  profiles/pi.toml        profile for pi
   profiles/agy.toml       profile for agy
   profiles/deepseek.toml  profile for deepseek
   profiles/mcode.toml     profile for mcode
@@ -248,6 +248,7 @@ crates/sentinel-telegram/
   tests/format.rs         Summary never holds file contents, keys, or note text
   tests/auth.rs           unknown senders are ignored, expired buttons fail
   tests/router.rs         each level allows only its routes
+```
 
 ## crates/sentinel-daemon
 

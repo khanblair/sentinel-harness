@@ -51,7 +51,7 @@ Each feature: what, how, why.
 
 - **What:** On first run Sentinel finds the agent CLIs already on the PC.
 - **How:**
-  1. Scan `PATH` for known names: `claude`, `codex`, `opencode`, `gemini`, `agy`, `deepseek`, `mcode`, plus any in a user list.
+  1. Scan `PATH` for known names: `claude`, `codex`, `opencode`, `gemini`, `goose`, `pi`, `agy`, `deepseek`, `mcode`, plus any in a user list.
   2. Probe each with a version command with a short timeout.
   3. Check for signs of login (config directory, environment key, or a harmless status command).
   4. Match to an adapter profile. Unknown tools become a generic adapter with a command template the user confirms.
@@ -366,27 +366,13 @@ How to use Sentinel properly. The in-app guide walks through the same steps with
 | Rust compile and borrow friction | Simple ownership, clone freely, tidy later |
 | A bad lesson entrenches | Candidate until proven. Harm rejects it. Human review. Easy retire |
 | Lesson notes leak backlog text | Lesson notes hold typed front matter only. A test seeds a task title and fails if it reaches a lesson note. Run, task, and file notes may hold task text, stay on this computer, and are never sent anywhere |
-| Persisted notes seen as using the hidden backlog | Live run is read-only: nothing is written. Only notes from the practice backlog are read. Ask the organizers (open question 6) |
+| Persisted notes seen as using the hidden backlog | Live run is read-only: nothing is written. Only notes from the practice backlog are read. Ask the organizers (Q8 in progress-tracker.md) |
 | Bypass permissions is chosen without understanding it | A confirm dialog says what stays enforced. Warn color on the chip |
 | Compaction drops something the agent needs | Keep task, scope, plan, last steps. Full output stays in the log. Retry once with a larger summary before blocking |
 
 ## Open Questions
 
-1. Watcher backstop: restore the file immediately, or hold the change for review?
-2. How strict should scope extension be mid-task: always ask the scheduler, or allow small free-path edits?
-3. Which exact adapter flags apply to `agy`, `mcode`, and `deepseek`? Confirm at detection time.
-4. Is HTTPS needed on the phone (for push and install prompts)? `tailscale serve` can provide it.
-5. UI crate: Leptos is locked. Revisit only if WASM size blocks phone load budgets.
-6. Are notes and lessons learned on the practice backlog allowed in the live run? Ask the organizers.
-7. Trust threshold: is 2 helped uses right, or should it depend on lesson kind?
-8. How to count tokens for compaction: a characters-divided-by-4 estimate, or a tokenizer crate?
-9. How to check smells in agent code when the target language is unknown?
-10. Should a later version add an Antigravity-style Agent Manager home that lists agents across all runs?
-11. Which font families to bundle, and do their licenses allow it? Confirm at P6-02.
-12. Should the phone open on the Stream tab or the Board tab?
-13. An Obsidian-style Brain. Answered: all four uses (agent memory, run journal, lessons as notes, Brain panel with graph), plus scheduled care so memory evolves. Built as F12 and F19.
-14. A plainer name for leases. Answered: **Reserved files**. Done.
-15. Telegram. Answered: all four levels, coding includes `/task` and `/run`, default detail is Detail, one private chat, always-on host. Done.
+Open questions live in [progress-tracker.md](progress-tracker.md).
 
 ## Benchmarks
 

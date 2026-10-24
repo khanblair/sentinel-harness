@@ -63,29 +63,32 @@ Sentinel is the **outer loop** around agents. Each worker CLI runs its own inner
 
 ## Short Feature List
 
-1. Single-tree coordination (reserved files, waves, barriers, write guard)
-2. Auto-detection of CLI agents on the PC
-3. Cheap-first routing across tools and models
-4. Verified-only "done" with receipts
-5. Hard budget guard
-6. Crash resume
-7. Full-harness phone UI over Tailscale
-8. Five-step onboarding
-9. Guided tour
-10. Honest report and append-only run log
-11. Brain: linked markdown notes (agent memory, run journal, lessons, graph)
-12. Context compaction and per-task cost ceiling
-13. Stream-first workspace: run sidebar, one stream, slide-in panels, slash commands, command palette
-14. Permission modes and approval cards
-15. Agent switching from the top bar and the send-to chip
-16. Appearance settings (theme, accent, fonts, size, density, radius, color tokens)
-17. Install check and connections
-18. Brain care: scheduled runs that keep the Brain fresh
-19. Telegram: notifications and control (scoped, waiting for answers) page
+- F1. Single-Tree Coordination
+- F2. CLI Auto-Detection
+- F3. Cheap-First Routing
+- F4. Verified-Only Done
+- F5. Hard Budget Guard
+- F6. Crash Resume
+- F7. Full-Harness Phone UI
+- F8. Onboarding (5 steps)
+- F9. Guided Tour
+- F10. Honest Report and Run Log
+- F11. Quality Checks
+- F12. Brain
+- F13. Context Compaction and Task Ceiling
+- F14. Stream-First Workspace
+- F15. Permissions and Approvals
+- F16. Agent Switching
+- F17. Appearance Settings
+- F18. Install and Connections
+- F19. Brain Care (scheduled runs)
+- F20. Telegram
+- F21. Always-On Host
+- F22. How-To Site
 
 ## v1 Scope
 
-In: features 1 to 18 above (19 after scoping), Linux/macOS/Windows daemon, web UI served as an installable PWA.
+In: features F1 to F22 in product-scope.md, Linux/macOS/Windows daemon, web UI served as an installable PWA.
 
 Out: native mobile app, cloud hosting, multi-user teams, non-git repos, fine-tuning, any use of git worktrees.
 

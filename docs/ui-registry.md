@@ -80,7 +80,7 @@ Every UI component. If it is not here, it does not exist yet.
 
 | Name | Purpose | Props | States | Phase | Status |
 |---|---|---|---|---|---|
-| SettingsModal | Nine settings pages | page | open, closed | P6 | planned |
+| SettingsModal | Eleven settings pages | page | open, closed | P6 | planned |
 | AppearanceForm | Theme, accent, tint, fonts, size, density, radius, width | prefs | default, changed | P6 | planned |
 | AccentPicker | Six round swatches, a labeled Custom color box, and a Reset to default button | accent | selected, custom | P6 | planned |
 | FontSelect | Choose interface or code font | role, value | default | P6 | planned |

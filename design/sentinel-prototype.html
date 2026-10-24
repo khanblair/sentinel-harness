@@ -528,6 +528,8 @@ const AGENTS0 = [
   { id: 'claude', name: 'Claude Code', color: '#E8A87C', tier: 'smart', path: '~/.local/bin/claude', ver: '2.1.4', status: 'ready', enabled: true, cost: 'usd' },
   { id: 'codex', name: 'Codex CLI', color: '#8FA8FF', tier: 'mid', path: '/usr/local/bin/codex', ver: '0.46.0', status: 'ready', enabled: true, cost: 'est' },
   { id: 'opencode', name: 'OpenCode', color: '#6FD3A0', tier: 'cheap', path: '~/.opencode/bin/opencode', ver: '0.15.2', status: 'ready', enabled: true, cost: 'usd' },
+  { id: 'goose', name: 'goose', color: '#E58BD0', tier: 'cheap', path: '~/.local/bin/goose', ver: '1.56.0', status: 'ready', enabled: false, cost: 'est' },
+  { id: 'pi', name: 'pi', color: '#7FD6D1', tier: 'cheap', path: '/opt/homebrew/bin/pi', ver: '0.70.6', status: 'ready', enabled: false, cost: 'est' },
   { id: 'gemini', name: 'Gemini CLI', color: '#9CC2FF', tier: 'mid', path: '/usr/local/bin/gemini', ver: '0.8.1', status: 'login', enabled: false, cost: 'est' },
   { id: 'agy', name: 'agy', color: '#C9A0F5', tier: 'mid', path: '~/bin/agy', ver: 'unknown', status: 'template', enabled: false, cost: 'est' },
   { id: 'deepseek', name: 'deepseek', color: '#7DB8FF', tier: 'cheap', path: '', ver: '', status: 'missing', enabled: false, cost: 'usd' },
@@ -2047,7 +2049,7 @@ function tgBubbles() {
 }
 function pTelegram() {
   const T = S.tg; T.unread = 0;
-  if (!T.paired) return `<div class="card"><b>Telegram is not paired</b><div class="sub" style="margin:.4em 0 .7em">${T.bot ? 'Send the one-time code to your bot to pair a chat.' : 'Add a bot token, then pair your chat.'}</div><button class="btn pri" data-act="settings" data-arg="integrations">${ic('send', 14)} Set up Telegram</button></div>`;
+  if (!T.paired) return `<div class="card"><b>Telegram is not paired</b><div class="sub" style="margin:.4em 0 .7em">${T.bot ? 'Send /start to your bot to pair a chat.' : 'Add a bot token, then pair your chat.'}</div><button class="btn pri" data-act="settings" data-arg="integrations">${ic('send', 14)} Set up Telegram</button></div>`;
   return `<div class="row wrap" style="gap:.4em;margin-bottom:.6em"><span class="chip">@${T.bot.user}</span><span class="chip">${S.tg.hackathon ? 'status only (hackathon)' : T.detail}</span>${TG_LEVELS.filter(l => T.level[l[0]]).map(l => `<span class="chip">${l[1]}</span>`).join('')}</div>
   <div class="tgchat"><div class="tghd">${ic('send', 16)}<b>Sentinel Dev</b><span class="sub" style="margin-left:auto">${S.tg.host === 'always' ? 'on ' + esc(S.tg.hostName) : 'on this computer'} · simulated</span></div><div class="tgmsgs" id="tgMsgs">${tgBubbles()}</div>
   <div class="tgin"><input class="field" id="tgIn" placeholder="Message the bot, like /status" aria-label="Message the Telegram bot" autocomplete="off"><button class="btn pri" data-act="tgSend" aria-label="Send">${ic('send', 14)}</button></div></div>

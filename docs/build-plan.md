@@ -81,7 +81,7 @@ Goal: run real and fake agents safely.
 | P3-02 | Budget wrapper and kill channel | E2E `budget.rs`: run stops at 95% |
 | P3-03 | Adapter profile format and loader | Profile TOML produces a command line for a task |
 | P3-04 | CLI detection | Fake binaries on a temp `PATH` are found with version and status |
-| P3-05 | Profiles for claude, codex, opencode, gemini | Each profile verified against the real tool on the dev PC |
+| P3-05 | Profiles for claude, codex, opencode, gemini, goose, pi | Each profile verified against the real tool on the dev PC |
 | P3-06 | Profiles for agy, deepseek, mcode, plus generic template | Each confirmed or marked "needs user template" |
 | P3-07 | OpenRouter worker loop | Cheap model completes a task on the sample repo |
 | P3-08 | MCP file server that checks reservations | Write to a reserved path works. Others are refused |
