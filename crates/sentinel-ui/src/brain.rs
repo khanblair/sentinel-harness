@@ -5,9 +5,14 @@ use std::f64::consts::{FRAC_PI_2, TAU};
 use std::fmt::Write;
 
 use sentinel_core::brain_api::{CareFrequency, GraphNodeView, LessonReview};
-use sentinel_core::{BrainMode, Cost, LessonState, NoteId, NoteType, ProposalKind};
+use sentinel_core::{BrainMode, LessonState, NoteId, NoteType};
 
 use crate::api::ApiFailure;
+pub use crate::brain_text::{
+    BrainTab, answer_done_text, budget_error, lesson_state_color, lesson_state_label, mode_name,
+    mode_sentence, new_note_error, note_meta_line, pin_done_text, proposal_kind_label,
+    proposals_tab_label, review_done_text, review_label, type_label,
+};
 use crate::layout::Layout;
 
 /// Shown in place of a Brain view when the daemon has no Brain route for it yet.
@@ -78,20 +83,6 @@ fn non_empty(text: &str) -> Option<String> {
     (!text.is_empty()).then(|| text.to_owned())
 }
 
-pub fn type_label(note_type: NoteType) -> &'static str {
-    match note_type {
-        NoteType::Convention => "Convention",
-        NoteType::Decision => "Decision",
-        NoteType::Fix => "Fix",
-        NoteType::File => "File",
-        NoteType::Task => "Task",
-        NoteType::Run => "Run",
-        NoteType::Lesson => "Lesson",
-        NoteType::Glossary => "Glossary",
-        NoteType::HowTo => "How-to",
-    }
-}
-
 /// The color token of a type, the same colors as the prototype's `NT` table.
 pub fn type_color_token(note_type: NoteType) -> &'static str {
     match note_type {
@@ -150,15 +141,6 @@ pub fn percent_encode(text: &str) -> String {
     out
 }
 
-/// The author line of a note: `you`, `care`, or a run (Sentinel).
-pub fn author_label(by: &str) -> &'static str {
-    match by {
-        "you" => "by you",
-        "care" => "by Brain care",
-        _ => "by Sentinel",
-    }
-}
-
 /// A strength bar class: low under 0.34, medium under 0.67, high from there.
 pub fn strength_class(strength: f32) -> &'static str {
     if strength < 0.34 {
@@ -175,129 +157,9 @@ pub fn phone_may_pick(current: BrainMode, target: BrainMode, layout: Layout) -> 
     layout != Layout::Phone || current.phone_may_set(target)
 }
 
-/// The mode name the panel shows in its chip, the same words as the daemon.
-pub fn mode_name(mode: BrainMode) -> &'static str {
-    match mode {
-        BrainMode::Off => "off",
-        BrainMode::ReadOnly => "read-only",
-        BrainMode::Learn => "learn",
-    }
-}
-
-/// One sentence about the mode, from the prototype.
-pub fn mode_sentence(mode: BrainMode) -> &'static str {
-    match mode {
-        BrainMode::Off => "Off. Nothing is read or written.",
-        BrainMode::ReadOnly => {
-            "Read only. Agents read notes. Nothing is written. Best for live runs."
-        }
-        BrainMode::Learn => {
-            "Learn. Agents read notes. Every run writes a journal and lesson candidates."
-        }
-    }
-}
-
-pub fn proposal_kind_label(kind: ProposalKind) -> &'static str {
-    match kind {
-        ProposalKind::Add => "Add",
-        ProposalKind::Update => "Update",
-        ProposalKind::Retire => "Retire",
-        ProposalKind::Merge => "Merge",
-    }
-}
-
-pub fn lesson_state_label(state: LessonState) -> &'static str {
-    match state {
-        LessonState::Candidate => "Candidate",
-        LessonState::Proven => "Proven",
-        LessonState::Rejected => "Rejected",
-        LessonState::Retired => "Retired",
-    }
-}
-
-pub fn lesson_state_color(state: LessonState) -> &'static str {
-    match state {
-        LessonState::Candidate | LessonState::Retired => "muted",
-        LessonState::Proven => "ok",
-        LessonState::Rejected => "danger",
-    }
-}
-
-/// `Proposals`, or `Proposals 2` when proposals are open.
-pub fn proposals_tab_label(open: usize) -> String {
-    if open == 0 {
-        "Proposals".to_owned()
-    } else {
-        format!("Proposals {open}")
-    }
-}
-
-/// The three tabs of the Brain panel.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum BrainTab {
-    Notes,
-    Graph,
-    Proposals,
-}
-
-impl BrainTab {
-    pub const ALL: [BrainTab; 3] = [BrainTab::Notes, BrainTab::Graph, BrainTab::Proposals];
-
-    pub fn label(self) -> &'static str {
-        match self {
-            BrainTab::Notes => "Notes",
-            BrainTab::Graph => "Graph",
-            BrainTab::Proposals => "Proposals",
-        }
-    }
-}
-
 /// True for the 404 a daemon without the Brain routes gives.
 pub fn is_missing(failure: &ApiFailure) -> bool {
     matches!(failure, ApiFailure::Status { code: 404, .. })
-}
-
-pub fn review_label(action: LessonReview) -> &'static str {
-    match action {
-        LessonReview::Approve => "Approve",
-        LessonReview::Reject => "Reject",
-        LessonReview::Retire => "Retire",
-    }
-}
-
-pub fn review_done_text(action: LessonReview) -> &'static str {
-    match action {
-        LessonReview::Approve => "Lesson approved.",
-        LessonReview::Reject => "Lesson rejected.",
-        LessonReview::Retire => "Lesson retired.",
-    }
-}
-
-/// `by you · confirmed Oct 20 · used 6 times`. The confirmed part is left out until there is one.
-pub fn note_meta_line(by: &str, confirmed: Option<&str>, uses: u32) -> String {
-    let mut parts = vec![author_label(by).to_owned()];
-    if let Some(date) = confirmed {
-        parts.push(format!("confirmed {date}"));
-    }
-    let times = if uses == 1 { "time" } else { "times" };
-    parts.push(format!("used {uses} {times}"));
-    parts.join(" · ")
-}
-
-pub fn pin_done_text(pinned: bool) -> &'static str {
-    if pinned {
-        "This note is always loaded for agents."
-    } else {
-        "This note is no longer always loaded."
-    }
-}
-
-pub fn answer_done_text(accept: bool) -> &'static str {
-    if accept {
-        "Proposal accepted."
-    } else {
-        "Proposal dismissed."
-    }
 }
 
 /// Approve, Reject, and Retire each hide once the lesson is already in that state.
@@ -307,11 +169,6 @@ pub fn review_offered(state: LessonState, action: LessonReview) -> bool {
         LessonReview::Reject => state != LessonState::Rejected,
         LessonReview::Retire => state != LessonState::Retired,
     }
-}
-
-/// Why a new note cannot be saved yet, or `None` when it can.
-pub fn new_note_error(title: &str) -> Option<&'static str> {
-    title.trim().is_empty().then_some("A note needs a title.")
 }
 
 /// A note dot on the graph canvas.
@@ -414,18 +271,11 @@ pub fn frequency_from_value(value: &str) -> CareFrequency {
     }
 }
 
-/// Why a care budget cannot be saved, or `None` when it can.
-pub fn budget_error(text: &str) -> Option<&'static str> {
-    match Cost::parse_usd(text.trim()) {
-        Err(_) => Some("Enter a dollar amount, such as 0.10."),
-        Ok(cost) if cost.micro_usd() == 0 => Some("The budget must be more than $0.00."),
-        Ok(_) => None,
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::brain_text::author_label;
+    use sentinel_core::ProposalKind;
 
     fn node(id: &str, note_type: NoteType, backlinks: u32) -> GraphNodeView {
         GraphNodeView {

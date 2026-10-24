@@ -114,13 +114,20 @@ pub fn CareSettings() -> impl IntoView {
 
 #[component]
 fn CareFields(form: CareForm) -> impl IntoView {
-    let last_run = move || {
-        form.loaded.with(|care| {
-            care.as_ref()
-                .and_then(|care| care.last_run.clone())
-                .unwrap_or_else(|| "Never".to_owned())
-        })
-    };
+    view! {
+        <ScheduleField form=form />
+        <BudgetField form=form />
+        {move || form.error.get().map(|message| view! {
+            <div class="sub" style="color:var(--danger)">{message}</div>
+        })}
+        <AutoApplyField form=form />
+        <LastRunField form=form />
+        <CareActions form=form />
+    }
+}
+
+#[component]
+fn ScheduleField(form: CareForm) -> impl IntoView {
     view! {
         <Field label="Schedule" hint="How often care runs. Off means it never runs by itself.">
             <select class="fs" aria-label="Schedule"
@@ -135,6 +142,12 @@ fn CareFields(form: CareForm) -> impl IntoView {
                     .collect_view()}
             </select>
         </Field>
+    }
+}
+
+#[component]
+fn BudgetField(form: CareForm) -> impl IntoView {
+    view! {
         <Field label="Budget per care run" hint="Separate from run budgets. A care run stops at this amount.">
             <span class="row">
                 <span class="mono">"$"</span>
@@ -143,17 +156,39 @@ fn CareFields(form: CareForm) -> impl IntoView {
                     on:input=move |event| form.budget.set(event_target_value(&event)) />
             </span>
         </Field>
-        {move || form.error.get().map(|message| view! {
-            <div class="sub" style="color:var(--danger)">{message}</div>
-        })}
+    }
+}
+
+#[component]
+fn AutoApplyField(form: CareForm) -> impl IntoView {
+    view! {
         <Field label="Apply changes to notes Sentinel wrote without asking"
             hint="A note you wrote never changes without your accept.">
             <Toggle checked=Signal::derive(move || form.auto_apply.get())
                 on_change=Callback::new(move |next: bool| form.auto_apply.set(next)) />
         </Field>
+    }
+}
+
+#[component]
+fn LastRunField(form: CareForm) -> impl IntoView {
+    let last_run = move || {
+        form.loaded.with(|care| {
+            care.as_ref()
+                .and_then(|care| care.last_run.clone())
+                .unwrap_or_else(|| "Never".to_owned())
+        })
+    };
+    view! {
         <Field label="Last run">
             <span class="k">{last_run}</span>
         </Field>
+    }
+}
+
+#[component]
+fn CareActions(form: CareForm) -> impl IntoView {
+    view! {
         <div class="row wrap" style="margin-top:1em">
             <button class="btn pri" on:click=move |_| save_care(form)>"Save changes"</button>
             {move || (form.ui.layout.get() != Layout::Phone).then(|| view! {

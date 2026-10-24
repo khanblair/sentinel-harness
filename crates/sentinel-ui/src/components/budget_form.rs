@@ -60,13 +60,36 @@ pub fn ready_tools(tools: &[ToolInfo]) -> Vec<&ToolInfo> {
 pub fn BudgetPage() -> impl IntoView {
     let ui = use_ui();
     let cap = move || ui.snapshot.get().cost.cap.to_string();
-    let draft = RwSignal::new(String::new());
     view! {
         <h2>"Budget"</h2>
         <p class="lead">"Spend limits."</p>
         <Field label="Budget cap" hint="The cap can only be lowered.">
             <span class="k">{cap}</span>
         </Field>
+        <LowerCapField />
+        <Field label="Stop starting new tasks at" hint="Fixed rule.">
+            <span class="k">"70%"</span>
+        </Field>
+        <Field label="Kill all workers at" hint="Fixed rule.">
+            <span class="k">"95%"</span>
+        </Field>
+        <Field label="Per-task cost ceiling" hint="A task over its ceiling is killed, then escalated or blocked.">
+            <select disabled aria-label="Per-task cost ceiling">
+                <option value="1.5">"1.5x estimate"</option>
+                <option value="2" selected=true>"2x estimate"</option>
+                <option value="3">"3x estimate"</option>
+            </select>
+        </Field>
+        <RoutingFields />
+    }
+}
+
+/// The form that lowers the cap. Only a smaller amount is sent.
+#[component]
+fn LowerCapField() -> impl IntoView {
+    let ui = use_ui();
+    let draft = RwSignal::new(String::new());
+    view! {
         <Field label="Lower the cap" hint="The cap can only go down. There is no way to raise it during a run.">
             <span class="row">
                 <input
@@ -82,20 +105,6 @@ pub fn BudgetPage() -> impl IntoView {
                 <button class="btn" on:click=move |_| apply_cap(ui, draft.get_untracked())>"Apply"</button>
             </span>
         </Field>
-        <Field label="Stop starting new tasks at" hint="Fixed rule.">
-            <span class="k">"70%"</span>
-        </Field>
-        <Field label="Kill all workers at" hint="Fixed rule.">
-            <span class="k">"95%"</span>
-        </Field>
-        <Field label="Per-task cost ceiling" hint="A task over its ceiling is killed, then escalated or blocked.">
-            <select disabled aria-label="Per-task cost ceiling">
-                <option value="1.5">"1.5x estimate"</option>
-                <option value="2" selected=true>"2x estimate"</option>
-                <option value="3">"3x estimate"</option>
-            </select>
-        </Field>
-        <RoutingFields />
     }
 }
 
