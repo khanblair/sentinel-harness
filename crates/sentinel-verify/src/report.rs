@@ -81,62 +81,47 @@ pub fn validate(report: &Report) -> Vec<String> {
 /// - Table: | Task | Status | Why | Receipt | Cost |
 /// - Quality notes section (counts only, never code)
 pub fn render_markdown(report: &Report) -> String {
-    let mut out = String::new();
+    let mut out = String::from("# Verification Report\n\n");
+    push_summary(&mut out, report);
+    push_spend(&mut out, report);
+    push_task_table(&mut out, report);
+    push_quality_notes(&mut out, report);
+    out
+}
 
-    // Title
-    out.push_str("# Verification Report\n\n");
+fn count_where(report: &Report, keep: impl Fn(TaskStatus) -> bool) -> usize {
+    report.tasks.iter().filter(|t| keep(t.status)).count()
+}
 
-    // Summary
+fn push_summary(out: &mut String, report: &Report) {
     let total = report.tasks.len();
-    let verified = report
-        .tasks
-        .iter()
-        .filter(|t| t.status == TaskStatus::Verified)
-        .count();
-    let partial = report
-        .tasks
-        .iter()
-        .filter(|t| t.status == TaskStatus::Partial)
-        .count();
-    let blocked = report
-        .tasks
-        .iter()
-        .filter(|t| t.status == TaskStatus::Blocked || t.status == TaskStatus::Failed)
-        .count();
-    let contradiction = report
-        .tasks
-        .iter()
-        .filter(|t| t.status == TaskStatus::Contradiction)
-        .count();
-    let skipped = report
-        .tasks
-        .iter()
-        .filter(|t| t.status == TaskStatus::Skipped)
-        .count();
+    let verified = count_where(report, |s| s == TaskStatus::Verified);
+    let partial = count_where(report, |s| s == TaskStatus::Partial);
+    let blocked = count_where(report, |s| {
+        s == TaskStatus::Blocked || s == TaskStatus::Failed
+    });
+    let contradiction = count_where(report, |s| s == TaskStatus::Contradiction);
+    let skipped = count_where(report, |s| s == TaskStatus::Skipped);
 
     out.push_str(&format!("{} of {} tasks verified", verified, total));
-    if partial > 0 || blocked > 0 || contradiction > 0 || skipped > 0 {
-        let mut parts = Vec::new();
-        if partial > 0 {
-            parts.push(format!("{} Partial", partial));
-        }
-        if blocked > 0 {
-            parts.push(format!("{} Blocked", blocked));
-        }
-        if contradiction > 0 {
-            parts.push(format!("{} Contradiction", contradiction));
-        }
-        if skipped > 0 {
-            parts.push(format!("{} Skipped", skipped));
-        }
+    let counted = [
+        ("Partial", partial),
+        ("Blocked", blocked),
+        ("Contradiction", contradiction),
+        ("Skipped", skipped),
+    ];
+    let parts: Vec<String> = counted
+        .iter()
+        .filter(|(_, count)| *count > 0)
+        .map(|(label, count)| format!("{} {}", count, label))
+        .collect();
+    if !parts.is_empty() {
         out.push_str(&format!(" ({})", parts.join(", ")));
     }
-    out.push('\n');
-    out.push('\n');
+    out.push_str("\n\n");
+}
 
-    // Spend
-    let total_cost_str = report.total_cost.to_string();
-    let cap_str = report.cap.to_string();
+fn push_spend(out: &mut String, report: &Report) {
     let est_marker = if report.total_cost.is_estimated() {
         " est"
     } else {
@@ -144,47 +129,57 @@ pub fn render_markdown(report: &Report) -> String {
     };
     out.push_str(&format!(
         "Spend: {} of {}{}\n\n",
-        total_cost_str, cap_str, est_marker
+        report.total_cost, report.cap, est_marker
     ));
+}
 
-    // Table
+fn push_task_table(out: &mut String, report: &Report) {
     out.push_str("| Task | Status | Why | Receipt | Cost |\n");
     out.push_str("|------|--------|-----|---------|------|\n");
-
     for task in &report.tasks {
-        let status_label = match task.status {
-            TaskStatus::Failed => "Blocked", // Failed shown as Blocked in final report
-            _ => task.status.label(),
-        };
-
-        let receipt_str = match &task.receipt {
-            Some(r) => format!(
-                "{} ({})",
-                r.commit.chars().take(8).collect::<String>(),
-                r.reviewer
-            ),
-            None => "—".to_string(),
-        };
-
-        let cost_str = task.cost.to_string();
-        let cost_display = if task.cost.is_estimated() {
-            format!("{} est", cost_str)
-        } else {
-            cost_str
-        };
-
-        // Escape pipes in reason
-        let reason = task.reason.replace('|', "\\|");
-
-        out.push_str(&format!(
-            "| {} | {} | {} | {} | {} |\n",
-            task.id, status_label, reason, receipt_str, cost_display
-        ));
+        out.push_str(&task_row(task));
     }
-
     out.push('\n');
+}
 
-    // Quality notes section
+fn task_row(task: &TaskReport) -> String {
+    let status_label = match task.status {
+        TaskStatus::Failed => "Blocked", // Failed shown as Blocked in final report
+        _ => task.status.label(),
+    };
+    // Escape pipes in reason
+    let reason = task.reason.replace('|', "\\|");
+    format!(
+        "| {} | {} | {} | {} | {} |\n",
+        task.id,
+        status_label,
+        reason,
+        receipt_cell(task.receipt.as_ref()),
+        cost_cell(task.cost)
+    )
+}
+
+fn receipt_cell(receipt: Option<&Receipt>) -> String {
+    match receipt {
+        Some(r) => format!(
+            "{} ({})",
+            r.commit.chars().take(8).collect::<String>(),
+            r.reviewer
+        ),
+        None => "—".to_string(),
+    }
+}
+
+fn cost_cell(cost: Cost) -> String {
+    let cost_str = cost.to_string();
+    if cost.is_estimated() {
+        format!("{} est", cost_str)
+    } else {
+        cost_str
+    }
+}
+
+fn push_quality_notes(out: &mut String, report: &Report) {
     out.push_str("## Quality notes\n\n");
     let mut any_notes = false;
     for task in &report.tasks {
@@ -196,8 +191,6 @@ pub fn render_markdown(report: &Report) -> String {
     if !any_notes {
         out.push_str("No quality notes.\n");
     }
-
-    out
 }
 
 /// Writes a report to a file.

@@ -2,10 +2,13 @@
 
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
+use std::sync::Arc;
 use std::time::Duration;
 
-use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::process::Command;
+use tokio::io::{AsyncBufReadExt, AsyncRead, BufReader};
+use tokio::process::{Child, Command};
+use tokio::sync::Mutex;
+use tokio::task::JoinHandle;
 use tokio::time::timeout;
 
 use crate::{Result, VerifyError};
@@ -53,78 +56,22 @@ pub async fn run_suite(root: &Path, config: &SuiteConfig, label: &str) -> Result
     tokio::fs::create_dir_all(&config.log_dir).await?;
 
     let log_path = config.log_dir.join(format!("{label}.log"));
-    let log_file = tokio::fs::File::create(&log_path).await?;
-    let log_file = std::sync::Arc::new(tokio::sync::Mutex::new(log_file));
+    let capture = Capture::new(tokio::fs::File::create(&log_path).await?);
 
-    let mut cmd = Command::new(&config.command[0]);
-    cmd.args(&config.command[1..])
-        .current_dir(root)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .kill_on_drop(true);
-
-    let mut child = cmd.spawn()?;
-
+    let mut child = build_command(root, &config.command).spawn()?;
     let stdout = child.stdout.take().expect("stdout piped");
     let stderr = child.stderr.take().expect("stderr piped");
+    let stdout_task = spawn_reader(stdout, capture.clone());
+    let stderr_task = spawn_reader(stderr, capture.clone());
 
-    let log_file_clone = log_file.clone();
-    let tail_lines: std::sync::Arc<tokio::sync::Mutex<Vec<String>>> =
-        std::sync::Arc::new(tokio::sync::Mutex::new(Vec::new()));
-    let failing_tests: std::sync::Arc<tokio::sync::Mutex<Vec<String>>> =
-        std::sync::Arc::new(tokio::sync::Mutex::new(Vec::new()));
+    // Join the readers even on error, so the log holds every line the child wrote
+    let outcome = wait_for_child(&mut child, config.timeout).await;
+    stdout_task.await.ok();
+    stderr_task.await.ok();
+    let (timed_out, exit_code) = outcome?;
 
-    // Task to read stdout
-    let tail_lines_stdout = tail_lines.clone();
-    let failing_tests_stdout = failing_tests.clone();
-    let log_file_stdout = log_file_clone.clone();
-    let stdout_task = tokio::spawn(async move {
-        let reader = BufReader::new(stdout);
-        let mut lines = reader.lines();
-        while let Ok(Some(line)) = lines.next_line().await {
-            write_log(&log_file_stdout, &line).await;
-            update_tail(&tail_lines_stdout, line.clone()).await;
-            parse_failing_test(&line, &failing_tests_stdout).await;
-        }
-    });
-
-    // Task to read stderr
-    let tail_lines_stderr = tail_lines.clone();
-    let failing_tests_stderr = failing_tests.clone();
-    let log_file_stderr = log_file_clone.clone();
-    let stderr_task = tokio::spawn(async move {
-        let reader = BufReader::new(stderr);
-        let mut lines = reader.lines();
-        while let Ok(Some(line)) = lines.next_line().await {
-            write_log(&log_file_stderr, &line).await;
-            update_tail(&tail_lines_stderr, line.clone()).await;
-            parse_failing_test(&line, &failing_tests_stderr).await;
-        }
-    });
-
-    // Wait for the process with timeout
-    let (timed_out, exit_code) = match timeout(config.timeout, child.wait()).await {
-        Ok(Ok(status)) => {
-            stdout_task.await.ok();
-            stderr_task.await.ok();
-            (false, status.code())
-        }
-        Ok(Err(e)) => {
-            stdout_task.await.ok();
-            stderr_task.await.ok();
-            return Err(VerifyError::Io(e));
-        }
-        Err(_) => {
-            // Timeout - kill the child
-            let _ = child.kill().await;
-            stdout_task.await.ok();
-            stderr_task.await.ok();
-            (true, None)
-        }
-    };
-
-    let tail = tail_lines.lock().await.clone();
-    let failing_tests = failing_tests.lock().await.clone();
+    let tail = capture.tail.lock().await.clone();
+    let failing_tests = capture.failing.lock().await.clone();
 
     let passed = !timed_out && exit_code == Some(0) && failing_tests.is_empty();
 
@@ -136,6 +83,60 @@ pub async fn run_suite(root: &Path, config: &SuiteConfig, label: &str) -> Result
         failing_tests,
         tail,
     })
+}
+
+/// Shared state the stream readers write into.
+#[derive(Clone)]
+struct Capture {
+    log: Arc<Mutex<tokio::fs::File>>,
+    tail: Arc<Mutex<Vec<String>>>,
+    failing: Arc<Mutex<Vec<String>>>,
+}
+
+impl Capture {
+    fn new(log: tokio::fs::File) -> Self {
+        Self {
+            log: Arc::new(Mutex::new(log)),
+            tail: Arc::new(Mutex::new(Vec::new())),
+            failing: Arc::new(Mutex::new(Vec::new())),
+        }
+    }
+}
+
+fn build_command(root: &Path, command: &[String]) -> Command {
+    let mut cmd = Command::new(&command[0]);
+    cmd.args(&command[1..])
+        .current_dir(root)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .kill_on_drop(true);
+    cmd
+}
+
+fn spawn_reader<R>(stream: R, capture: Capture) -> JoinHandle<()>
+where
+    R: AsyncRead + Unpin + Send + 'static,
+{
+    tokio::spawn(async move {
+        let mut lines = BufReader::new(stream).lines();
+        while let Ok(Some(line)) = lines.next_line().await {
+            write_log(&capture.log, &line).await;
+            update_tail(&capture.tail, line.clone()).await;
+            parse_failing_test(&line, &capture.failing).await;
+        }
+    })
+}
+
+/// Returns `(timed_out, exit_code)`. On timeout the child is killed first.
+async fn wait_for_child(child: &mut Child, limit: Duration) -> Result<(bool, Option<i32>)> {
+    match timeout(limit, child.wait()).await {
+        Ok(Ok(status)) => Ok((false, status.code())),
+        Ok(Err(e)) => Err(VerifyError::Io(e)),
+        Err(_) => {
+            let _ = child.kill().await;
+            Ok((true, None))
+        }
+    }
 }
 
 async fn write_log(log_file: &std::sync::Arc<tokio::sync::Mutex<tokio::fs::File>>, line: &str) {

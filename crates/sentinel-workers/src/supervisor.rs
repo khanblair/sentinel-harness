@@ -1,23 +1,19 @@
 //! Runs one worker command: spawn, capture, cost, and stop on timeout, kill, or ceiling.
 
-use std::collections::VecDeque;
 use std::io;
 use std::process::Stdio;
 use std::sync::Arc;
 use std::time::Duration;
 
 use sentinel_core::{Cost, TaskId, Tier};
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::io::AsyncWriteExt;
 use tokio::process::{Child, Command};
-use tokio::sync::mpsc;
-use tokio::task::JoinHandle;
 use tokio::time::{self, Instant, MissedTickBehavior};
 
 use crate::budget::{Budget, BudgetEvent, estimate_by_time};
-use crate::worker::{CommandLine, EndKind, OutputLine, RunControl, RunOutcome, RunSpec};
+use crate::capture::{Capture, capture_streams};
+use crate::worker::{CommandLine, EndKind, RunControl, RunOutcome, RunSpec};
 
-const MAX_LINE_CHARS: usize = 4096;
-const TAIL_LINES: usize = 200;
 const DRAIN_LIMIT: Duration = Duration::from_secs(2);
 const ESTIMATE_TICK: Duration = Duration::from_secs(1);
 
@@ -54,100 +50,13 @@ pub async fn run_command(
     })
     .await;
     terminate(&mut child, pid).await;
-    capture.drain(DRAIN_LIMIT, &mut spend).await;
+    capture
+        .drain(DRAIN_LIMIT, |line| {
+            spend.observe(line);
+        })
+        .await;
     let cost = spend.recorded;
     build_outcome(stop, capture.into_tail(), cost)
-}
-
-#[derive(Clone)]
-struct LineSink {
-    task: TaskId,
-    agent: sentinel_core::ToolId,
-    lines: mpsc::UnboundedSender<OutputLine>,
-}
-
-struct Capture {
-    tail: VecDeque<String>,
-    raw: mpsc::UnboundedReceiver<String>,
-    readers: Vec<JoinHandle<()>>,
-}
-
-fn capture_streams(
-    child: &mut Child,
-    spec: &RunSpec,
-    lines: mpsc::UnboundedSender<OutputLine>,
-) -> Capture {
-    let (raw_tx, raw) = mpsc::unbounded_channel();
-    let sink = LineSink {
-        task: spec.task.clone(),
-        agent: spec.agent.clone(),
-        lines,
-    };
-    let mut readers = Vec::new();
-    if let Some(stdout) = child.stdout.take() {
-        readers.push(spawn_reader(stdout, sink.clone(), raw_tx.clone()));
-    }
-    if let Some(stderr) = child.stderr.take() {
-        readers.push(spawn_reader(stderr, sink, raw_tx.clone()));
-    }
-    drop(raw_tx);
-    Capture {
-        tail: VecDeque::new(),
-        raw,
-        readers,
-    }
-}
-
-fn spawn_reader<R>(reader: R, sink: LineSink, raw: mpsc::UnboundedSender<String>) -> JoinHandle<()>
-where
-    R: tokio::io::AsyncRead + Unpin + Send + 'static,
-{
-    tokio::spawn(read_lines(reader, sink, raw))
-}
-
-async fn read_lines<R>(reader: R, sink: LineSink, raw: mpsc::UnboundedSender<String>)
-where
-    R: tokio::io::AsyncRead + Unpin,
-{
-    let mut lines = BufReader::new(reader).lines();
-    while let Ok(Some(line)) = lines.next_line().await {
-        let text: String = line.chars().take(MAX_LINE_CHARS).collect();
-        let message = OutputLine {
-            task: sink.task.clone(),
-            agent: sink.agent.clone(),
-            text: text.clone(),
-        };
-        let _ = sink.lines.send(message);
-        if raw.send(text).is_err() {
-            break;
-        }
-    }
-}
-
-impl Capture {
-    fn push(&mut self, line: String) {
-        if self.tail.len() == TAIL_LINES {
-            self.tail.pop_front();
-        }
-        self.tail.push_back(line);
-    }
-
-    async fn drain(&mut self, limit: Duration, spend: &mut Spend) {
-        let read_rest = async {
-            while let Some(line) = self.raw.recv().await {
-                self.push(line.clone());
-                spend.observe(&line);
-            }
-        };
-        let _ = time::timeout(limit, read_rest).await;
-        for reader in &self.readers {
-            reader.abort();
-        }
-    }
-
-    fn into_tail(self) -> Vec<String> {
-        self.tail.into_iter().collect()
-    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -418,8 +327,10 @@ fn kill_tree(pid: Option<u32>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::capture::{MAX_LINE_CHARS, TAIL_LINES};
+    use crate::worker::OutputLine;
     use std::path::Path;
-    use tokio::sync::watch;
+    use tokio::sync::{mpsc, watch};
 
     fn usd(text: &str) -> Cost {
         Cost::parse_usd(text).expect("amount")

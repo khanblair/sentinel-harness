@@ -9,6 +9,8 @@ pub mod router;
 pub mod supervisor;
 pub mod worker;
 
+mod capture;
+
 pub use budget::{Budget, BudgetError, BudgetEvent};
 pub use detect::{DetectOptions, detect_all};
 pub use profile::{
