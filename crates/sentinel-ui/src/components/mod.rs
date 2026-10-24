@@ -69,6 +69,7 @@ pub mod strength_bar;
 pub mod tab_bar;
 pub mod target_chip;
 pub mod task_card;
+pub mod telegram_card;
 pub mod telegram_levels;
 pub mod telegram_log;
 pub mod toast;
