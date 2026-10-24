@@ -52,3 +52,10 @@ pub mod telegram {
 pub mod terminal {
     pub use super::panel_stubs::TerminalPanel;
 }
+
+pub mod budget_step;
+pub mod dry_run;
+pub mod folder_picker;
+pub mod install;
+pub mod onboarding;
+pub mod pairing;
