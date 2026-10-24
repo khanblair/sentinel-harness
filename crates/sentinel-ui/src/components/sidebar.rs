@@ -10,6 +10,7 @@ use crate::chats::{ARCHIVED_GROUP, ProjectGroup, group_chats};
 use crate::components::chat_row::ChatRow;
 use crate::components::icon::Icon;
 use crate::prefs::{Resolved, Theme};
+use crate::routines::{self, enabled_count};
 use crate::state::{self, Connection, Modal, ToastKind, Ui, use_ui};
 use crate::theme;
 
@@ -126,8 +127,38 @@ fn ChatList(query: RwSignal<String>) -> impl IntoView {
                     .collect_view()
                     .into_any()
             }}
+            <RoutinesRow />
         </div>
     }
+}
+
+/// The Routines row at the end of the list. It opens Settings at the Routines page, and it shows
+/// how many routines are on. The list loads once, when the sidebar mounts.
+#[component]
+fn RoutinesRow() -> impl IntoView {
+    let ui = use_ui();
+    spawn_local(async move { routines::load_routines(ui).await });
+    let count = move || enabled_count(&ui.routines.get()).to_string();
+    view! {
+        <div class="run" role="button" tabindex="0"
+            on:click=move |_| open_routines(ui)
+            on:keydown=move |event| {
+                if event.key() == "Enter" {
+                    open_routines(ui);
+                }
+            }>
+            <Icon name="clock" size=14 />
+            <span class="t">"Routines"</span>
+            <span class="meta"><span>{count}" on"</span></span>
+        </div>
+    }
+}
+
+/// Opens Settings at the Routines page. The menus open other pages the same way.
+fn open_routines(ui: Ui) {
+    ui.modal.set(Some(Modal::Settings {
+        page: "routines".to_owned(),
+    }));
 }
 
 /// The text shown when the list has no row to show.

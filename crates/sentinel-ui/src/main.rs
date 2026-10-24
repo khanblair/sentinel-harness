@@ -13,6 +13,7 @@ mod icons;
 mod layout;
 mod palette;
 mod prefs;
+mod routines;
 mod slash;
 mod state;
 mod telegram;
