@@ -21,7 +21,12 @@ const RULES: &str = "Rules:\n\
 
 /// The prompt for one attempt. The first attempt gets the task and the rules. A retry also gets
 /// what went wrong, already cut down to a few lines.
-pub fn task_prompt(task: &Task, retry: Option<&Retry<'_>>, limits: &ContextLimits) -> String {
+pub fn task_prompt(
+    task: &Task,
+    retry: Option<&Retry<'_>>,
+    memory: &str,
+    limits: &ContextLimits,
+) -> String {
     let scope: Vec<String> = task.scope.entries().map(str::to_owned).collect();
     if let Some(retry) = retry {
         let parts = RetryParts {
@@ -44,9 +49,14 @@ pub fn task_prompt(task: &Task, retry: Option<&Retry<'_>>, limits: &ContextLimit
             .collect::<Vec<_>>()
             .join("\n")
     };
+    let memory = if memory.is_empty() {
+        String::new()
+    } else {
+        format!("{}\n\n", memory.trim_end())
+    };
     format!(
         "You are one of several coding agents working in the same folder. Do this one task.\n\n\
-         Task {id}: {title}\n{body}\n\nFiles you may write:\n{files}\n\n{RULES}",
+         Task {id}: {title}\n{body}\n\nFiles you may write:\n{files}\n\n{memory}{RULES}",
         id = task.id,
         title = task.title,
         body = task.body.trim(),
@@ -71,7 +81,7 @@ mod tests {
 
     #[test]
     fn first_prompt_names_the_task_the_files_and_the_rules() {
-        let text = task_prompt(&task(), None, &ContextLimits::default());
+        let text = task_prompt(&task(), None, "", &ContextLimits::default());
         for needle in [
             "Task T-02: Reject negative amounts",
             "- src/ledger.rs",
@@ -83,10 +93,20 @@ mod tests {
     }
 
     #[test]
+    fn project_memory_sits_between_the_files_and_the_rules() {
+        let memory = "## Project memory\n\nuse thiserror for errors\n";
+        let text = task_prompt(&task(), None, memory, &ContextLimits::default());
+        let files = text.find("- tests/negative.rs").unwrap();
+        let notes = text.find("## Project memory").unwrap();
+        let rules = text.find("Rules:").unwrap();
+        assert!(files < notes && notes < rules, "{text}");
+    }
+
+    #[test]
     fn a_task_without_files_says_it_is_read_only() {
         let mut t = task();
         t.scope = Scope::new();
-        assert!(task_prompt(&t, None, &ContextLimits::default()).contains("read only"));
+        assert!(task_prompt(&t, None, "", &ContextLimits::default()).contains("read only"));
     }
 
     #[test]
@@ -97,7 +117,7 @@ mod tests {
             notes: &[],
             lessons: &[],
         };
-        let text = task_prompt(&task(), Some(&retry), &ContextLimits::default());
+        let text = task_prompt(&task(), Some(&retry), "", &ContextLimits::default());
         assert!(text.contains("negative_amount_is_refused"));
         assert!(text.contains("retry"));
         assert!(text.contains("Never edit an existing test"));

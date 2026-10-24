@@ -24,6 +24,11 @@ pub(crate) async fn finish(ctx: &Arc<RunCtx>) {
         });
     }
     let (verified, total) = count_verified(engine);
+    // The guard is dropped before the journal writes, which takes the same lock to find the chat.
+    let run = lock(&engine.inner.live).run.as_ref().map(|r| r.id.clone());
+    if let Some(run) = run {
+        engine.write_run_journal(&run, verified, total);
+    }
     engine.emit_quiet(&Event::RunFinished { verified, total });
     {
         let mut live = lock(&engine.inner.live);

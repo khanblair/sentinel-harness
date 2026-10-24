@@ -119,13 +119,14 @@ fn build_spec(ctx: &RunCtx, task: &Task, tool: &ToolInfo) -> RunSpec {
     let memory = lock(&ctx.memory);
     let failure = memory.failures.get(&task.id).cloned();
     drop(memory);
+    let memory = ctx.engine.brain_memory(task);
     let retry = failure.as_ref().map(|text| Retry {
         failure: text,
         diff_stat: "",
-        notes: &[],
+        notes: std::slice::from_ref(&memory),
         lessons: &[],
     });
-    let prompt = task_prompt(task, retry.as_ref(), &ctx.limits);
+    let prompt = task_prompt(task, retry.as_ref(), &memory, &ctx.limits);
     RunSpec {
         scope: task.scope.entries().map(str::to_owned).collect(),
         task: task.id.clone(),

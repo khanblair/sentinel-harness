@@ -12,6 +12,7 @@ mod brain_care;
 mod brain_edit;
 mod brain_notes;
 mod brain_proposals;
+mod brain_run;
 mod chats;
 mod close_out;
 pub mod cmd;
