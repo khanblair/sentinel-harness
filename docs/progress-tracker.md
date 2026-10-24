@@ -95,7 +95,7 @@ Hackathon cut line: end of P7.
 | P5-02 | Append-only log | Claude | done |
 | P5-03 | Crash resume | Claude | done |
 | P5-04 | HTTP API and WebSocket | Haiku (Agent tool), Claude | review |
-| P5-05 | Real agents on the sample repo | unassigned | todo |
+| P5-05 | Real agents on the sample repo | Claude | doing (D84) |
 | P6-01 to P6-13 | Web UI core | Haiku (CLI and Agent tool), Claude | review |
 | P6-14 | Prototype moves to the chat model | Haiku (CLI), Claude | done |
 | P6-15 to P6-18 | Chats: core, store, routes, attachments, runs from a message | Claude | done |
@@ -217,6 +217,10 @@ Paths listed in [project-structure.md](project-structure.md) that do not exist y
 | D79 | (autopilot, review) Owner rule (2026-10-24, latest): the Claude desktop Agent tool is paused because the owner's desktop usage is nearly used up. All workers run through the Claude CLI (`.build/claude_worker.sh`), Haiku only, at most 2 at a time. Reviews, merges, and checks stay in the main session. This replaces the 2 plus 2 pool in D67 until the owner says otherwise | Owner message |
 | D80 | (autopilot, review) The OpenRouter worker (P3-07) is a library: `OpenRouterWorker` implements `Worker` with its own tool loop (read, list, write inside scope, allowed cargo commands, finish), per-step cost from `usage.cost`, retries on 429 and 5xx, and the API key never printed. The daemon does not offer it as a tool yet; wiring it needs a tool entry that holds the key from the keychain (Q32) | F13 step 2 |
 | D81 | (autopilot, review) Route access matrix test (`crates/sentinel-daemon/tests/security.rs`, 80 rows: public, any device, computer only, socket). A coverage test reads the route source and fails when a `.route(` has no row. It found that `POST /api/repo/starter-backlog` let a phone write `backlog.md`; it now needs the computer (`docs/mobile.md` says a phone may do nothing outside its list). A phone may revoke a device, including another phone: kept, because `docs/mobile.md` says a lost phone is revoked "from another device". The desktop token is not a device row, so no phone can revoke it | P10-03. Brain note edits and care routes refuse a phone inside the handler (`require_computer`), not in the route signature: the test treats them as computer only |
+| D82 | (autopilot, review) Telegram quiet hours use this computer's UTC offset, read once from `date +%z` (override: `SENTINEL_UTC_OFFSET_MINUTES`). No UI setting | Q30. The owner is on EAT |
+| D83 | (autopilot, review) OpenRouter is offered as a tool (`openrouter`, adapter `openrouter-loop`, tier cheap, last in the scan list so first-scan defaults never pick it over a real CLI). Ready when a key exists. The model comes from `[models] openrouter`, default `openrouter/auto` | P3-07 wired. Free models share one daily quota per account, so a free reviewer can answer 429 |
+| D84 | (autopilot, review) Real-agent smoke on the sample backlog, with Claude Haiku as author: it plans scopes, writes code, and the suite passes. No task reaches Verified yet because VERIFIED needs a second, different agent to approve the diff and none was reachable on this computer (Gemini CLI has a broken keychain module, OpenRouter free quota was used up, Ornith was not serving). Found and fixed on the way: the claude profile's JSON output broke the planner (now unwrapped), the per-task ceiling used the task tier while the clock estimate used the tool tier (ceiling now follows the higher), the planner listed existing test files in scopes (rule added and a filter drops them), and a model flag is now passed to claude, codex, and gemini | P5-05 stays open until a run verifies with two tools |
+| D85 | Owner rule (2026-10-25): ship working with every section implemented. Test the essential parts only (core behavior, security guards, crash paths). Test depth comes later, as features land | Owner message |
 
 ## Open Questions
 
@@ -251,9 +255,9 @@ Paths listed in [project-structure.md](project-structure.md) that do not exist y
 | Q27 | Phone rights: D68 lets a phone start a run, message an agent, and choose the repository (not during a run). `docs/mobile.md` used to say "Nothing else". Keep this, or narrow it to the old list? | Before P7 sign-off |
 | Q28 | When do we add more than one project to one daemon (a project switcher and an Add project button, one store per repository)? D75 keeps it out of this version | After P7 |
 | Q29 | Should an idle chat with a plain message ask "Plan only first?" before starting, or always follow the permission mode? D72 follows the permission mode | Before P6-18 |
-| Q30 | Telegram quiet hours use UTC because the daemon has no local-offset setting. Add a time zone setting (the owner is on EAT, UTC+3)? | Before P13 sign-off |
-| Q31 | `/task`, `/diff`, and `/daily` from Telegram answer "not available yet" because the Engine has no methods for them (append a task to `backlog.md`, summarize the latest checkpoint, send a daily report). Build them next? | Before P13 sign-off |
-| Q32 | How does the daemon offer the OpenRouter worker as a tool (key in the keychain, a model per tier)? | Before P3-07 is done |
+| Q30 | Telegram quiet hours time zone. Answered: the daemon reads this computer's offset (`date +%z`, or `SENTINEL_UTC_OFFSET_MINUTES`) once, so quiet hours follow the owner's clock (D82) | Done |
+| Q31 | Telegram `/task`, `/diff`, `/daily`. Answered: built (T-3). `/task` confirms, then appends a section to `backlog.md` | Done |
+| Q32 | OpenRouter as a tool. Answered: built (D83). The key comes from the keychain or `OPENROUTER_API_KEY` | Done |
 
 ## Session Log
 

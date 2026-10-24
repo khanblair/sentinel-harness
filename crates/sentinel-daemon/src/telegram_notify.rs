@@ -12,7 +12,7 @@ use sentinel_telegram::{Button, MessageRef};
 use tokio::sync::broadcast;
 
 use crate::engine::{Engine, Inner, Result, lock};
-use crate::telegram::{DRAIN_EVERY, Shared, UTC_OFFSET_MINUTES, is_stop, unix_now, upgrade};
+use crate::telegram::{DRAIN_EVERY, Shared, is_stop, unix_now, upgrade, utc_offset_minutes};
 use crate::telegram_store;
 
 /// How far back the start scan looks for a `HostBackOnline` event, in event ids.
@@ -133,7 +133,7 @@ pub(crate) fn queue_event(
     let rendered = format::render(event, ctx)?;
     queues
         .outbox
-        .set_quiet_hours(ctx.settings.quiet_hours, UTC_OFFSET_MINUTES);
+        .set_quiet_hours(ctx.settings.quiet_hours, utc_offset_minutes());
     let keyboard = issue_keyboard(queues.tokens, stamp, &rendered);
     queues.outbox.push(
         Draft {

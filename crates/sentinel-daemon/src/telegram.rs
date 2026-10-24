@@ -2,7 +2,7 @@
 //! the formatter, and the outbox. This module starts the background tasks and stops them. Each
 //! task ends when the chat is revoked or reconnected, when the engine drops, or when a loop fails.
 
-use std::sync::{Arc, Mutex, Weak};
+use std::sync::{Arc, Mutex, OnceLock, Weak};
 use std::time::Duration;
 
 use sentinel_core::{ConnectionState, Event, EventRecord};
@@ -28,8 +28,42 @@ const CONNECTION_NAME: &str = "telegram";
 pub(crate) const POLL_SECONDS: u32 = 25;
 /// How often the sender checks the queue when no event arrives.
 pub(crate) const DRAIN_EVERY: Duration = Duration::from_secs(1);
-/// Quiet hours are read at this offset. The daemon has no local-time setting yet, so this is UTC.
-pub(crate) const UTC_OFFSET_MINUTES: i32 = 0;
+/// Minutes this computer is ahead of UTC, so quiet hours mean the owner's local clock. Read once.
+/// `SENTINEL_UTC_OFFSET_MINUTES` overrides it. Where `date` is missing, it is UTC.
+pub(crate) fn utc_offset_minutes() -> i32 {
+    static OFFSET: OnceLock<i32> = OnceLock::new();
+    *OFFSET.get_or_init(|| {
+        std::env::var("SENTINEL_UTC_OFFSET_MINUTES")
+            .ok()
+            .and_then(|text| text.trim().parse().ok())
+            .or_else(date_offset_minutes)
+            .unwrap_or(0)
+    })
+}
+
+fn date_offset_minutes() -> Option<i32> {
+    let output = std::process::Command::new("date")
+        .arg("+%z")
+        .output()
+        .ok()?;
+    parse_offset(&String::from_utf8_lossy(&output.stdout))
+}
+
+/// `+0300` is 180 and `-0530` is -330.
+fn parse_offset(text: &str) -> Option<i32> {
+    let text = text.trim();
+    let (sign, digits) = match text.split_at_checked(1)? {
+        ("+", rest) => (1, rest),
+        ("-", rest) => (-1, rest),
+        _ => return None,
+    };
+    if digits.len() != 4 || !digits.bytes().all(|b| b.is_ascii_digit()) {
+        return None;
+    }
+    let hours: i32 = digits[..2].parse().ok()?;
+    let minutes: i32 = digits[2..].parse().ok()?;
+    Some(sign * (hours * 60 + minutes))
+}
 
 /// What the three tasks share: the bot client, the one-time buttons, and the queue.
 pub(crate) struct Shared {
@@ -121,4 +155,16 @@ pub(crate) async fn wait_for_stop(events: &mut broadcast::Receiver<EventRecord>)
 /// The unix time in seconds. Button tokens and the outbox both use it.
 pub(crate) fn unix_now(engine: &Engine) -> i64 {
     engine.now().unix_timestamp()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_offset;
+
+    #[test]
+    fn a_date_offset_becomes_minutes() {
+        assert_eq!(parse_offset("+0300\n"), Some(180));
+        assert_eq!(parse_offset("-0530"), Some(-330));
+        assert_eq!(parse_offset("UTC"), None);
+    }
 }
