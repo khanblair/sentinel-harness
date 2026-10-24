@@ -65,6 +65,9 @@ impl Worker for FakeWorker {
     }
 }
 
+/// Set once the default tools and routing were chosen.
+const DEFAULTS_KEY: &str = "tools.defaults_applied";
+
 impl Engine {
     /// Find the agent CLIs (or make the fake ones), save them, and set sensible defaults the first
     /// time: every ready tool is turned on, and each tier is routed to a ready tool of that tier.
@@ -73,13 +76,16 @@ impl Engine {
             Some(fake) => fake_tools(fake),
             None => self.detect_real().await?,
         };
-        let first_scan = self.store().list_tools()?.is_empty();
         for tool in &found {
             self.store().upsert_tool(tool)?;
             self.emit(&Event::ToolDetected { tool: tool.clone() })?;
         }
-        if first_scan {
+        // The defaults wait for the first scan that finds a ready tool, then never run again, so
+        // a user's later choices stay.
+        let defaults_done = self.store().get_setting(DEFAULTS_KEY)?.is_some();
+        if !defaults_done && found.iter().any(|t| t.status.is_ready()) {
             self.apply_first_scan_defaults(&found)?;
+            self.store().set_setting(DEFAULTS_KEY, "1")?;
         }
         for tool in self.store().list_tools()? {
             self.ensure_default_capabilities(&tool.id)?;
@@ -96,10 +102,23 @@ impl Engine {
         Ok(detect_all(&profiles, &options).await)
     }
 
+    /// Turn on the ready tools and route each tier to one of them. A config file that already
+    /// names its tools or its routing wins over these guesses.
     fn apply_first_scan_defaults(&self, found: &[ToolInfo]) -> Result<()> {
-        let ready: Vec<&ToolInfo> = found.iter().filter(|t| t.status.is_ready()).collect();
+        let config = self.config();
+        let wanted = |tool: &&ToolInfo| {
+            config.enabled_tools.is_empty() || config.enabled_tools.contains(&tool.id)
+        };
+        let ready: Vec<&ToolInfo> = found
+            .iter()
+            .filter(|t| t.status.is_ready())
+            .filter(wanted)
+            .collect();
         for tool in &ready {
             self.toggle_tool(&tool.id, true)?;
+        }
+        if config.routing != sentinel_core::Routing::default() {
+            return Ok(());
         }
         let for_tier = |tier: Tier| {
             ready
