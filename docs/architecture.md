@@ -370,7 +370,7 @@ Defined once in `sentinel-core` and used by both daemon and UI (same Rust types,
 | Brief builder | A pure function of the store: tasks, the last run, approvals and decisions pending, Brain proposals open, cost this week and today, tools ready, host status, and the hackathon flag. No model call |
 | Privacy | A brief never holds code, files, keys, environment values, or note text. With hackathon mode on it holds counts only |
 | Delivery | A `briefs` row, then the `BriefReady` event. The Telegram notifier sends it when the chat has the Reports level, with redaction and the length cut, and quiet hours do not hold it |
-| Telegram | `/brief`, `/wrapup`, and `/daily` (same text as the wrap-up) |
+| Telegram | `/brief` and `/wrapup`. `/daily` stays the short day summary (verified today, spend today) |
 
 ## Always-On Host
 
