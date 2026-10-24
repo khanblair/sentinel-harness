@@ -82,6 +82,13 @@ code,.mono{font-family:var(--font-mono)}
 .run.active{background:var(--surface2)}
 .run .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .run .meta{display:flex;align-items:center;gap:.35em;color:var(--muted);font-size:.88em;flex:none}
+.run:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.run .pin{display:inline-flex;color:var(--muted);flex:none}
+.run .more{opacity:0;flex:none;width:2em;height:2em}
+.run:hover .more,.run:focus-within .more{opacity:1}
+.run .ren{flex:1;min-width:0;font:inherit;color:inherit;background:var(--surface);border:1px solid var(--accent);border-radius:calc(var(--r)*.7);padding:.15em .4em;outline:none}
+.grp .plus{margin-left:auto;width:2em;height:2em}
+.live-in{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:.86em}
 .dot{width:.55em;height:.55em;border-radius:50%;background:var(--info);flex:none}
 .spin{width:.95em;height:.95em;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:sp .8s linear infinite;flex:none}
 .sb-ft{border-top:1px solid var(--border);padding:.6em .7em;display:flex;flex-direction:column;gap:.5em;flex:none}
@@ -154,6 +161,16 @@ code,.mono{font-family:var(--font-mono)}
 .btn:disabled{opacity:.45;cursor:default}
 .chip{display:inline-flex;align-items:center;gap:.35em;padding:.12em .6em;border-radius:99px;border:1px solid var(--border);font-size:.84em;color:var(--muted);white-space:nowrap}
 .chip.a{color:var(--accent);border-color:color-mix(in srgb,var(--accent) 50%,var(--border))}
+.chip.warnc{border-color:color-mix(in srgb,var(--warn) 55%,var(--border))}
+.chip.att{color:var(--text);background:var(--surface);max-width:100%;padding-right:.2em}
+.chip.att .cn{overflow:hidden;text-overflow:ellipsis;max-width:22em}
+.chip.att .ibtn{width:1.8em;height:1.8em}
+.chips{display:flex;flex-wrap:wrap;gap:.4em;max-width:var(--mw);margin:.5em auto 0}
+.chips[hidden]{display:none}
+.msg-user .chips{justify-content:flex-end;margin:0 0 .4em}
+.dropzone{display:grid;justify-items:center;gap:.7em;border:1px dashed var(--border);border-radius:calc(var(--r)*1.4);padding:1.2em;text-align:center;color:var(--muted)}
+.modal-ft{display:flex;flex-wrap:wrap;gap:.5em;justify-content:flex-end;padding:.8em 1em;border-top:1px solid var(--border);flex:none}
+.mi input{margin-top:.25em;accent-color:var(--accent)}
 .dl{width:100%;border-collapse:collapse;font-size:.92em}
 .dl th{text-align:left;color:var(--muted);font-weight:500;padding:.35em .5em;border-bottom:1px solid var(--border)}
 .dl td{padding:.45em .5em;border-bottom:1px solid var(--border);vertical-align:top}
@@ -361,6 +378,9 @@ input[type=color]{width:2.2em;height:1.8em;border:1px solid var(--border);border
 .app[data-layout="phone"] .title-btn{flex:1;max-width:none}
 .app[data-layout="phone"] .stream{padding:1em .9em}
 .app[data-layout="phone"] .comp-wrap{padding:0 .7em .5em}
+.app[data-layout="phone"] .run{min-height:44px}
+.app[data-layout="phone"] .run .more,.app[data-layout="phone"] .grp .plus{opacity:1;width:3.15em;height:3.15em}
+.app[data-layout="phone"] .chip.att .ibtn{width:3.15em;height:3.15em;margin:-1em -.5em -1em 0}
 .app[data-layout="phone"] .slash{left:.7em;right:.7em}
 .app[data-layout="phone"] .ibtn{width:3em;height:3em}
 .app[data-layout="phone"] .segi .ibtn{width:2.6em;height:2.4em}
@@ -482,7 +502,12 @@ const ICONS = {
   sliders: '<path d="M4 7h10M18 7h2M4 17h2M10 17h10M14 5v4M6 15v4"/>',
   play2: '<circle cx="12" cy="12" r="9"/><path d="M10 8l6 4-6 4z"/>',
   brain: '<path d="M9 4a3 3 0 00-3 3 3 3 0 00-2 5 3 3 0 002 5 3 3 0 005 1V4z"/><path d="M15 4a3 3 0 013 3 3 3 0 012 5 3 3 0 01-2 5 3 3 0 01-5 1V4z"/>',
-  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'
+  clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+  pin: '<path d="M9 4h6l-1 6 3 3v2H7v-2l3-3z"/><path d="M12 15v6"/>',
+  archive: '<rect x="3" y="4" width="18" height="5" rx="1.5"/><path d="M5 9v9a2 2 0 002 2h10a2 2 0 002-2V9M10 13h4"/>',
+  trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
+  edit: '<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>',
+  upload: '<path d="M12 16V4M7 9l5-5 5 5M5 20h14"/>'
 };
 const FILLED = new Set(['more', 'play']);
 function ic(n, s = 18) {
@@ -579,14 +604,15 @@ const S = {
   setup: { done: false, stage: 'install', osTab: 'mac', installed: false, repo: 'fee-ledger-api', paired: false, tourSeen: false, chosen: { name: 'fee-ledger-api', path: '~/code/fee-ledger-api', git: true, backlog: 12, clean: true } },
   device: 'desktop', speed: 1, layout: 'desktop',
   sbOpen: true, panelOpen: true, panelTabs: ['board', 'reserved'], panelActive: 'board', sbSearch: false, sbQuery: '', closedGroups: {},
-  cur: 'r1', hist: ['r1'], hpos: 0, focus: 'all', target: 'sentinel', termAgent: 'claude',
+  live: 'r1', cur: 'r1', hist: ['r1'], hpos: 0, focus: 'all', target: 'sentinel', termAgent: 'claude',
   perm: 'auto', brainMode: 'read-only', cap: 2.0, update: true,
   tools: JSON.parse(JSON.stringify(AGENTS0)), routing: { cheap: 'opencode', mid: 'codex', smart: 'claude' },
   agentPerms: {}, phoneApprove: true,
   conn: { tailscale: { state: 'missing', host: 'dev-pc.tailnet.ts.net', ip: '100.101.12.34', port: 7480 }, openrouter: { state: 'missing' }, mcp: { state: 'running', port: 7481 }, git: { state: 'ok' }, keychain: { state: 'ok' } },
   devices: [{ id: 'd1', name: 'Pixel 7', kind: 'phone', seen: 'just now' }],
   runs: [], tasks: [], reserved: {}, cost: { total: 0, by: {}, hist: [] }, checkpoints: [], blocked: [], quality: [],
-  term: {}, agentState: {}, pending: {}, sim: { paused: false, cancel: null }, version: 1
+  term: {}, agentState: {}, pending: {}, sim: { paused: false, cancel: null }, version: 1,
+  attach: [], runChips: [], fromMessage: false, renaming: null, dlg: null
 };
 CAPS.forEach(() => { });
 AGENTS0.forEach(a => { S.agentPerms[a.id] = { read: true, write: true, ext: a.id !== 'opencode', tests: true, shell: a.id === 'claude', net: false }; });
@@ -597,11 +623,13 @@ function mkRuns() {
     { id: 'r1', repo: 'fee-ledger-api', title: 'Collision Course: practice backlog', status: 'idle', verified: null, attention: false, remote: true, events: [], prompt: '' },
     past('r2', 'fee-ledger-api', 'Rehearsal: forced crash and resume', 'done', '9/12', { remote: true }),
     past('r3', 'fee-ledger-api', 'Dry run on the sample repo', 'done', '3/3'),
+    past('r8', 'fee-ledger-api', 'Review the fee rounding notes', 'done', '2/2'),
     past('r4', 'wallet-app', 'Add offline queue for transfers', 'done', '5/6'),
     past('r5', 'wallet-app', 'Plan only: onboarding screens', 'planned', '0/8', { attention: true }),
     past('r6', 'docs-site', 'Fix broken links across guides', 'blocked', '4/7'),
     { id: 'r7', repo: 'Scheduled', title: 'Brain care, weekly', status: 'idle', verified: '', attention: false, remote: false, events: [], care: true }
   ];
+  S.runs = S.runs.map(r => Object.assign({ pinned: false, archived: false, renamed: false }, r));
   S.runs.filter(r => r.past).forEach(r => {
     const [v, t] = r.verified.split('/');
     r.events = [
@@ -617,14 +645,19 @@ const curRun = () => getRun(S.cur);
 const agentById = id => S.tools.find(a => a.id === id);
 
 /* ---------- persistence ---------- */
-const KEY = 'sentinel-proto-v1';
+const KEY = 'sentinel-proto-v2';
+/* event ids restart on every page load, so they are not saved; renderStream assigns new ones */
+const chatForSave = r => ({ id: r.id, repo: r.repo, title: r.title, status: isActive(r) ? 'stopped' : r.status, verified: r.verified, pinned: !!r.pinned, archived: !!r.archived, renamed: !!r.renamed, care: !!r.care, past: !!r.past, remote: !!r.remote, events: r.events.map(ev => Object.assign({}, ev, { id: undefined })) });
 function save() {
-  try { localStorage.setItem(KEY, JSON.stringify({ prefs: S.prefs, setup: S.setup, perm: S.perm, brainMode: S.brainMode, routing: S.routing, tools: S.tools.map(t => ({ id: t.id, enabled: t.enabled, status: t.status, tier: t.tier })), conn: S.conn, devices: S.devices, brain: S.brain ? { notes: S.brain.notes, care: S.brain.care, journal: S.brain.journal, proposals: S.brain.proposals } : null, tg: S.tg ? Object.assign({}, S.tg, { messages: [], unread: 0, log: [] }) : null })); } catch (e) { }
+  try { localStorage.setItem(KEY, JSON.stringify({ prefs: S.prefs, setup: S.setup, perm: S.perm, brainMode: S.brainMode, routing: S.routing, tools: S.tools.map(t => ({ id: t.id, enabled: t.enabled, status: t.status, tier: t.tier })), conn: S.conn, devices: S.devices, brain: S.brain ? { notes: S.brain.notes, care: S.brain.care, journal: S.brain.journal, proposals: S.brain.proposals } : null, tg: S.tg ? Object.assign({}, S.tg, { messages: [], unread: 0, log: [] }) : null, live: S.live, chats: S.runs.map(chatForSave) })); } catch (e) { }
 }
 function load() {
   try {
     const raw = localStorage.getItem(KEY); if (!raw) return;
     const d = JSON.parse(raw);
+    if (Array.isArray(d.chats) && d.chats.length) S.runs = d.chats.map(c => Object.assign({ attention: false }, c));
+    if (d.live && getRun(d.live)) S.live = d.live;
+    S.cur = S.live; S.hist = [S.live]; S.hpos = 0;
     if (d.prefs) S.prefs = Object.assign({}, DEFAULT_PREFS, d.prefs, { overrides: Object.assign({ dark: {}, light: {} }, d.prefs.overrides) });
     if (d.setup) Object.assign(S.setup, d.setup);
     if (d.perm) S.perm = d.perm; if (d.brainMode) S.brainMode = d.brainMode; if (d.routing) S.routing = d.routing;
@@ -684,10 +717,10 @@ const SLASH = [
 function mountApp() {
   $('#frame').innerHTML = `
   <div class="app sb-open rp-open" id="app" data-layout="desktop">
-    <aside class="sb" id="sb" aria-label="Runs">
+    <aside class="sb" id="sb" aria-label="Chats">
       <div class="sb-hd" id="sbHd"></div>
-      <div class="sb-new"><button class="btn pri" style="width:100%" data-act="newRun">${ic('plus', 15)}<span>New run</span></button></div>
-      <div class="sb-search" id="sbSearch" hidden><input id="sbQ" placeholder="Search runs" aria-label="Search runs"></div>
+      <div class="sb-new"><button class="btn pri" style="width:100%" data-act="newChat">${ic('plus', 15)}<span>New chat</span></button></div>
+      <div class="sb-search" id="sbSearch" hidden><input id="sbQ" placeholder="Search chats" aria-label="Search chats"></div>
       <div class="sb-scroll" id="sbList"></div>
       <div class="sb-ft" id="sbFt"></div>
     </aside>
@@ -698,11 +731,12 @@ function mountApp() {
       <div class="comp-wrap" id="compWrap">
         <div class="slash" id="slash" hidden></div>
         <div class="comp">
-          <button class="ibtn" data-act="attachMenu" aria-label="Add backlog or context" data-tip="Add">${ic('plus')}</button>
+          <button class="ibtn" data-act="attachMenu" aria-label="Add files, a folder, a backlog or a note" data-tip="Add">${ic('plus')}</button>
           <textarea id="cin" rows="1" placeholder="Message Sentinel, or type / for commands" aria-label="Message"></textarea>
           <button class="ibtn" data-act="mic" aria-label="Voice input">${ic('mic')}</button>
           <button class="ibtn send" data-act="send" aria-label="Send">${ic('send', 16)}</button>
         </div>
+        <div class="chips" id="attachChips" hidden></div>
         <div class="comp-foot" id="compFoot"></div>
       </div>
     </main>
@@ -719,7 +753,7 @@ function renderSbHd() {
     <button class="ibtn" data-act="histBack" data-tip="Back" aria-label="Back" ${S.hpos <= 0 ? 'disabled' : ''}>${ic('back')}</button>
     <button class="ibtn" data-act="histFwd" data-tip="Forward" aria-label="Forward" ${S.hpos >= S.hist.length - 1 ? 'disabled' : ''}>${ic('fwd')}</button>
     <span class="sp"></span>
-    <span class="segi"><button class="ibtn" aria-pressed="${S.sbSearch}" data-act="toggleSearch" data-tip="Find a run" aria-label="Find a run">${ic('search', 16)}</button><button class="ibtn on" data-tip="Workspace" aria-label="Workspace" data-act="noop">${ic('code', 16)}</button></span>`;
+    <span class="segi"><button class="ibtn" aria-pressed="${S.sbSearch}" data-act="toggleSearch" data-tip="Find a chat" aria-label="Find a chat">${ic('search', 16)}</button><button class="ibtn on" data-tip="Workspace" aria-label="Workspace" data-act="noop">${ic('code', 16)}</button></span>`;
   $('#sbSearch').hidden = !S.sbSearch;
 }
 function runStatusIcon(r) {
@@ -733,24 +767,43 @@ function runStatusIcon(r) {
   return '';
 }
 function runCount(r) {
-  if (r.id === 'r1' && S.tasks.length) return `${S.tasks.filter(t => t.status === 'verified').length}/${S.tasks.length}`;
+  if (r.id === S.live && S.tasks.length) return `${S.tasks.filter(t => t.status === 'verified').length}/${S.tasks.length}`;
   return r.verified || '';
 }
+const ARCHIVED = '__archived__';
+const isActive = r => r.status === 'running' || r.status === 'paused';
+const sortChats = list => [...list].sort((a, b) => Number(!!b.pinned) - Number(!!a.pinned));
+function closedFor(key) { return key === ARCHIVED ? S.closedGroups[ARCHIVED] !== false : !!S.closedGroups[key]; }
+function runTitleHtml(r) {
+  if (S.renaming === r.id) return `<input class="ren" value="${esc(r.title)}" aria-label="Chat name">`;
+  return `<span class="t">${esc(r.title)}</span>`;
+}
 function runRow(r) {
-  return `<button class="run ${r.id === S.cur ? 'active' : ''}" data-act="openRun" data-arg="${r.id}">
-    <span class="t">${esc(r.title)}</span>
-    <span class="meta">${r.attention ? '<span class="dot" title="Needs you"></span>' : ''}${r.remote ? `<span title="Controlled from phone">${ic('phone', 13)}</span>` : ''}<span>${runCount(r)}</span>${runStatusIcon(r)}</span></button>`;
+  const pin = r.pinned ? `<span class="pin" title="Pinned">${ic('pin', 13)}</span>` : '';
+  const more = r.care ? '' : `<button class="ibtn more" data-act="chatMenu" data-arg="${r.id}" aria-label="Chat actions">${ic('more', 15)}</button>`;
+  return `<div class="run ${r.id === S.cur ? 'active' : ''}" role="button" tabindex="0" data-act="openRun" data-arg="${r.id}" data-chat="${r.id}">${pin}${runTitleHtml(r)}
+    <span class="meta">${r.attention ? '<span class="dot" title="Needs you"></span>' : ''}${r.remote ? `<span title="Controlled from phone">${ic('phone', 13)}</span>` : ''}<span>${runCount(r)}</span>${runStatusIcon(r)}</span>${more}</div>`;
+}
+function groupHtml(key, label, chats, closed, canAdd) {
+  const plus = canAdd ? `<button class="ibtn plus" data-act="newChat" data-arg="${esc(key)}" aria-label="New chat in ${esc(key)}" data-tip="New chat in ${esc(key)}">${ic('plus', 14)}</button>` : '';
+  const head = `<div class="grp ${closed ? 'closed' : ''}" data-act="toggleGroup" data-arg="${esc(key)}">${esc(label)}${ic('down', 12)}${plus}</div>`;
+  return head + (closed ? '' : chats.map(runRow).join(''));
 }
 function renderSidebar() {
+  const ae = document.activeElement;
+  if (ae && ae.classList && ae.classList.contains('ren')) return;
   const q = S.sbQuery.trim().toLowerCase();
+  const hit = r => !q || r.title.toLowerCase().includes(q);
   const repos = [...new Set(S.runs.map(r => r.repo))];
-  const html = repos.map(repo => {
-    const runs = S.runs.filter(r => r.repo === repo && (!q || r.title.toLowerCase().includes(q)));
-    if (!runs.length) return '';
-    const closed = S.closedGroups[repo];
-    return `<div class="grp ${closed ? 'closed' : ''}" data-act="toggleGroup" data-arg="${repo}">${esc(repo)}${ic('down', 12)}</div>${closed ? '' : runs.map(runRow).join('')}`;
+  let html = repos.map(repo => {
+    const chats = sortChats(S.runs.filter(r => r.repo === repo && !r.archived && hit(r)));
+    if (q && !chats.length) return '';
+    return groupHtml(repo, repo, chats, !q && closedFor(repo), repo !== 'Scheduled');
   }).join('');
-  $('#sbList').innerHTML = html || '<div class="note" style="padding:1em">No runs match.</div>';
+  const archived = sortChats(S.runs.filter(r => r.archived && hit(r)));
+  if (archived.length) html += groupHtml(ARCHIVED, 'Archived', archived, !q && closedFor(ARCHIVED), false);
+  $('#sbList').innerHTML = html || '<div class="note" style="padding:1em">No chats match.</div>';
+  const ri = $('#sbList .ren'); if (ri) { ri.focus(); ri.select(); }
   $('#sbFt').innerHTML = `${S.update ? `<button class="upd" data-act="update"><span>Relaunch to update</span>${ic('arrow', 16)}</button>` : ''}
     <div class="me"><span class="av">Y</span><span class="nm">You · local daemon</span>
     <button class="ibtn" data-act="toggleTheme" data-tip="${S.resolved === 'dark' ? 'Light theme' : 'Dark theme'}" aria-label="${S.resolved === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}">${ic(S.resolved === 'dark' ? 'sun' : 'moon', 16)}</button>
@@ -767,11 +820,11 @@ function renderHeader() {
   const ready = S.tools.filter(a => a.enabled && a.status === 'ready');
   const stack = ready.map(a => `<span class="av-a" style="background:${a.color}" title="${esc(a.name)}">${a.id[0].toUpperCase()}<i class="${agentStateOf(a.id)}"></i></span>`).join('');
   const sbBtn = (!S.sbOpen || lay === 'phone') ? `<button class="ibtn" data-act="toggleSb" aria-label="Open sidebar">${ic('sidebar')}</button>` : '';
-  const live = r.id === 'r1' && (r.status === 'running' || r.status === 'paused');
+  const live = r.id === S.live && (r.status === 'running' || r.status === 'paused');
   const ctrl = live ? `<button class="ibtn" data-act="pauseRun" data-tip="${r.status === 'paused' ? 'Resume' : 'Pause'}" aria-label="${r.status === 'paused' ? 'Resume' : 'Pause'}">${ic(r.status === 'paused' ? 'play' : 'pause', 16)}</button><button class="ibtn stopbtn" data-act="stopRun" data-tip="Stop run" aria-label="Stop run">${ic('stop', 15)}</button>` : '';
   const icons = PANEL_ICONS.map(([id, icn, tip]) => `<button class="ibtn" aria-pressed="${S.panelOpen && S.panelActive === id}" data-act="openPanel" data-arg="${id}" data-tip="${tip}" aria-label="${tip}">${ic(icn, 17)}</button>`).join('') + `<button class="ibtn" data-act="moreMenu" data-tip="More" aria-label="More">${ic('more', 17)}${S.tg && S.tg.unread ? '<span class="dot" style="position:absolute;top:.4em;right:.4em;background:var(--accent)"></span>' : ''}</button>`;
   $('#hd').innerHTML = `${sbBtn}
-    <button class="title-btn" data-act="titleMenu" aria-label="Run menu"><span>${esc(r.title)}</span>${ic('down', 14)}</button>
+    <button class="title-btn" data-act="titleMenu" aria-label="Chat menu"><span>${esc(r.title)}</span>${ic('down', 14)}</button>
     <button class="stack" id="agentStack" data-act="agentsPop" aria-label="Agents">${stack}</button>
     <span class="hd-sp"></span>
     <button class="costchip ${cls}" data-act="openPanel" data-arg="cost" aria-label="Cost"><b>${money(S.cost.total)}</b><span class="bar"><i style="width:${pct}%"></i></span><span class="cap-t">${money(S.cap)}</span></button>
@@ -792,13 +845,14 @@ function renderTabbar() {
 function renderFoot() {
   const pm = PERM_MODES[S.perm];
   const tg = S.target === 'sentinel' ? { n: 'Sentinel', sub: 'auto-route' } : { n: agentById(S.target).name, sub: agentById(S.target).tier };
-  const run = getRun('r1');
+  const run = getRun(S.live);
   $('#compFoot').innerHTML = `
     <button class="cbtn ${S.perm === 'bypass' ? 'warn' : ''}" id="permChip" data-act="permPop" aria-label="Permission mode">${ic(pm.ic, 15)}<span>${pm.l}</span>${ic('down', 12)}</button>
     <button class="cbtn" data-act="brainPop" aria-label="Brain mode">${ic('brain', 15)}<span>Brain: ${S.brainMode}</span></button>
     <span style="flex:1"></span>
     <button class="cbtn" id="targetChip" data-act="targetPop" aria-label="Send to">${ic('agent', 15)}<span>${esc(tg.n)} · ${tg.sub}</span>${ic('down', 12)}</button>
     ${run.status === 'running' ? '<span class="spin"></span>' : ''}`;
+  renderChips();
 }
 
 /* ---------- stream ---------- */
@@ -806,7 +860,7 @@ function visibleEv(ev) { return !(S.focus !== 'all' && ev.agent && ev.agent !== 
 function kv(items) { return items.map(i => `<li>${i}</li>`).join(''); }
 function evHtml(ev) {
   switch (ev.k) {
-    case 'user': return `<div class="msg-user">${ev.to ? `<small>to ${esc(ev.to)}</small>` : ''}${esc(ev.text)}</div>`;
+    case 'user': return `<div class="msg-user">${ev.chips && ev.chips.length ? `<div class="chips">${ev.chips.map(c => chipHtml(c)).join('')}</div>` : ''}${ev.to ? `<small>to ${esc(ev.to)}</small>` : ''}${esc(ev.text || '')}</div>`;
     case 'sys': return `<div class="msg-sys">${ev.html}</div>`;
     case 'note': return `<div class="note">${ev.spin ? '<span class="spin"></span>' : ic(ev.icon || 'info', 14)}<span>${ev.html || esc(ev.text)}</span></div>`;
     case 'plan': return `<div class="card"><h4>${ic('list', 16)} Plan ready</h4><div class="sub">${ev.summary}</div><ul style="margin:.5em 0 .2em 1.1em;padding:0;line-height:1.7">${kv(ev.flags)}</ul>
@@ -838,13 +892,13 @@ function evHtml(ev) {
   return '';
 }
 function emptyHtml() {
-  return `<div class="empty"><h2>Run the backlog</h2>
-  <p>Sentinel plans the work, reserves files for each agent so two agents never write the same file, and only calls a task done when the tests say so. Backlog: <span class="k">fee-ledger-api/backlog.md</span>, 12 tasks (sample).</p>
+  return `<div class="empty"><h2>What should we build?</h2>
+  <p>Describe the work in plain words, or attach a backlog. Sentinel plans it, reserves files for each agent so two agents never write the same file, and only calls a task done when the tests say so.</p>
   <div class="sugg">
-   <button data-act="startRun" data-arg="auto"><span style="color:var(--accent)">${ic('play2', 20)}</span><div><b>Start the sample run</b><span>Uses your current permission mode: ${PERM_MODES[S.perm].l}. Takes about a minute.</span></div></button>
+   <button data-act="startRun" data-arg="backlog"><span style="color:var(--accent)">${ic('play2', 20)}</span><div><b>Use backlog.md</b><span>${TASKS0.length} tasks in this project. Uses your current permission mode.</span></div></button>
    <button data-act="startRun" data-arg="plan"><span>${ic('eye', 20)}</span><div><b>Plan only first</b><span>See scopes, dependencies and contradictions. Nothing is written until you approve.</span></div></button>
    <button data-act="tour"><span>${ic('book', 20)}</span><div><b>Take the tour</b><span>Two minutes on the sidebar, panels, agent switcher and permissions.</span></div></button>
-  </div><p style="margin-top:1em;font-size:.9em">Type <span class="k">/</span> in the box below for commands such as <span class="k">/pause</span> and <span class="k">/cap 1.50</span>.</p></div>`;
+  </div><p style="margin-top:1em;font-size:.9em">Type <span class="k">/</span> in the box below for commands such as <span class="k">/pause</span> and <span class="k">/cap 1.50</span>. Use the plus button to add files.</p></div>`;
 }
 function mkEl(ev) {
   const d = document.createElement('div'); d.className = 'ev'; d.dataset.id = ev.id; d.innerHTML = evHtml(ev);
@@ -863,7 +917,7 @@ function rerenderEvent(ev) {
 function renderStream() {
   const box = $('#streamIn'); box.innerHTML = '';
   const r = curRun();
-  if (!r.events.length && (r.id === 'r1' || r.id === 'r7')) { const e = { id: 'empty', k: 'empty', care: r.id === 'r7' }; box.appendChild(mkEl(e)); }
+  if (!r.events.length) box.appendChild(mkEl({ id: 'empty', k: 'empty', care: !!r.care }));
   else r.events.forEach(ev => { ev.id = ev.id || uid(); ev.run = ev.run || r.id; box.appendChild(mkEl(ev)); });
   toBottom();
 }
@@ -888,7 +942,8 @@ function syncClasses() {
 }
 function renderPanelHd() {
   const tabs = S.panelTabs.map(id => `<div class="ptab" role="tab" tabindex="0" aria-selected="${id === S.panelActive}" data-act="panelTab" data-arg="${id}">${ic(PANELS[id].icon, 15)}<span>${PANELS[id].label}</span><span class="x" role="button" aria-label="Close ${PANELS[id].label}" data-act="closeTab" data-arg="${id}">${ic('x', 12)}</span></div>`).join('');
-  $('#rpHd').innerHTML = `<div class="ptabs" role="tablist">${tabs}</div>
+  const liveIn = S.cur !== S.live ? `<span class="live-in">Live run in: ${esc(getRun(S.live).title)}</span>` : '';
+  $('#rpHd').innerHTML = `<div class="ptabs" role="tablist">${tabs}</div>${liveIn}
     <button class="ibtn" data-act="panelMenu" data-tip="Open a panel" aria-label="Open a panel">${ic('plus', 16)}</button>
     <button class="ibtn" data-act="widePanel" data-tip="Expand panel" aria-label="Expand panel">${ic('expand', 15)}</button>
     <button class="ibtn" data-act="closePanel" data-tip="Close panels" aria-label="Close panels">${ic('x', 16)}</button>`;
@@ -1056,7 +1111,7 @@ function add(runId, ev) {
   ev.id = ev.id || uid(); ev.run = runId; ev.t = Date.now();
   const run = getRun(runId); run.events.push(ev);
   if (S.cur === runId) appendEvent(ev);
-  if ((runId === 'r1' || runId === 'r7') && typeof tgObserve === 'function') tgObserve(ev);
+  if ((runId === S.live || runId === 'r7') && typeof tgObserve === 'function') tgObserve(ev);
   scheduleRefresh(); return ev;
 }
 function upd(ev) { if (S.cur === ev.run) rerenderEvent(ev); scheduleRefresh(); }
@@ -1073,10 +1128,10 @@ function addCost(id, amt, t) {
   checkBudget(); scheduleRefresh();
 }
 function checkBudget() {
-  const run = getRun('r1'); if (run.status !== 'running' && run.status !== 'paused') return;
+  const run = getRun(S.live); if (run.status !== 'running' && run.status !== 'paused') return;
   const pct = S.cost.total / S.cap * 100;
-  if (pct >= 95 && !S.b95) { S.b95 = true; add('r1', { k: 'budget', level: 95, body: 'Workers were stopped. Running tasks are marked Blocked and say why.' }); S.sim.cancel = 'budget'; }
-  else if (pct >= 70 && !S.b70) { S.b70 = true; add('r1', { k: 'budget', level: 70, body: 'No new tasks will start. Running tasks finish. Tasks that never started are marked Skipped with this reason.' }); }
+  if (pct >= 95 && !S.b95) { S.b95 = true; add(S.live, { k: 'budget', level: 95, body: 'Workers were stopped. Running tasks are marked Blocked and say why.' }); S.sim.cancel = 'budget'; }
+  else if (pct >= 70 && !S.b70) { S.b70 = true; add(S.live, { k: 'budget', level: 70, body: 'No new tasks will start. Running tasks finish. Tasks that never started are marked Skipped with this reason.' }); }
 }
 function pickAgent(tier) {
   const ok = a => a && a.enabled && a.status === 'ready';
@@ -1094,31 +1149,31 @@ function releaseFiles(t) { Object.keys(S.reserved).forEach(p => { const l = S.re
 
 /* approvals */
 function openApproval(spec) {
-  const ev = add('r1', Object.assign({ k: 'approval', resolved: null }, spec));
-  S.pending[ev.id] = { ev, res: [] }; getRun('r1').attention = true; scheduleRefresh(); return ev;
+  const ev = add(S.live, Object.assign({ k: 'approval', resolved: null }, spec));
+  S.pending[ev.id] = { ev, res: [] }; getRun(S.live).attention = true; scheduleRefresh(); return ev;
 }
 function askApproval(spec) { return new Promise(res => { const ev = openApproval(spec); S.pending[ev.id].res.push(res); }); }
 function decide(evId, choice) {
   const p = S.pending[evId]; if (!p) return;
   const ev = p.ev; ev.resolved = choice; ev.resolvedText = (ev.texts && ev.texts[choice]) || 'Answered.';
-  delete S.pending[evId]; getRun('r1').attention = Object.keys(S.pending).length > 0;
+  delete S.pending[evId]; getRun(S.live).attention = Object.keys(S.pending).length > 0;
   upd(ev); if (typeof tgResolved === 'function') tgResolved(evId, ev.resolvedText); p.res.forEach(r => r(choice));
 }
 
 /* special events */
 function blockedWrite(t, agent, path, holder) {
-  add('r1', { k: 'blocked', agent, title: 'Write to a reserved file was blocked', body: `<p><b>${agent}</b> tried to edit <span class="k">${path}</span>, which <span class="mono">${holder}</span> has reserved. The change was restored from the last checkpoint and logged.</p>` });
+  add(S.live, { k: 'blocked', agent, title: 'Write to a reserved file was blocked', body: `<p><b>${agent}</b> tried to edit <span class="k">${path}</span>, which <span class="mono">${holder}</span> has reserved. The change was restored from the last checkpoint and logged.</p>` });
   S.blocked.push({ path, kind: 'Write blocked', agent, task: t.id, why: `held by ${holder}` });
   term(agent, `x write to ${path} refused: reserved by ${holder}`, 'r');
 }
 function tamper(t, agent, path) {
-  add('r1', { k: 'blocked', agent, title: 'Edit to an existing test was rejected', body: `<p><b>${agent}</b> tried to change <span class="k">${path}</span>. Agents cannot edit existing tests. The edit was rejected and the agent was told to fix the code instead.</p>` });
+  add(S.live, { k: 'blocked', agent, title: 'Edit to an existing test was rejected', body: `<p><b>${agent}</b> tried to change <span class="k">${path}</span>. Agents cannot edit existing tests. The edit was rejected and the agent was told to fix the code instead.</p>` });
   S.blocked.push({ path, kind: 'Test edit blocked', agent, task: t.id, why: 'tamper guard' });
   term(agent, `x edit to ${path} rejected by the tamper guard`, 'r');
 }
 async function extension(t, agent, path) {
   if (S.perm === 'bypass') {
-    reserveFiles(path, t, agent); add('r1', { k: 'note', icon: 'lock', agent, html: `<b>${agent}</b> can now write <span class="k">${path}</span> (nobody had reserved it, mode: ${PERM_MODES.bypass.l}).` }); return 'granted';
+    reserveFiles(path, t, agent); add(S.live, { k: 'note', icon: 'lock', agent, html: `<b>${agent}</b> can now write <span class="k">${path}</span> (nobody had reserved it, mode: ${PERM_MODES.bypass.l}).` }); return 'granted';
   }
   const c = await askApproval({
     agent, icon: 'lock', title: `${agent} asks for another file`,
@@ -1158,7 +1213,7 @@ function buildSteps(run, t, agent, attempt) {
 async function runTask(run, t, agent, attempt) {
   t.status = 'running'; t.agent = agent; t.attempt = attempt; t.killed = false;
   setAgent(agent, 'running', t.id);
-  const ev = add('r1', { k: 'agent', agent, task: t.id, title: t.title, attempt, steps: [], state: 'running' });
+  const ev = add(S.live, { k: 'agent', agent, task: t.id, title: t.title, attempt, steps: [], state: 'running' });
   term(agent, `$ ${agent} --task ${t.id} "${t.title}"`, 'y');
   const per = STEP_COST[agent] || 0.02;
   try {
@@ -1186,7 +1241,7 @@ async function runWithEscalation(run, t, first) {
     const next = escalateTo(agent);
     if (!next || attempt >= 2 || S.b70) return { ok: false, agent, reason: r.reason + (S.b70 && next && attempt < 2 ? ' Not retried: the 70% budget gate stopped escalation.' : '') };
     const a1 = agentById(agent), a2 = agentById(next);
-    add('r1', { k: 'note', icon: 'refresh', html: `Escalating <span class="mono">${t.id}</span> from <b>${agent}</b> (${tl(a1.tier)} tasks) to <b>${next}</b> (${tl(a2.tier)} tasks). The retry prompt carries a failure summary capped at 4 KB, not the raw log.` });
+    add(S.live, { k: 'note', icon: 'refresh', html: `Escalating <span class="mono">${t.id}</span> from <b>${agent}</b> (${tl(a1.tier)} tasks) to <b>${next}</b> (${tl(a2.tier)} tasks). The retry prompt carries a failure summary capped at 4 KB, not the raw log.` });
     agent = next; attempt++;
   }
 }
@@ -1197,14 +1252,14 @@ async function runWave(run, n, ids) {
   const tasks = ids.map(taskById).filter(Boolean);
   if (S.b70) {
     tasks.forEach(t => { if (t.status === 'planned' || t.status === 'waiting') { t.status = 'skipped'; t.reason = 'The 70% budget gate stopped new tasks.'; } });
-    add('r1', { k: 'note', icon: 'dollar', html: `Wave ${n} skipped: ${tasks.map(t => t.id).join(', ')} not started because of the 70% gate.` }); return;
+    add(S.live, { k: 'note', icon: 'dollar', html: `Wave ${n} skipped: ${tasks.map(t => t.id).join(', ')} not started because of the 70% gate.` }); return;
   }
   if (S.perm === 'ask') {
     const c = await askApproval({ icon: 'shield', title: `Approve wave ${n}?`, body: `<p>${tasks.map(t => `<span class="mono">${t.id}</span> ${esc(t.title)}`).join('<br>')}</p>`, options: [{ id: 'go', label: 'Approve wave', pri: true }, { id: 'stop', label: 'Stop run' }], texts: { go: `You approved wave ${n}.`, stop: 'You stopped the run at the approval.' } });
     if (c === 'stop') { S.sim.cancel = 'user'; throw CANCEL; }
   }
   const rows = tasks.map(t => ({ id: t.id, title: t.title, scope: t.scope, agent: pickAgent(t.tier) }));
-  add('r1', { k: 'wave', n, rows });
+  add(S.live, { k: 'wave', n, rows });
   tasks.forEach((t, i) => { t.scope.forEach(p => reserveFiles(p, t, rows[i].agent)); });
   tasks.forEach(t => { t.status = 'running'; t.wave = n; });
   S.tasks.filter(t => t.status === 'planned' && t.deps.length).forEach(t => { if (t.deps.some(d => (taskById(d) || {}).status !== 'verified')) { t.status = 'waiting'; const p = t.scope.find(x => S.reserved[x] && S.reserved[x].state === 'held'); if (p) S.reserved[p].waiting = [...new Set([...(S.reserved[p].waiting || []), t.id])]; } });
@@ -1221,10 +1276,10 @@ async function runWave(run, n, ids) {
   okT.forEach(t => {
     const files = t.scope.concat([testPath(t)]).map(p => Object.assign({ path: p }, p.startsWith('tests/') ? { add: diffNums(p).add + 10, del: 0 } : diffNums(p)));
     S.checkpoints.push({ sha: hex(), task: t.id, title: t.title, agent: t.agent, files });
-    files.forEach(f => add('r1', { k: 'file', agent: t.agent, path: f.path, add: f.add, del: f.del, sha: hex() }));
+    files.forEach(f => add(S.live, { k: 'file', agent: t.agent, path: f.path, add: f.add, del: f.del, sha: hex() }));
   });
   scheduleRefresh();
-  const bar = add('r1', { k: 'barrier', n, state: 'running' }); await tick(2300);
+  const bar = add(S.live, { k: 'barrier', n, state: 'running' }); await tick(2300);
   const gain = okT.length * 5; bar.passed = testCount + gain; bar.total = testCount + gain; bar.state = 'pass'; testCount += gain; upd(bar);
   await tick(500);
   for (const t of tasks) {
@@ -1233,9 +1288,9 @@ async function runWave(run, n, ids) {
       t.status = 'verified'; t.receipt = hex();
       let note = null;
       if (t.id === 'T-04') { note = '<span class="mono">postTransfer</span> is 63 lines (limit 40)'; S.quality.push({ task: t.id, text: 'postTransfer is 63 lines (limit 40)' }); }
-      add('r1', { k: 'verdict', task: t.id, title: t.title, status: 'verified', checks: [{ l: 'suite passes', ok: true }, { l: 'new test', ok: true }, { l: `reviewed by ${rev ? rev.id : 'another agent'}`, ok: true }, { l: 'no test edits', ok: true }], receipt: t.receipt, tests: bar.total, note });
+      add(S.live, { k: 'verdict', task: t.id, title: t.title, status: 'verified', checks: [{ l: 'suite passes', ok: true }, { l: 'new test', ok: true }, { l: `reviewed by ${rev ? rev.id : 'another agent'}`, ok: true }, { l: 'no test edits', ok: true }], receipt: t.receipt, tests: bar.total, note });
     } else if (t.status === 'blocked') {
-      add('r1', { k: 'verdict', task: t.id, title: t.title, status: 'blocked', checks: [{ l: 'suite passes', ok: false }], reason: t.reason });
+      add(S.live, { k: 'verdict', task: t.id, title: t.title, status: 'blocked', checks: [{ l: 'suite passes', ok: false }], reason: t.reason });
     }
     await tick(350);
   }
@@ -1248,26 +1303,31 @@ function resetRunState() {
   S.tasks = TASKS0.map(t => Object.assign({}, t, { status: 'planned', cost: 0, flag: t.hidden ? 'hidden dependency' : t.claimedDone ? 'claims done' : '' }));
   ['T-07', 'T-09'].forEach(id => { taskById(id).flag = 'contradiction'; });
   (S.extra || []).forEach(e => S.tasks.push(Object.assign({}, e, { status: 'planned', cost: 0, flag: 'from Telegram' })));
+  if (S.fromMessage) S.tasks = S.tasks.slice(0, 3);
   S.reserved = {}; S.cost = { total: 0, by: {}, hist: [0] }; S.checkpoints = []; S.blocked = []; S.quality = []; S.term = {}; S.agentState = {}; S.pending = {};
   S.sim = { paused: false, cancel: null }; S.b70 = false; S.b95 = false; testCount = 38;
-  const r = getRun('r1'); r.events = []; r.status = 'running'; r.attention = false;
+  const r = getRun(S.live); r.events = []; r.status = 'running'; r.attention = false;
 }
-function startRun(mode, prompt) {
-  const run = getRun('r1');
-  if (run.status === 'running' || run.status === 'paused') { toast('A run is already in progress'); return; }
+/* base: the chat the run starts from (Telegram passes the live chat). chips: attachments sent with the message. */
+function startRun(mode, prompt, chips, base) {
+  const open = base || curRun(), list = chips || [];
+  const chat = runChatFor(open);
+  if (!chat) { busyNote(open); return; }
+  nameChat(chat, prompt || '', list);
   if (mode === 'plan') S.perm = 'plan';
-  resetRunState(); S.cur = 'r1'; renderStream(); save();
-  add('r1', { k: 'user', text: prompt || 'Run the practice backlog and report honestly on what is done.' });
+  S.runChips = list; S.fromMessage = !!prompt && !list.some(c => c.kind === 'backlog');
+  resetRunState(); openRun(chat.id); save();
+  add(chat.id, { k: 'user', text: prompt || (list.length ? '' : 'Run the practice backlog and report honestly on what is done.'), chips: list });
   renderAll(); playRun().catch(e => { if (e !== CANCEL) { console.error(e); } finishAbort(); });
 }
 function finishAbort() {
-  const run = getRun('r1'); if (run.status === 'done') return;
+  const run = getRun(S.live); if (run.status === 'done') return;
   const why = S.sim.cancel;
   Object.keys(S.pending).forEach(id => { const p = S.pending[id]; p.ev.resolved = 'skip'; p.ev.resolvedText = 'Closed because the run ended.'; upd(p.ev); }); S.pending = {};
   S.tasks.forEach(t => { if (t.status === 'running' || t.status === 'verifying') { t.status = 'blocked'; t.reason = t.reason || (why === 'budget' ? 'Stopped by the 95% budget guard.' : 'Run stopped before this task finished.'); } if (t.status === 'planned' || t.status === 'waiting') { t.status = 'skipped'; t.reason = t.reason || (why === 'budget' ? 'Not started: the budget guard ended the run.' : 'Not started: you stopped the run.'); } });
   S.tools.forEach(a => setAgent(a.id, 'ready')); S.reserved = {};
   run.status = why === 'budget' ? 'blocked' : 'stopped'; run.attention = false;
-  add('r1', { k: 'note', icon: 'stop', html: why === 'budget' ? 'Run ended by the budget guard. Checkpoints were kept. Nothing was marked done that was not.' : 'Run stopped. Checkpoints were kept. Unfinished tasks stay in the report with their real status.' });
+  add(S.live, { k: 'note', icon: 'stop', html: why === 'budget' ? 'Run ended by the budget guard. Checkpoints were kept. Nothing was marked done that was not.' : 'Run stopped. Checkpoints were kept. Unfinished tasks stay in the report with their real status.' });
   summarize(); scheduleRefresh();
 }
 function summarize() {
@@ -1275,15 +1335,36 @@ function summarize() {
   const order = ['verified', 'blocked', 'contradiction', 'skipped', 'partial'];
   const counts = order.filter(k => cnt[k]).map(k => ({ s: k, n: cnt[k] }));
   const v = cnt.verified || 0;
-  add('r1', { k: 'report', counts, text: `${v} of ${S.tasks.length} tasks are verified. Each has a receipt. Everything else shows its real status and the reason. Spend: ${money(S.cost.total)} of ${money(S.cap)}.` });
+  add(S.live, { k: 'report', counts, text: `${v} of ${S.tasks.length} tasks are verified. Each has a receipt. Everything else shows its real status and the reason. Spend: ${money(S.cost.total)} of ${money(S.cap)}.` });
+}
+/* chips the run was started with: a backlog is named, the rest are listed */
+function announceChips() {
+  const list = S.runChips || [];
+  const bl = list.find(c => c.kind === 'backlog');
+  if (bl) say(`<p>Using <span class="k">${esc(bl.name)}</span>.</p>`);
+  const rest = list.filter(c => c.kind !== 'backlog');
+  if (rest.length) say(`<p>Attached: ${esc(rest.map(chipLabel).join(', '))}.</p>`);
+}
+/* a message with no backlog plans the first 3 sample tasks, in one wave */
+async function playMessageRun(run) {
+  add(S.live, { k: 'plan', summary: `Planned from your message. ${S.tasks.length} tasks in 1 wave. Estimated spend ${money(0.1)} to ${money(0.3)}.`, flags: [], tasks: S.tasks });
+  if (S.perm === 'plan') {
+    const c = await askApproval({ icon: 'eye', title: 'Plan only: approve to start writing', body: '<p>No agent has written anything yet. Approving switches this run to <b>Auto inside reserved files</b>.</p>', options: [{ id: 'go', label: 'Approve plan and start', pri: true }, { id: 'stop', label: 'Stop here' }], texts: { go: 'You approved the plan. Mode is now Auto inside reserved files.', stop: 'You stopped after the plan. No files changed.' } });
+    if (c === 'stop') { S.sim.cancel = 'user'; throw CANCEL; }
+    S.perm = 'auto'; renderFoot(); save();
+  }
+  await runWave(run, 1, S.tasks.map(t => t.id));
+  run.status = 'done'; run.attention = false; scheduleRefresh(); summarize(); toast('Run finished', 'ok');
 }
 async function playRun() {
-  const run = getRun('r1');
+  const run = getRun(S.live);
   await tick(500);
-  const rd = add('r1', { k: 'note', spin: true, html: 'Reading <span class="k">backlog.md</span> and the repository. Read only.' });
+  if (S.fromMessage) { announceChips(); return playMessageRun(run); }
+  const rd = add(S.live, { k: 'note', spin: true, html: 'Reading <span class="k">backlog.md</span> and the repository. Read only.' });
   await tick(1800); rd.spin = false; rd.icon = 'check'; upd(rd);
+  announceChips();
   const lessonsOn = S.brainMode !== 'off';
-  add('r1', {
+  add(S.live, {
     k: 'plan', summary: `${S.tasks.length} tasks · ${S.tasks.some(t => t.extra) ? 5 : 4} waves · up to 3 agents at once · estimated spend ${money(1.3)} to ${money(1.8)}`,
     flags: [
       '<b>T-04</b> depends on <b>T-03</b> without saying so. Both write <span class="k">src/ledger/post.ts</span>, so T-04 waits.',
@@ -1293,11 +1374,11 @@ async function playRun() {
     ],
     tasks: S.tasks
   });
-  if (S.perm === 'bypass') add('r1', { k: 'note', icon: 'alert', html: '<b>Bypass permissions</b> is on. No approval cards will appear, except for decisions. Reserved files and the test-edit guard still apply.' });
+  if (S.perm === 'bypass') add(S.live, { k: 'note', icon: 'alert', html: '<b>Bypass permissions</b> is on. No approval cards will appear, except for decisions. Reserved files and the test-edit guard still apply.' });
   if (lessonsOn) {
     const picks = brainPick(), proven = S.brain.notes.filter(n => n.type === 'lesson' && n.state === 'proven').length;
-    add('r1', { k: 'note', icon: 'brain', html: `Brain (${S.brainMode}): loaded ${picks.length} notes into agent memory, about ${picks.length * 110} tokens: ${picks.map(n => `<button class="wl" data-act="brainOpen" data-arg="${n.id}">${esc(n.title)}</button>`).join(', ')}.` });
-    add('r1', { k: 'note', icon: 'spark', html: `${proven} proven lessons are in use. One widened T-02's scope to include <span class="k">bands.ts</span>. Another starts ledger tasks at the normal tier.` });
+    add(S.live, { k: 'note', icon: 'brain', html: `Brain (${S.brainMode}): loaded ${picks.length} notes into agent memory, about ${picks.length * 110} tokens: ${picks.map(n => `<button class="wl" data-act="brainOpen" data-arg="${n.id}">${esc(n.title)}</button>`).join(', ')}.` });
+    add(S.live, { k: 'note', icon: 'spark', html: `${proven} proven lessons are in use. One widened T-02's scope to include <span class="k">bands.ts</span>. Another starts ledger tasks at the normal tier.` });
   }
   const dec = openApproval({
     icon: 'alert', title: 'Decision needed: two tasks contradict', texts: { 'T-07': 'You chose T-07 (waive fee under 500). T-09 will be skipped.', 'T-09': 'You chose T-09 (minimum fee of 100). T-07 will be skipped.', skip: 'You skipped both. Both are recorded as Contradiction.', auto: 'No answer by wave 4. Sentinel skipped both and recorded Contradiction.' },
@@ -1323,41 +1404,137 @@ async function playRun() {
   S.tools.forEach(a => setAgent(a.id, 'ready'));
   run.status = 'done'; run.attention = false; scheduleRefresh();
   if (S.brainMode === 'learn' && S.brain.journal) brainJournal();
-  else if (S.brainMode === 'read-only') add('r1', { k: 'note', icon: 'brain', html: 'The Brain is read-only for this run, so nothing was written to it.' });
+  else if (S.brainMode === 'read-only') add(S.live, { k: 'note', icon: 'brain', html: 'The Brain is read-only for this run, so nothing was written to it.' });
   summarize(); toast('Run finished', 'ok');
 }
 
 /* run controls */
-function pauseRun() { const r = getRun('r1'); if (r.status === 'running') { S.sim.paused = true; r.status = 'paused'; add('r1', { k: 'note', icon: 'pause', text: 'Paused. Agents finish their current step, then wait.' }); } else if (r.status === 'paused') { S.sim.paused = false; r.status = 'running'; add('r1', { k: 'note', icon: 'play', text: 'Resumed.' }); } refresh(); }
-function stopRun() { const r = getRun('r1'); if (r.status !== 'running' && r.status !== 'paused') return; S.sim.cancel = 'user'; S.sim.paused = false; Object.keys(S.pending).forEach(id => decide(id, 'stop')); }
+function pauseRun() { const r = getRun(S.live); if (r.status === 'running') { S.sim.paused = true; r.status = 'paused'; add(S.live, { k: 'note', icon: 'pause', text: 'Paused. Agents finish their current step, then wait.' }); } else if (r.status === 'paused') { S.sim.paused = false; r.status = 'running'; add(S.live, { k: 'note', icon: 'play', text: 'Resumed.' }); } refresh(); }
+function stopRun() { const r = getRun(S.live); if (r.status !== 'running' && r.status !== 'paused') return; S.sim.cancel = 'user'; S.sim.paused = false; Object.keys(S.pending).forEach(id => decide(id, 'stop')); }
 function killAgent(id) { const t = S.tasks.find(x => x.status === 'running' && x.agent === id); if (!t) { toast(id + ' is not running a task'); return; } t.killed = true; toast('Killing ' + id + '...'); }
 function lowerCap(v) {
   if (!(v > 0)) { toast('Enter a cap above zero', 'warn'); return; }
   if (v >= S.cap) { toast('The cap can only be lowered. Current cap is ' + money(S.cap), 'warn'); return; }
   if (v < S.cost.total) { toast('Cap cannot go below spend so far (' + money(S.cost.total) + ')', 'warn'); return; }
-  S.cap = v; add('r1', { k: 'note', icon: 'dollar', html: `You lowered the cap to <b>${money(v)}</b>.` }); S.b70 = false; checkBudget(); scheduleRefresh();
+  S.cap = v; add(S.live, { k: 'note', icon: 'dollar', html: `You lowered the cap to <b>${money(v)}</b>.` }); S.b70 = false; checkBudget(); scheduleRefresh();
 }
-function newRun() {
-  const r = getRun('r1'); if (r.status === 'running' || r.status === 'paused') { toast('Finish or stop the current run first'); openRun('r1'); return; }
-  r.events = []; r.status = 'idle'; r.attention = false; S.tasks = []; S.reserved = {}; S.cost = { total: 0, by: {}, hist: [0] }; S.checkpoints = []; S.blocked = []; S.quality = []; S.term = {}; S.agentState = {}; S.cap = 2.0; S.focus = 'all';
-  openRun('r1'); renderAll();
+/* ---------- chats ---------- */
+/* One simulation runs at a time. It belongs to the live chat (S.live). A chat that
+   has events keeps them as history, so a new run always starts in a chat with none. */
+const MAX_UPLOAD = 1024 * 1024;
+const BACKLOG_NAME = 'backlog.md';
+function makeChat(repo) {
+  const chat = { id: 'c' + hex(), repo, title: 'New chat', status: 'idle', verified: '', attention: false, remote: false, events: [], pinned: false, archived: false, renamed: false };
+  S.runs.push(chat); return chat;
+}
+function resetSim() {
+  S.tasks = []; S.reserved = {}; S.cost = { total: 0, by: {}, hist: [0] }; S.checkpoints = []; S.blocked = []; S.quality = []; S.term = {}; S.agentState = {}; S.pending = {};
+  S.sim = { paused: false, cancel: null }; S.b70 = false; S.b95 = false; S.cap = 2.0; S.focus = 'all';
+}
+function takeLive(chat) { S.live = chat.id; resetSim(); }
+function busyNote(chat) {
+  const live = getRun(S.live);
+  if (live === chat) { toast('A run is already live'); return; }
+  const where = live.repo === chat.repo ? 'in this project' : `in ${esc(live.repo)}`;
+  add(chat.id, { k: 'note', icon: 'alert', html: `Another chat is working ${where}: <b>${esc(live.title)}</b>. Open it or stop it. <button class="btn sm" data-act="openRun" data-arg="${live.id}">Open it</button>` });
+}
+/* The chat a new run uses. The open chat is used only when it is empty and idle; otherwise a fresh chat in the same project. Null when another chat is live. */
+function runChatFor(base) {
+  if (isActive(getRun(S.live))) return null;
+  if (base.care || base.status !== 'idle' || base.events.length) { const fresh = makeChat(base.care ? getRun(S.live).repo : base.repo); takeLive(fresh); return fresh; }
+  if (base.id !== S.live) takeLive(base);
+  return base;
+}
+/* A new chat becomes live only when its project matches the live chat and nothing runs. */
+function createChat(repo) {
+  const chat = makeChat(repo), live = getRun(S.live);
+  if (live.repo === repo && !isActive(live)) takeLive(chat);
+  return chat;
+}
+function newChat(arg) {
+  closePop();
+  let repo = arg || curRun().repo;
+  if (repo === 'Scheduled') repo = getRun(S.live).repo;
+  openRun(createChat(repo).id);
+}
+function nextChatId(repo) {
+  const next = sortChats(S.runs.filter(r => r.repo === repo && !r.archived && !r.care))[0];
+  return next ? next.id : createChat(repo).id;
+}
+function renameChat(id) {
+  closePop();
+  if (S.sbOpen) { S.renaming = id; renderSidebar(); return; }
+  openRenameModal(id);
+}
+function openRenameModal(id) {
+  const c = getRun(id); if (!c) return;
+  closeOverlay('ren');
+  const ov = document.createElement('div'); ov.className = 'ov'; ov.id = 'ov-ren'; ov.dataset.close = 'ren'; ov.style.zIndex = 80;
+  ov.innerHTML = `<div class="modal sm" role="dialog" aria-label="Rename chat"><div class="modal-hd">${ic('edit', 18)}<h3>Rename chat</h3></div><div class="modal-body" style="padding:1em 1.1em"><input class="field" id="renIn" value="${esc(c.title)}" aria-label="Chat name"></div><div class="modal-ft"><button class="btn" data-act="closeOverlay" data-arg="ren">Cancel</button><button class="btn pri" data-act="renSave" data-arg="${id}">Save</button></div></div>`;
+  $('#frame').appendChild(ov); const i = $('#renIn'); i.focus(); i.select();
+}
+function finishRename(input, keep) {
+  const id = S.renaming; if (!id) return;
+  S.renaming = null;
+  if (keep) renameTo(id, input.value); else renderSidebar();
+}
+/* An empty name is ignored. A renamed chat keeps its name after the first message. */
+function renameTo(id, name) {
+  const v = String(name || '').trim(), c = getRun(id);
+  if (c && v) { c.title = v; c.renamed = true; save(); }
+  renderAll();
+}
+function togglePin(id) { const c = getRun(id); if (!c) return; c.pinned = !c.pinned; save(); renderAll(); }
+function archiveChat(id) {
+  const c = getRun(id); if (!c) return;
+  if (!c.archived && isActive(c)) { toast('Stop the run first.', 'warn'); return; }
+  c.archived = !c.archived; save();
+  if (c.archived && S.cur === id) openRun(nextChatId(c.repo)); else renderAll();
+}
+function confirmDelete(id) {
+  const c = getRun(id); if (!c) return;
+  if (isActive(c)) { toast('Stop the run first.', 'warn'); return; }
+  closePop(); closeOverlay('del');
+  const ov = document.createElement('div'); ov.className = 'ov'; ov.id = 'ov-del'; ov.dataset.close = 'del'; ov.style.zIndex = 85;
+  ov.innerHTML = `<div class="modal sm" role="dialog" aria-label="Delete this chat?"><div class="modal-hd"><span style="color:var(--danger)">${ic('trash', 18)}</span><h3>Delete this chat?</h3></div><div class="modal-body" style="padding:1em 1.1em"><p style="margin:0;line-height:1.6">This removes its messages and uploaded files. Your repository and its commits are not touched.</p></div><div class="modal-ft"><button class="btn" data-act="closeOverlay" data-arg="del">Cancel</button><button class="btn dng" data-act="deleteChat" data-arg="${id}">Delete chat</button></div></div>`;
+  $('#frame').appendChild(ov);
+}
+function deleteChat(id) {
+  closeOverlay('del');
+  const c = getRun(id); if (!c || isActive(c)) return;
+  S.runs = S.runs.filter(r => r.id !== id);
+  S.hist = S.hist.filter(h => h !== id); if (!S.hist.length) S.hist = [S.live]; S.hpos = clamp(S.hpos, 0, S.hist.length - 1);
+  let fresh = null;
+  if (id === S.live) { fresh = makeChat(c.repo); takeLive(fresh); }
+  if (S.cur === id) openRun(fresh ? fresh.id : nextChatId(c.repo)); else renderAll();
+  save();
+}
+/* A chat keeps the first line of its first message as its title, cut at 48 characters, unless it was renamed. */
+function nameChat(chat, text, chips) {
+  if (chat.renamed || chat.title !== 'New chat') return;
+  const first = (text.split('\n')[0] || '').trim();
+  const bl = chips.find(c => c.kind === 'backlog');
+  const title = first ? first.slice(0, 48) : bl ? bl.name : '';
+  if (title) chat.title = title;
 }
 function openRun(id, noHist) {
+  if (!getRun(id)) return;
   S.cur = id; if (!noHist) { S.hist = S.hist.slice(0, S.hpos + 1); if (S.hist[S.hist.length - 1] !== id) { S.hist.push(id); S.hpos = S.hist.length - 1; } }
   if (S.layout === 'phone') S.sbOpen = false;
   syncClasses(); renderStream(); renderAll();
 }
 
 async function quickRun(taskId) {
-  const run = getRun('r1'); if (run.status === 'running' || run.status === 'paused') return false;
   const task = (S.extra || []).find(e => e.id === taskId) || TASKS0.find(x => x.id === taskId); if (!task) return false;
+  const run = runChatFor(getRun(S.live)); if (!run) return false;
+  S.runChips = []; S.fromMessage = false;
   resetRunState(); S.tasks = S.tasks.filter(x => x.id === taskId); if (!S.tasks.length) S.tasks = [Object.assign({}, task, { status: 'planned', cost: 0 })];
-  S.cur = 'r1'; renderStream(); save();
-  add('r1', { k: 'user', text: `Run ${taskId} (from Telegram)` }); renderAll();
+  openRun(run.id); save();
+  add(run.id, { k: 'user', text: `Run ${taskId} (from Telegram)` }); renderAll();
   (async () => {
     try {
       await tick(500);
-      add('r1', { k: 'sys', html: `<p>Quick run of <b>${taskId}</b> only, started from Telegram in <b>${PERM_MODES[S.perm].l}</b> mode. Telegram never starts a run in Bypass permissions.</p>` });
+      add(S.live, { k: 'sys', html: `<p>Quick run of <b>${taskId}</b> only, started from Telegram in <b>${PERM_MODES[S.perm].l}</b> mode. Telegram never starts a run in Bypass permissions.</p>` });
       if (S.perm === 'plan') { const c = await askApproval({ icon: 'eye', title: 'Plan only: approve to start writing', body: '<p>No agent has written anything yet. Approving switches this run to <b>Auto inside reserved files</b>.</p>', options: [{ id: 'go', label: 'Approve plan and start', pri: true }, { id: 'stop', label: 'Stop here' }], texts: { go: 'You approved the plan.', stop: 'You stopped after the plan. No files changed.' } }); if (c === 'stop') { S.sim.cancel = 'user'; throw CANCEL; } S.perm = 'auto'; renderFoot(); }
       await runWave(run, 1, [taskId]);
       S.tools.forEach(a => setAgent(a.id, 'ready')); run.status = 'done'; run.attention = false; scheduleRefresh(); summarize();
@@ -1368,8 +1545,12 @@ async function quickRun(taskId) {
 /* ---------- menus ---------- */
 function tick1(on) { return on ? `<span class="tk">${ic('check', 15)}</span>` : ''; }
 function menuTitle(a) {
-  const live = S.cur === 'r1' && ['running', 'paused'].includes(getRun('r1').status);
-  openPop(a, `${live ? mi('stop', 'Stop run', 'Checkpoints are kept', 'stopRun', '', 'dng') + '<div class="sep"></div>' : ''}${mi('copy', 'Duplicate run', '', 'toast', 'Run duplicated (simulated)')}${mi('download', 'Export report', '', 'toast', 'Report exported to .sentinel/report.md (simulated)')}${mi('book', 'Rename', '', 'toast', 'Rename is disabled in the prototype')}<div class="sep"></div>${mi('x', 'Archive run', '', 'toast', 'Run archived (simulated)', 'dng')}`);
+  const c = curRun(), live = c.id === S.live && isActive(c);
+  openPop(a, `${mi('edit', 'Rename', '', 'renameChat', c.id)}${mi('pin', c.pinned ? 'Unpin' : 'Pin', '', 'togglePin', c.id)}${mi('download', 'Export report', '', 'toast', 'Report exported to .sentinel/report.md (simulated)')}${live ? mi('stop', 'Stop run', 'Checkpoints are kept', 'stopRun', '', 'dng') : ''}<div class="sep"></div>${mi('archive', c.archived ? 'Unarchive chat' : 'Archive chat', '', 'archiveChat', c.id)}${mi('trash', 'Delete chat', '', 'confirmDelete', c.id, 'dng')}`);
+}
+function menuChat(id, a) {
+  const c = getRun(id); if (!c || c.care) return;
+  openPop(a, `${mi('edit', 'Rename', '', 'renameChat', id)}${mi('pin', c.pinned ? 'Unpin' : 'Pin', '', 'togglePin', id)}${mi('archive', c.archived ? 'Unarchive' : 'Archive', '', 'archiveChat', id)}<div class="sep"></div>${mi('trash', 'Delete', '', 'confirmDelete', id, 'dng')}`, 'right');
 }
 function menuAgents(a) {
   const ags = S.tools.filter(x => x.enabled && x.status === 'ready');
@@ -1403,7 +1584,96 @@ function menuPanel(a) {
   openPop(a, Object.entries(PANELS).map(([id, p]) => mi(p.icon, p.label + tick1(S.panelTabs.includes(id)), '', 'openPanel', id)).join(''), 'right');
 }
 function menuAttach(a) {
-  openPop(a, `${mi('play2', 'Use the sample backlog', 'fee-ledger-api/backlog.md', 'startRun', 'auto')}${mi('file', 'Attach a backlog file', '', 'toast', 'File picker is disabled in the prototype')}${mi('book', 'Add a context note', 'Goes into every agent prompt', 'toast', 'Context note added (simulated)')}`);
+  openPop(a, `${mi('file', 'Add files', 'From this project or this device', 'addFiles')}${mi('folder', 'Add a folder', 'A folder of this project', 'addFolder')}${mi('tasks', 'Use a backlog file', 'fee-ledger-api/backlog.md', 'addBacklog')}${mi('edit', 'Add a context note', 'Goes into every agent prompt', 'addNote')}`);
+}
+
+/* ---------- attachments: chips and the add dialogs ---------- */
+const ATT_FILES = ['src/lib.rs', 'src/ledger.rs', 'src/fees.rs', 'src/limits.rs', 'tests/ledger.rs', 'tests/fees.rs', 'Cargo.toml', 'README.md', 'backlog.md'];
+const ATT = {
+  files: { title: 'Add files', icon: 'file', items: ATT_FILES, single: false, tabs: true, ok: n => `Add ${n} file${n === 1 ? '' : 's'}` },
+  folder: { title: 'Add a folder', icon: 'folder', items: ['src', 'tests', 'docs'], single: true, tabs: false, ok: () => 'Add folder' },
+  backlog: { title: 'Use a backlog file', icon: 'tasks', items: ['backlog.md', 'docs/roadmap.md'], single: true, tabs: true, ok: () => 'Use file' }
+};
+const DEVICE_FILES = { 'notes.txt': 2048, 'big-dump.log': 3355443 };
+const CHIP_ICON = { file: 'file', folder: 'folder', backlog: 'list', note: 'edit' };
+const chipLabel = c => c.kind === 'note' ? c.text.slice(0, 24) : c.name;
+/* act: the remove action, or none for a read-only chip in a sent message */
+function chipHtml(c, act, i) {
+  const big = c.size > MAX_UPLOAD, name = chipLabel(c), icn = c.upload ? 'upload' : CHIP_ICON[c.kind];
+  const rm = act ? `<button class="ibtn" data-act="${act}" data-arg="${i}" aria-label="Remove ${esc(name)}">${ic('x', 12)}</button>` : '';
+  return `<span class="chip att ${big ? 'warnc' : ''}"${big ? ' title="Too large. The limit is 1 MB."' : ''}>${ic(icn, 13)}<span class="cn">${esc(name)}</span>${rm}</span>`;
+}
+function renderChips() {
+  const box = $('#attachChips'); if (!box) return;
+  box.innerHTML = S.attach.map((c, i) => chipHtml(c, 'rmAttach', i)).join('');
+  box.hidden = !S.attach.length;
+}
+/* hands the chips to a sent message and clears the row */
+function takeChips() { const list = S.attach; S.attach = []; renderFoot(); return list; }
+function openAttachDialog(kind) {
+  closePop(); closeOverlay('att');
+  S.dlg = { kind, tab: 'project', picked: [], uploads: [], filter: '' };
+  const ov = document.createElement('div'); ov.className = 'ov'; ov.id = 'ov-att'; ov.dataset.close = 'att'; ov.style.zIndex = 80;
+  ov.innerHTML = '<div class="modal sm" role="dialog" id="attModal"><div class="modal-hd" id="attHd"></div><div class="modal-body" id="attBody"></div><div class="modal-ft" id="attFt"></div></div>';
+  $('#frame').appendChild(ov); renderAttachDialog();
+}
+function renderAttachDialog() {
+  const d = S.dlg, cfg = ATT[d.kind]; if (!cfg || !$('#attModal')) return;
+  $('#attHd').innerHTML = `${ic(cfg.icon, 18)}<h3>${cfg.title}</h3><button class="ibtn" data-act="closeOverlay" data-arg="att" aria-label="Close">${ic('x', 17)}</button>`;
+  $('#attBody').innerHTML = `${cfg.tabs ? attTabsHtml() : ''}${attPaneHtml(cfg)}`;
+  const n = d.picked.length + d.uploads.length;
+  $('#attFt').innerHTML = `<button class="btn" data-act="closeOverlay" data-arg="att">Cancel</button><button class="btn pri" data-act="dlgConfirm" ${n ? '' : 'disabled'}>${cfg.ok(n)}</button>`;
+}
+function attTabsHtml() {
+  return `<div class="seg" style="margin-bottom:.8em">${[['project', 'This project'], ['device', 'This device']].map(([k, l]) => `<button aria-pressed="${S.dlg.tab === k}" data-act="dlgTab" data-arg="${k}">${l}</button>`).join('')}</div>`;
+}
+function attPaneHtml(cfg) {
+  if (S.dlg.tab === 'device') return deviceTabHtml();
+  return `<input class="field" id="dlgQ" placeholder="Filter" value="${esc(S.dlg.filter)}" aria-label="Filter" style="margin-bottom:.6em"><div id="dlgList">${dlgRows(cfg)}</div>`;
+}
+function dlgRows(cfg) {
+  const q = S.dlg.filter.toLowerCase(), typ = cfg.single ? 'radio' : 'checkbox';
+  return cfg.items.filter(p => !q || p.toLowerCase().includes(q)).map(p => `<label class="mi"><input type="${typ}" name="dlgPick" value="${esc(p)}" data-dlg-pick ${S.dlg.picked.includes(p) ? 'checked' : ''}><span class="mono">${esc(p)}</span></label>`).join('') || '<div class="note">No match.</div>';
+}
+function deviceTabHtml() {
+  const d = S.dlg;
+  return `<div class="dropzone"><span>Drop files here, or choose them</span><div class="row wrap" style="justify-content:center">
+    <button class="btn" data-act="dlgUpload" data-arg="notes.txt">${ic('upload', 15)} Choose files</button><button class="btn sm" data-act="dlgUpload" data-arg="big-dump.log">Choose a large log</button></div></div>
+    ${d.uploads.length ? `<div class="chips" style="margin-top:.8em">${d.uploads.map((u, i) => chipHtml(u, 'dlgRmUpload', i)).join('')}</div>` : ''}`;
+}
+function dlgTab(k) { S.dlg.tab = k; renderAttachDialog(); }
+function dlgUpload(name) {
+  if (S.dlg.uploads.some(u => u.name === name)) return;
+  S.dlg.uploads.push({ name, size: DEVICE_FILES[name], upload: true }); renderAttachDialog();
+}
+/* single choice: the new item replaces the one already attached of the same kind */
+function dlgConfirm() {
+  const d = S.dlg, cfg = ATT[d.kind]; if (!cfg) return;
+  const kind = d.kind === 'files' ? 'file' : d.kind;
+  let items = d.picked.map(name => ({ kind, name }))
+    .concat(d.uploads.map(u => ({ kind: d.kind === 'backlog' ? 'backlog' : 'file', name: u.name, size: u.size, upload: true })));
+  if (!items.length) return;
+  if (cfg.single) { items = items.slice(-1); S.attach = S.attach.filter(c => c.kind !== items[0].kind); }
+  S.attach = S.attach.concat(items);
+  closeOverlay('att'); renderFoot();
+}
+function dlgPick(input) {
+  const d = S.dlg, cfg = ATT[d.kind]; if (!cfg) return;
+  if (cfg.single) d.picked = input.checked ? [input.value] : [];
+  else d.picked = input.checked ? d.picked.concat([input.value]) : d.picked.filter(p => p !== input.value);
+  renderAttachDialog();
+}
+function openNoteDialog() {
+  closePop(); closeOverlay('att');
+  const ov = document.createElement('div'); ov.className = 'ov'; ov.id = 'ov-att'; ov.dataset.close = 'att'; ov.style.zIndex = 80;
+  ov.innerHTML = `<div class="modal sm" role="dialog" aria-label="Add a context note"><div class="modal-hd">${ic('edit', 18)}<h3>Add a context note</h3></div><div class="modal-body" style="padding:1em 1.1em"><textarea class="field" id="noteIn" rows="5" aria-label="Context note"></textarea><p class="sub" style="margin:.5em 0 0">Goes into every agent prompt.</p></div><div class="modal-ft"><button class="btn" data-act="closeOverlay" data-arg="att">Cancel</button><button class="btn pri" data-act="noteAdd">Add note</button></div></div>`;
+  $('#frame').appendChild(ov); $('#noteIn').focus();
+}
+function noteAdd() {
+  const text = (($('#noteIn') || {}).value || '').trim();
+  if (!text) { toast('Write a note first', 'warn'); return; }
+  S.attach = S.attach.concat([{ kind: 'note', text }]);
+  closeOverlay('att'); renderFoot();
 }
 
 /* ---------- settings ---------- */
@@ -1480,8 +1750,8 @@ function setPage(p) {
       ${fld('Apply without asking', 'Only to notes Sentinel wrote. A note you wrote is never changed without your OK.', tog(c.auto, 'careAuto', ''))}
       <div class="row wrap" style="margin-top:1em"><button class="btn pri" data-act="careNow">${ic('play', 14)} Run care now</button><button class="btn" data-act="openPanel" data-arg="brain">Open the Brain</button></div>`; }
     case 'devices': return `<h2>Devices</h2><p class="lead">Phones and tablets paired over Tailscale.</p>${pRemote()}`;
-    case 'shortcuts': return `<h2>Shortcuts</h2><p class="lead">Keyboard, and gestures on a phone.</p><table class="dl"><tr><th>Action</th><th>Keys</th></tr>${[['Command palette', 'Ctrl or Cmd + K'], ['Toggle sidebar', 'Ctrl or Cmd + B'], ['Toggle panels', 'Ctrl or Cmd + J'], ['Settings', 'Ctrl or Cmd + ,'], ['Send message', 'Enter'], ['New line', 'Shift + Enter'], ['Commands', 'Type /']].map(r => `<tr><td>${r[0]}</td><td class="mono">${r[1]}</td></tr>`).join('')}</table>
-      <p class="lead" style="margin-top:1em">Phone: tap a run to open it. Use the bottom tabs for Board, Reserved and Changes. More opens every other panel.</p>`;
+    case 'shortcuts': return `<h2>Shortcuts</h2><p class="lead">Keyboard, and gestures on a phone.</p><table class="dl"><tr><th>Action</th><th>Keys</th></tr>${[['Command palette', 'Ctrl or Cmd + K'], ['New chat', 'Ctrl or Cmd + Shift + O'], ['Toggle sidebar', 'Ctrl or Cmd + B'], ['Toggle panels', 'Ctrl or Cmd + J'], ['Settings', 'Ctrl or Cmd + ,'], ['Send message', 'Enter'], ['New line', 'Shift + Enter'], ['Commands', 'Type /']].map(r => `<tr><td>${r[0]}</td><td class="mono">${r[1]}</td></tr>`).join('')}</table>
+      <p class="lead" style="margin-top:1em">Phone: tap a chat to open it. Long press a chat for its menu. Use the bottom tabs for Board, Reserved and Changes. More opens every other panel.</p>`;
     case 'about': return `<h2>About</h2><p class="lead">Sentinel prototype. All data in this screen is simulated.</p>${fld('Version', '', '<span class="k">0.3.0 (prototype)</span>')}${fld('Daemon', '', '<span class="k">local, pid 4821</span>')}${fld('Updates', S.update ? 'An update is ready.' : 'You are up to date.', `<button class="btn" data-act="update" ${S.update ? '' : 'disabled'}>Relaunch to update</button>`)}`;
   }
   return '';
@@ -1628,7 +1898,7 @@ function wizNav(dir, skip) {
 }
 function finishSetup() {
   S.setup.done = true; S.tools.forEach(a => { if (a.status === 'ready') a.enabled = true; });
-  const r3 = getRun('r3'); r3.title = 'Dry run on the sample repo'; closeOverlay('wiz'); save(); renderAll();
+  const r3 = getRun('r3'); if (r3) r3.title = 'Dry run on the sample repo'; closeOverlay('wiz'); save(); renderAll();
   toast('Setup complete'); if (!S.setup.tourSeen) setTimeout(startTour, 500);
 }
 
@@ -1665,7 +1935,7 @@ function renderGuide() {
 
 /* ---------- tour ---------- */
 const TOUR = [
-  { sel: ['#sbList'], t: 'Your runs', b: 'Runs are grouped by repository. A blue dot means a run needs you. A phone icon means you can steer it from a phone.', open: 'sb' },
+  { sel: ['#sbList'], t: 'Your chats', b: 'Chats are grouped by project. A blue dot means a chat needs you. A phone icon means you can steer it from a phone. The more icon holds rename, pin, archive and delete.', open: 'sb' },
   { sel: ['#agentStack'], t: 'Switch agents', b: 'These avatars are the agents in this run. Click one to focus the stream on it, open its terminal, or kill it.' },
   { sel: ['#hdIcons', '#tabbar'], t: 'Panels slide in', b: 'Board, terminal, changes, reserved files, brain and phone open in a side panel. More holds files, cost, report, agents and permissions.' },
   { sel: ['#stream'], t: 'The stream', b: 'Everything that happens, in order: plans, reserved files, agent steps, checkpoints, tests and verdicts. It scrolls like a chat.' },
@@ -1706,7 +1976,7 @@ function paletteItems() {
   const it = [];
   S.tools.filter(a => a.enabled && a.status === 'ready').forEach(a => { it.push([`Switch to ${a.name}`, 'agent', 'setTarget', a.id]); it.push([`Focus stream on ${a.name}`, 'eye', 'focus', a.id]); });
   Object.entries(PANELS).forEach(([k, p]) => it.push([`Open ${p.label}`, p.icon, 'openPanel', k]));
-  it.push(['Start the sample run', 'play2', 'startRun', 'auto'], ['Plan only', 'eye', 'startRun', 'plan'], ['Toggle theme', 'sun', 'toggleTheme', ''], ['Open settings', 'gear', 'settings', ''], ['How to use Sentinel', 'book', 'guide', ''], ['Take the tour', 'play2', 'tour', '']);
+  it.push(['New chat', 'plus', 'newChat', ''], ['Start the sample run', 'play2', 'startRun', 'auto'], ['Plan only', 'eye', 'startRun', 'plan'], ['Toggle theme', 'sun', 'toggleTheme', ''], ['Open settings', 'gear', 'settings', ''], ['How to use Sentinel', 'book', 'guide', ''], ['Take the tour', 'play2', 'tour', '']);
   ['desktop', 'tablet', 'phone'].forEach(d => it.push([`Preview on ${d}`, d, 'device', d]));
   return it;
 }
@@ -1840,7 +2110,7 @@ function brainJournal() {
     B.push(mkn('lesson-L' + (n0 + i + 1), 'lesson', key + ': ' + value, `Typed lesson from [[${runId}]]. Not used until proven.`, { by: 'run', kind, key, value, evidence: 1, helped: 0, hurt: 0, state: 'candidate', tags: ['lesson'], created: date, confirmed: date, strength: .3 })); c.lesson++;
   });
   brainPick().forEach(n => { n.uses = (n.uses || 0) + 1; n.strength = Math.min(1, n.strength + .02); });
-  add('r1', { k: 'note', icon: 'brain', html: `Brain updated: 1 run note, ${c.task} task notes, ${c.file} new file notes, ${c.lesson} lesson candidates. <button class="wl" data-act="brainOpen" data-arg="${runId}">Open the run note</button>` });
+  add(S.live, { k: 'note', icon: 'brain', html: `Brain updated: 1 run note, ${c.task} task notes, ${c.file} new file notes, ${c.lesson} lesson candidates. <button class="wl" data-act="brainOpen" data-arg="${runId}">Open the run note</button>` });
   save();
 }
 
@@ -1992,7 +2262,7 @@ function tgResolved(evId, text) {
 }
 /* chat commands */
 function tgStatus() {
-  const r = getRun('r1'), v = S.tasks.filter(t => t.status === 'verified').length, d = tgDetail(), run = S.tasks.filter(t => t.status === 'running');
+  const r = getRun(S.live), v = S.tasks.filter(t => t.status === 'verified').length, d = tgDetail(), run = S.tasks.filter(t => t.status === 'running');
   if (d === 'status') return `Run: ${r.status}. ${v} of ${S.tasks.length || 12} verified.`;
   const base = `Run: ${r.status}. ${v} of ${S.tasks.length || 12} verified.\nCost ${money(S.cost.total)} of ${money(S.cap)}. Mode: ${PERM_MODES[S.perm].l}.`;
   return d === 'summary' ? base : base + (run.length ? '\nRunning: ' + run.map(t => `${t.id} on ${t.agent}`).join(', ') : '\nNothing is running.');
@@ -2009,7 +2279,7 @@ function tgDiff(arg) {
 function tgCommand(text) {
   const T = S.tg; if (!T.paired) return;
   tgPush({ who: 'you', text });
-  const [c, ...r] = text.trim().split(/\s+/), a = r.join(' '), run = getRun('r1');
+  const [c, ...r] = text.trim().split(/\s+/), a = r.join(' '), run = getRun(S.live);
   const need = k => { if (!T.level[k]) { tgReply(`${k[0].toUpperCase() + k.slice(1)} is off for this chat. Turn it on in Settings, Integrations.`); return false; } return true; };
   switch (c) {
     case '/help': tgReply('Commands:\n/status\n/pause  /resume  /stop\n/cap 1.50\n/kill <agent>\n/agent <name> <text>\n/diff [task]\n/report\n/daily\n/brain <search>\n/task <text>\n/run [task]'); break;
@@ -2023,7 +2293,7 @@ function tgCommand(text) {
     case '/kill': if (!need('control')) break; if (!agentById(a)) tgReply('Use /kill claude, codex, or opencode.'); else tgReply(`Kill ${a}? Its task is stopped and moved up a step.`, [{ label: 'Kill ' + a, arg: 'cmd|/killnow ' + a }, { label: 'Cancel', arg: 'cmd|/cancel' }]); break;
     case '/killnow': if (!need('control')) break; killAgent(a); tgReply(`Killing ${a}.`); break;
     case '/agent': { if (!need('code')) break; const name = r[0], msg = r.slice(1).join(' '); if (!agentById(name) || agentById(name).status !== 'ready' || !msg) { tgReply('Use /agent claude <text>. Ready agents: ' + S.tools.filter(t => t.status === 'ready').map(t => t.id).join(', ') + '.'); break; }
-      if (['running', 'paused'].includes(run.status)) { add('r1', { k: 'user', text: msg + ' (from Telegram)', to: name }); tgReply(`Sent to ${name}. It applies this on its next step, with the files it has reserved.`); setTimeout(() => say(`<p><b>${esc(name)}</b>: Got it, from Telegram. I will apply this on my next step.</p>`, name), 900); } else tgReply(`${name} is idle. Start a run in Sentinel and it will use this on its next task.`); break; }
+      if (['running', 'paused'].includes(run.status)) { add(S.live, { k: 'user', text: msg + ' (from Telegram)', to: name }); tgReply(`Sent to ${name}. It applies this on its next step, with the files it has reserved.`); setTimeout(() => say(`<p><b>${esc(name)}</b>: Got it, from Telegram. I will apply this on my next step.</p>`, name), 900); } else tgReply(`${name} is idle. Start a run in Sentinel and it will use this on its next task.`); break; }
     case '/diff': if (!need('code')) break; tgReply(tgDiff(a)); break;
     case '/report': if (!need('reports')) break; tgReply(tgStatus() + (S.tasks.length ? '\nOpen the report in Sentinel for receipts.' : '')); break;
     case '/daily': if (!need('reports')) break; tgDaily(); break;
@@ -2031,15 +2301,15 @@ function tgCommand(text) {
     case '/bypass': case '/raise': case '/edit': case '/shell': tgReply('That can only be done at the PC. Telegram cannot switch on Bypass permissions, raise the cap, edit notes or tests, or run shell commands.'); tgLog('Refused: ' + c + ' (needs the PC)'); break;
     case '/task': { if (!need('code')) break; if (!a) { tgReply('Use /task <what to do>, for example /task Add a rate limit to transfers.'); break; } T.draft = a; tgReply(tgDetail() === 'status' ? 'Add this task to backlog.md?' : `Add this task to backlog.md?\n"${a.slice(0, 120)}"`, [{ label: 'Add task', arg: 'cmd|/addtask' }, { label: 'Cancel', arg: 'cmd|/cancel' }]); break; }
     case '/addtask': { if (!need('code')) break; if (!T.draft) { tgReply('Nothing to add. Send /task <text>.'); break; } const nt = tgNewTask(T.draft); T.draft = ''; tgLog('Added ' + nt.id + ' to backlog.md'); tgReply(`Added ${nt.id} to backlog.md.\nPlan: ${nt.scope.length} file${nt.scope.length > 1 ? 's' : ''} (${nt.scope.join(', ')}). No conflicts with other tasks.`, [{ label: 'Run ' + nt.id, arg: 'cmd|/run ' + nt.id }, { label: 'Later', arg: 'cmd|/cancel' }]); break; }
-    case '/run': { if (!need('code')) break; if (S.perm === 'bypass') { tgReply('Runs started from Telegram never use Bypass permissions. Switch the mode at the PC first.'); tgLog('Refused: /run in Bypass mode'); break; } const id = (a || '').toUpperCase(); if (['running', 'paused'].includes(run.status)) { tgReply('A run is already in progress. Send /status.'); break; } if (id && !S.extra.some(e => e.id === id) && !TASKS0.some(x => x.id === id)) { tgReply('I do not know task ' + id + '. Send /status.'); break; } tgReply(id ? `Start a run of ${id} in ${PERM_MODES[S.perm].l} mode?` : `Start a run of the whole backlog in ${PERM_MODES[S.perm].l} mode?`, [{ label: 'Start', arg: 'cmd|/runnow ' + id }, { label: 'Cancel', arg: 'cmd|/cancel' }]); break; }
-    case '/runnow': { if (!need('code')) break; if (S.perm === 'bypass') { tgReply('Runs started from Telegram never use Bypass permissions.'); break; } const id = (a || '').trim().toUpperCase(); if (['running', 'paused'].includes(run.status)) { tgReply('A run is already in progress.'); break; } tgLog('Run started from Telegram' + (id ? ': ' + id : '')); if (id) { quickRun(id); tgReply(`Started ${id} in ${PERM_MODES[S.perm].l} mode. I will message you when it is done.`); } else { startRun('auto'); tgReply('Started the run. I will message you at each wave.'); } break; }
+    case '/run': { if (!need('code')) break; if (S.perm === 'bypass') { tgReply('Runs started from Telegram never use Bypass permissions. Switch the mode at the PC first.'); tgLog('Refused: /run in Bypass mode'); break; } const id = (a || '').toUpperCase(); if (['running', 'paused'].includes(run.status)) { tgReply('A run is already live. Send /status.'); break; } if (id && !S.extra.some(e => e.id === id) && !TASKS0.some(x => x.id === id)) { tgReply('I do not know task ' + id + '. Send /status.'); break; } tgReply(id ? `Start a run of ${id} in ${PERM_MODES[S.perm].l} mode?` : `Start a run of the whole backlog in ${PERM_MODES[S.perm].l} mode?`, [{ label: 'Start', arg: 'cmd|/runnow ' + id }, { label: 'Cancel', arg: 'cmd|/cancel' }]); break; }
+    case '/runnow': { if (!need('code')) break; if (S.perm === 'bypass') { tgReply('Runs started from Telegram never use Bypass permissions.'); break; } const id = (a || '').trim().toUpperCase(); if (['running', 'paused'].includes(run.status)) { tgReply('A run is already live.'); break; } tgLog('Run started from Telegram' + (id ? ': ' + id : '')); if (id) { quickRun(id); tgReply(`Started ${id} in ${PERM_MODES[S.perm].l} mode. I will message you when it is done.`); } else { startRun('auto', '', [], getRun(S.live)); tgReply('Started the run. I will message you at each wave.'); } break; }
     default: tgReply(text.startsWith('/') ? 'I do not know that command. Send /help.' : 'To talk to an agent, send /agent claude <text>. Send /help for all commands.');
   }
 }
 function tgDaily() {
   const T = S.tg; if (!T.paired) { toast('Pair a chat first', 'warn'); return; }
   const rs = S.runs.filter(r => r.id !== 'r7'), v = S.tasks.filter(t => t.status === 'verified').length, d = tgDetail();
-  const parts = { status: `Daily summary: ${rs.length} runs.`, summary: `Daily summary: ${rs.length} runs. Today ${v} tasks verified.\nSpend ${money(S.cost.total)}. ${S.brain.proposals.length} Brain proposals waiting.`, detail: `Daily summary: ${rs.length} runs. Today ${v} tasks verified.\nSpend ${money(S.cost.total)}. ${S.brain.proposals.length} Brain proposals waiting.\n${rs.slice(0, 4).map(r => '- ' + r.title + (r.verified ? ' (' + r.verified + ')' : '')).join('\n')}` };
+  const parts = { status: `Daily summary: ${rs.length} chats.`, summary: `Daily summary: ${rs.length} chats. Today ${v} tasks verified.\nSpend ${money(S.cost.total)}. ${S.brain.proposals.length} Brain proposals waiting.`, detail: `Daily summary: ${rs.length} chats. Today ${v} tasks verified.\nSpend ${money(S.cost.total)}. ${S.brain.proposals.length} Brain proposals waiting.\n${rs.slice(0, 4).map(r => '- ' + r.title + (r.verified ? ' (' + r.verified + ')' : '')).join('\n')}` };
   tgLog('Sent (' + d + '): daily summary'); tgPush({ who: 'bot', text: tgRedact(parts[d] || parts.summary), buttons: [] });
 }
 /* chat panel */
@@ -2124,15 +2394,15 @@ function showSlash(v) {
   if (!m.length || v.includes(' ') && !SLASH.some(c => c[0].split(' ')[0] === q)) { hideSlash(); return; }
   s.hidden = false; s.innerHTML = `<div class="pop" style="position:static;max-width:none">${m.map(c => `<button class="mi" data-act="slashPick" data-arg="${esc(c[0])}"><span class="mono">${esc(c[0])}</span><span class="d" style="margin:0 0 0 .6em">${esc(c[1])}</span></button>`).join('')}</div>`;
 }
-function say(html, agent) { add('r1', { k: 'sys', html, agent }); }
+function say(html, agent) { add(S.live, { k: 'sys', html, agent }); }
 function command(text) {
   const [c, ...rest] = text.split(/\s+/), a = rest.join(' ');
-  add('r1', { k: 'user', text });
+  add(S.live, { k: 'user', text });
   switch (c) {
     case '/help': say('<p>Commands:</p><ul>' + SLASH.map(x => `<li><span class="k">${esc(x[0])}</span> ${esc(x[1])}</li>`).join('') + '</ul>'); break;
-    case '/pause': { const r = getRun('r1'); if (r.status === 'running') pauseRun(); else say('<p>Nothing is running.</p>'); break; }
-    case '/resume': { const r = getRun('r1'); if (r.status === 'paused') pauseRun(); else say('<p>The run is not paused.</p>'); break; }
-    case '/stop': if (['running', 'paused'].includes(getRun('r1').status)) stopRun(); else say('<p>Nothing is running.</p>'); break;
+    case '/pause': { const r = getRun(S.live); if (r.status === 'running') pauseRun(); else say('<p>Nothing is running.</p>'); break; }
+    case '/resume': { const r = getRun(S.live); if (r.status === 'paused') pauseRun(); else say('<p>The run is not paused.</p>'); break; }
+    case '/stop': if (['running', 'paused'].includes(getRun(S.live).status)) stopRun(); else say('<p>Nothing is running.</p>'); break;
     case '/cap': lowerCap(parseFloat(a)); break;
     case '/agent': if (agentById(a) && agentById(a).status === 'ready') { S.target = a; renderFoot(); say(`<p>Messages now go to <b>${esc(a)}</b>. Use <span class="k">/agent sentinel</span>-style routing from the chip to switch back.</p>`); } else if (a === 'sentinel') { S.target = 'sentinel'; renderFoot(); say('<p>Messages go to Sentinel again.</p>'); } else say(`<p>No ready agent called ${esc(a)}.</p>`); break;
     case '/focus': if (a === 'all' || agentById(a)) { S.focus = a || 'all'; applyFocus(); renderHeader(); say(`<p>Stream focus: <b>${esc(S.focus)}</b>.</p>`); } else say(`<p>No agent called ${esc(a)}.</p>`); break;
@@ -2143,15 +2413,24 @@ function command(text) {
     default: say(`<p>Unknown command <span class="k">${esc(c)}</span>. Type <span class="k">/help</span>.</p>`);
   }
 }
+/* Sends the composer text with its chips. A chat that is not live starts a run only when nothing else is live. */
 function submit() {
-  const ta = $('#cin'), text = ta.value.trim(); if (!text) return;
+  const ta = $('#cin'), text = ta.value.trim(), chat = curRun();
+  if (!text && !S.attach.length) return;
+  if (S.attach.some(c => c.size > MAX_UPLOAD)) { toast('Remove the file that is too large.', 'warn'); return; }
+  if (text.startsWith('/')) {
+    ta.value = ''; autosize(); hideSlash();
+    if (chat.id === S.live) command(text); else toast('Commands run in the live chat. Open it first.');
+    return;
+  }
+  if (chat.care) { toast('Brain care does not take messages.'); return; }
+  if (chat.id !== S.live && isActive(getRun(S.live))) { busyNote(chat); return; }
   ta.value = ''; autosize(); hideSlash();
-  if (S.cur !== 'r1') { toast('Open the active run to message it'); return; }
-  if (text.startsWith('/')) { command(text); return; }
-  const run = getRun('r1');
-  if (run.status === 'idle') { startRun('auto', text); return; }
-  if (['done', 'stopped', 'blocked'].includes(run.status)) { add('r1', { k: 'user', text }); say('<p>This run has finished. Start a new run from the sidebar to use this instruction.</p>'); return; }
-  const tgt = S.target; add('r1', { k: 'user', text, to: tgt === 'sentinel' ? null : tgt });
+  if (chat.id !== S.live && chat.status !== 'idle') { add(chat.id, { k: 'user', text, chips: takeChips() }); say('<p>This run has finished. Start a new chat to do more.</p>'); return; }
+  const chips = takeChips(), run = getRun(S.live);
+  if (chat.id !== S.live || run.status === 'idle') { startRun('auto', text, chips); return; }
+  if (['done', 'stopped', 'blocked'].includes(run.status)) { add(S.live, { k: 'user', text, chips }); say('<p>This run has finished. Start a new chat to do more.</p>'); return; }
+  const tgt = S.target; add(S.live, { k: 'user', text, chips, to: tgt === 'sentinel' ? null : tgt });
   setTimeout(() => {
     if (tgt === 'sentinel') say('<p>Noted. Sentinel will pass this on at the next step. A message cannot change which files a task has reserved. Asking for more files needs a request.</p>');
     else { const st = S.agentState[tgt]; say(`<p><b>${esc(tgt)}</b>: ${st && st.state === 'running' ? 'Got it. I will apply this on my next step, with the files I have reserved.' : 'I am idle right now. I will use this on my next task.'}</p>`, tgt); }
@@ -2162,12 +2441,29 @@ function submit() {
 function act(a, arg, el) {
   switch (a) {
     case 'noop': break;
-    case 'newRun': newRun(); break;
+    case 'newChat': newChat(arg); break;
+    case 'chatMenu': menuChat(arg, el); break;
+    case 'renameChat': renameChat(arg); break;
+    case 'renSave': renameTo(arg, ($('#renIn') || {}).value); closeOverlay('ren'); break;
+    case 'togglePin': togglePin(arg); break;
+    case 'archiveChat': archiveChat(arg); break;
+    case 'confirmDelete': confirmDelete(arg); break;
+    case 'deleteChat': deleteChat(arg); break;
+    case 'addFiles': openAttachDialog('files'); break;
+    case 'addFolder': openAttachDialog('folder'); break;
+    case 'addBacklog': openAttachDialog('backlog'); break;
+    case 'addNote': openNoteDialog(); break;
+    case 'dlgTab': dlgTab(arg); break;
+    case 'dlgUpload': dlgUpload(arg); break;
+    case 'dlgRmUpload': S.dlg.uploads.splice(+arg, 1); renderAttachDialog(); break;
+    case 'dlgConfirm': dlgConfirm(); break;
+    case 'noteAdd': noteAdd(); break;
+    case 'rmAttach': S.attach.splice(+arg, 1); renderFoot(); break;
     case 'toggleSb': S.sbOpen = !S.sbOpen; if (S.layout === 'phone' && S.sbOpen) S.panelOpen = false; syncClasses(); renderHeader(); renderTabbar(); break;
     case 'histBack': if (S.hpos > 0) { S.hpos--; openRun(S.hist[S.hpos], true); } break;
     case 'histFwd': if (S.hpos < S.hist.length - 1) { S.hpos++; openRun(S.hist[S.hpos], true); } break;
     case 'toggleSearch': S.sbSearch = !S.sbSearch; renderSbHd(); if (S.sbSearch) $('#sbQ').focus(); else { S.sbQuery = ''; $('#sbQ').value = ''; renderSidebar(); } break;
-    case 'toggleGroup': S.closedGroups[arg] = !S.closedGroups[arg]; renderSidebar(); break;
+    case 'toggleGroup': S.closedGroups[arg] = !closedFor(arg); renderSidebar(); break;
     case 'openRun': openRun(arg); break;
     case 'update': if (S.update) { toast('Restarting the daemon (simulated)'); setTimeout(() => { S.update = false; renderSidebar(); toast('Updated to 0.3.1 (simulated)'); }, 900); } break;
     case 'toggleTheme': S.prefs.theme = S.resolved === 'dark' ? 'light' : 'dark'; applyPrefs(); save(); renderSidebar(); if ($('#ov-settings')) renderSettings(); break;
@@ -2200,7 +2496,7 @@ function act(a, arg, el) {
     case 'setTarget': S.target = arg; renderFoot(); break;
     case 'brainMode': if (S.layout === 'phone' && !modeStricter(arg)) { toast('A phone can only tighten the Brain mode', 'warn'); break; } S.brainMode = arg; save(); rerenderUi(); break;
     case 'toast': toast(arg); break;
-    case 'startRun': startRun(arg); break;
+    case 'startRun': if (arg === 'backlog') startRun('auto', '', [{ kind: 'backlog', name: BACKLOG_NAME }]); else startRun(arg); break;
     case 'tour': closeOverlay('settings'); closeOverlay('guide'); startTour(); break;
     case 'guide': openGuide(); break;
     case 'decide': { const [id, c] = arg.split('|'); decide(id, c); break; }
@@ -2288,8 +2584,20 @@ function act(a, arg, el) {
 }
 
 /* ---------- events ---------- */
+/* A touch long press opens the chat menu. The click that ends the press is swallowed. */
+let lpTimer = 0, lpFired = false;
+function cancelLongPress() { clearTimeout(lpTimer); }
+document.addEventListener('pointerdown', ev => {
+  lpFired = false; cancelLongPress();
+  const row = ev.target.closest && ev.target.closest('.run[data-chat]');
+  if (ev.pointerType !== 'touch' || !row || ev.target.closest('.more, input')) return;
+  lpTimer = setTimeout(() => { lpFired = true; const c = getRun(row.dataset.chat); if (c && !c.care) menuChat(c.id, row); }, 500);
+});
+['pointerup', 'pointermove', 'pointercancel'].forEach(name => document.addEventListener(name, cancelLongPress));
 document.addEventListener('click', ev => {
+  if (lpFired) { lpFired = false; return; }
   const t = ev.target;
+  if (t.classList && t.classList.contains('ren')) return;
   const pop = $('#pop'); if (pop && !pop.contains(t)) closePop();
   const ov = t.closest && t.closest('.ov[data-close],.pal[data-close]'); if (ov && t === ov) { closeOverlay(ov.dataset.close); return; }
   const el = t.closest && t.closest('[data-act]'); if (!el || el.disabled) return;
@@ -2300,15 +2608,23 @@ document.addEventListener('click', ev => {
 document.addEventListener('dblclick', ev => { const el = ev.target.closest && ev.target.closest('[data-dbl]'); if (el) act('fdGo', el.dataset.dbl, el); });
 document.addEventListener('keydown', ev => {
   const mod = ev.ctrlKey || ev.metaKey;
-  if (mod && ev.key.toLowerCase() === 'k') { ev.preventDefault(); openPalette(); }
+  if (ev.target && ev.target.classList && ev.target.classList.contains('ren') && (ev.key === 'Enter' || ev.key === 'Escape')) { ev.preventDefault(); finishRename(ev.target, ev.key === 'Enter'); return; }
+  if (ev.target && ev.target.id === 'renIn' && ev.key === 'Enter') { ev.preventDefault(); const b = $('#ov-ren [data-act="renSave"]'); if (b) b.click(); return; }
+  if (mod && ev.shiftKey && ev.key.toLowerCase() === 'o') { ev.preventDefault(); act('newChat', ''); }
+  else if (mod && ev.key.toLowerCase() === 'k') { ev.preventDefault(); openPalette(); }
   else if (mod && ev.key.toLowerCase() === 'b') { ev.preventDefault(); act('toggleSb'); }
   else if (mod && ev.key.toLowerCase() === 'j') { ev.preventDefault(); if (S.panelOpen) act('closePanel'); else openPanel(S.panelActive || 'board'); }
   else if (mod && ev.key === ',') { ev.preventDefault(); openSettings(); }
-  else if (ev.key === 'Escape') { if ($('#pop')) closePop(); else if ($('#tour')) endTour(); else if ($('#ov-pal')) closeOverlay('pal'); else if ($('#ov-guide')) closeOverlay('guide'); else if ($('#ov-settings')) closeOverlay('settings'); else hideSlash(); }
+  else if (ev.key === 'Escape') { if ($('#pop')) closePop(); else if ($('#tour')) endTour(); else if ($('#ov-pal')) closeOverlay('pal'); else if ($('#ov-guide')) closeOverlay('guide'); else if ($('#ov-settings')) closeOverlay('settings'); else if ($('#ov-att')) closeOverlay('att'); else if ($('#ov-del')) closeOverlay('del'); else if ($('#ov-ren')) closeOverlay('ren'); else hideSlash(); }
   else if (ev.target && ev.target.id === 'cin' && ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); submit(); }
   else if (ev.target && ev.target.id === 'tgIn' && ev.key === 'Enter') { ev.preventDefault(); act('tgSend'); }
   else if (ev.target && ev.target.id === 'palIn' && ev.key === 'Enter') { const f = $('#palList .mi'); if (f) f.click(); }
   else if (ev.key === 'Enter' && ev.target && ev.target.classList && ev.target.classList.contains('ptab')) ev.target.click();
+  else if (ev.key === 'Enter' && ev.target && ev.target.classList && ev.target.classList.contains('run')) ev.target.click();
+});
+document.addEventListener('focusout', ev => {
+  const t = ev.target;
+  if (t.classList && t.classList.contains('ren') && S.renaming) finishRename(t, true);
 });
 document.addEventListener('input', ev => {
   const t = ev.target;
@@ -2316,6 +2632,7 @@ document.addEventListener('input', ev => {
   else if (t.id === 'sbQ') { S.sbQuery = t.value; renderSidebar(); }
   else if (t.id === 'brainQ') { S.brain.ui.q = t.value; const l = $('#brainList'); if (l) l.innerHTML = brListHtml(); }
   else if (t.id === 'fileQ') { S.fileQ = t.value; $('#fileTree').innerHTML = fileRows(S.fileQ); }
+  else if (t.id === 'dlgQ') { S.dlg.filter = t.value; $('#dlgList').innerHTML = dlgRows(ATT[S.dlg.kind]); }
   else if (t.id === 'palIn') palRender(t.value);
   else if (t.dataset && t.dataset.range) { const k = t.dataset.range, v = parseFloat(t.value); S.prefs[k] = v; applyPrefs(); save(); const l = $('#lbl-' + k); if (l) l.textContent = v + 'px'; refreshSettingsLive(); }
   else if (t.dataset && t.dataset.tok) { const o = S.prefs.overrides[S.resolved]; o[t.dataset.tok] = t.value; applyPrefs(); save(); refreshSettingsLive(); }
@@ -2323,6 +2640,7 @@ document.addEventListener('input', ev => {
 });
 document.addEventListener('change', ev => {
   const t = ev.target; if (t.id === 'spd') { S.speed = parseFloat(t.value); return; }
+  if (t.hasAttribute('data-dlg-pick')) { dlgPick(t); return; }
   const k = t.dataset && t.dataset.sel; if (!k) return; const v = t.value;
   if (k === 'fontUi' || k === 'fontMono') { S.prefs[k] = v; applyPrefs(); save(); refreshSettingsLive(); }
   else if (k === 'repo') { S.setup.repo = v; save(); toast('Repository: ' + v); }
