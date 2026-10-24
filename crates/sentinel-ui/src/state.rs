@@ -84,6 +84,10 @@ pub struct Ui {
     pub prefs: RwSignal<Prefs>,
     pub terminal: RwSignal<HashMap<ToolId, Vec<String>>>,
     pub popover: RwSignal<Option<Popover>>,
+    /// True once the first snapshot has arrived, so the page does not guess before it knows.
+    pub loaded: RwSignal<bool>,
+    /// The setup wizard was opened on purpose, for example from a menu.
+    pub setup_open: RwSignal<bool>,
 }
 
 /// Which menu a popover shows. Each kind has one body in `components/menus.rs`.
@@ -140,7 +144,15 @@ impl Ui {
             prefs: RwSignal::new(prefs),
             terminal: RwSignal::new(HashMap::new()),
             popover: RwSignal::new(None),
+            loaded: RwSignal::new(false),
+            setup_open: RwSignal::new(false),
         }
+    }
+
+    /// Replace the snapshot with a fresh one from the daemon.
+    pub fn apply_snapshot(&self, snapshot: Snapshot) {
+        self.snapshot.set(snapshot);
+        self.loaded.set(true);
     }
 
     /// Open a panel as a tab and show it.
@@ -202,7 +214,7 @@ pub fn use_ui() -> Ui {
 pub fn refresh(ui: Ui) {
     leptos::task::spawn_local(async move {
         match crate::api::snapshot().await {
-            Ok(snapshot) => ui.snapshot.set(snapshot),
+            Ok(snapshot) => ui.apply_snapshot(snapshot),
             Err(error) => ui.show_toast(error.to_string(), ToastKind::Danger),
         }
     });

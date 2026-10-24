@@ -421,3 +421,107 @@ async fn a_run_started_over_the_api_finishes_with_a_report() {
         "{report}"
     );
 }
+
+#[tokio::test]
+async fn the_cap_can_be_set_before_a_run_only_from_the_computer() {
+    let dir = tempfile::tempdir().unwrap();
+    let engine = engine_in(dir.path());
+    let desktop = desktop_token(&engine);
+    let base = start(engine).await;
+    let phone = pair_phone(&base, &desktop).await;
+
+    let (status, set) = send_json(
+        &base,
+        (reqwest::Method::PUT, "/api/config/cap"),
+        &desktop,
+        &json!({ "cap": "7.50" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{set}");
+    assert_eq!(set["cap"], "7.50");
+    let (from_phone, _) = send_json(
+        &base,
+        (reqwest::Method::PUT, "/api/config/cap"),
+        &phone,
+        &json!({ "cap": "9.00" }),
+    )
+    .await;
+    assert_eq!(from_phone, StatusCode::FORBIDDEN);
+    let (zero, _) = send_json(
+        &base,
+        (reqwest::Method::PUT, "/api/config/cap"),
+        &desktop,
+        &json!({ "cap": "0" }),
+    )
+    .await;
+    assert_eq!(zero, StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn the_file_list_names_files_git_knows_and_hides_the_sentinel_folder() {
+    let dir = tempfile::tempdir().unwrap();
+    let status = std::process::Command::new("git")
+        .current_dir(dir.path())
+        .args(["init", "-q"])
+        .status()
+        .unwrap();
+    assert!(status.success());
+    std::fs::write(dir.path().join("notes.txt"), "hello").unwrap();
+    let engine = engine_in(dir.path());
+    let token = desktop_token(&engine);
+    let base = start(engine).await;
+
+    let (code, files) = get_json(&base, "/api/files", Some(&token)).await;
+    assert_eq!(code, StatusCode::OK, "{files}");
+    let names: Vec<&str> = files
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|name| name.as_str())
+        .collect();
+    assert!(names.contains(&"notes.txt"), "{names:?}");
+    assert!(names.iter().all(|name| !name.starts_with(".sentinel/")));
+}
+
+#[tokio::test]
+async fn a_connection_test_answers_for_a_known_name_and_404_for_another() {
+    let dir = tempfile::tempdir().unwrap();
+    let engine = engine_in(dir.path());
+    let token = desktop_token(&engine);
+    let base = start(engine).await;
+
+    let (known, row) = post_json(&base, "/api/connections/git/test", &token, &json!({})).await;
+    assert_eq!(known, StatusCode::OK, "{row}");
+    assert_eq!(
+        row["name"].as_str().map(str::to_lowercase),
+        Some("git".to_owned())
+    );
+    let (missing, _) = post_json(&base, "/api/connections/nope/test", &token, &json!({})).await;
+    assert_eq!(missing, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn the_openrouter_key_is_stored_and_never_echoed() {
+    let dir = tempfile::tempdir().unwrap();
+    let engine = engine_in(dir.path());
+    let token = desktop_token(&engine);
+    let base = start(engine).await;
+
+    let (status, reply) = send_json(
+        &base,
+        (reqwest::Method::PUT, "/api/secrets/openrouter"),
+        &token,
+        &json!({ "key": "sk-test-key" }),
+    )
+    .await;
+    assert_eq!(status, StatusCode::OK, "{reply}");
+    assert!(!reply.to_string().contains("sk-test-key"));
+    let (empty, _) = send_json(
+        &base,
+        (reqwest::Method::PUT, "/api/secrets/openrouter"),
+        &token,
+        &json!({ "key": "  " }),
+    )
+    .await;
+    assert_eq!(empty, StatusCode::BAD_REQUEST);
+}

@@ -63,7 +63,7 @@ pub fn connect(ui: Ui) {
 pub fn reload(ui: Ui) {
     spawn_local(async move {
         match api::snapshot().await {
-            Ok(snapshot) => ui.snapshot.set(snapshot),
+            Ok(snapshot) => ui.apply_snapshot(snapshot),
             Err(failure) => report_failure(ui, &failure),
         }
     });

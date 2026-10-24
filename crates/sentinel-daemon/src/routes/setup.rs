@@ -1,20 +1,26 @@
-//! Repository choice and the first-run steps. The computer only.
+//! Repository choice, the first-run steps, and the settings only the computer may change.
 
 use axum::Json;
 use axum::Router;
 use axum::extract::{Path, State};
 use axum::routing::{get, post, put};
-use serde_json::Value;
+use serde::Deserialize;
+use serde_json::{Value, json};
 
 use sentinel_core::OnboardingState;
 use sentinel_core::api::{RepoCheckRequest, RepoCheckResponse};
 
+use super::state::ConnectionBody;
 use super::{ApiResult, blocking, okay, require_computer};
-use crate::controls::Caller;
+use crate::controls::{Caller, usd_text};
 use crate::engine::{Engine, EngineError};
 
 pub(super) fn routes() -> Router<Engine> {
     Router::new()
+        .route("/api/config/cap", put(set_cap))
+        .route("/api/secrets/openrouter", put(set_openrouter_key))
+        .route("/api/connections/{name}/test", post(test_connection))
+        .route("/api/files", get(repo_files))
         .route("/api/repo/check", post(repo_check))
         .route("/api/repo/starter-backlog", post(starter_backlog))
         .route("/api/repo", put(set_repo))
@@ -88,4 +94,53 @@ async fn onboarding_reset(
 ) -> ApiResult<OnboardingState> {
     require_computer(&caller)?;
     blocking(engine, Engine::onboarding_reset).await
+}
+
+#[derive(Debug, Deserialize)]
+struct CapBody {
+    cap: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct KeyBody {
+    key: String,
+}
+
+/// Set the cap before a run. Once a run is live the cap can only be lowered.
+async fn set_cap(
+    State(engine): State<Engine>,
+    caller: Caller,
+    Json(body): Json<CapBody>,
+) -> ApiResult<Value> {
+    require_computer(&caller)?;
+    blocking(engine, move |e| {
+        e.set_cap(&body.cap, &caller)
+            .map(|cap| json!({ "cap": usd_text(cap) }))
+    })
+    .await
+}
+
+async fn set_openrouter_key(
+    State(engine): State<Engine>,
+    caller: Caller,
+    Json(body): Json<KeyBody>,
+) -> ApiResult<Value> {
+    require_computer(&caller)?;
+    blocking(engine, move |e| {
+        e.set_openrouter_key(&body.key).map(|()| okay())
+    })
+    .await
+}
+
+async fn test_connection(
+    State(engine): State<Engine>,
+    caller: Caller,
+    Path(name): Path<String>,
+) -> ApiResult<ConnectionBody> {
+    require_computer(&caller)?;
+    Ok(Json(engine.test_connection(&name).await?.into()))
+}
+
+async fn repo_files(State(engine): State<Engine>) -> ApiResult<Vec<String>> {
+    blocking(engine, Engine::repo_files).await
 }

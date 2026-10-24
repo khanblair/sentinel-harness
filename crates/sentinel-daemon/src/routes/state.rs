@@ -35,7 +35,7 @@ pub struct PageQuery {
 }
 
 #[derive(Debug, Serialize)]
-pub struct ConnectionBody {
+pub(super) struct ConnectionBody {
     name: String,
     state: ConnectionState,
     detail: String,

@@ -10,7 +10,8 @@ use crate::api;
 use crate::components::icon::Icon;
 use crate::components::top_bar::settle;
 use crate::state::{Modal, ToastKind, Ui, use_ui};
-use crate::views::modal_stubs::{GuideModal, PaletteModal, SettingsModal};
+use crate::views::modal_stubs::{GuideModal, PaletteModal};
+use crate::views::settings::SettingsDialog;
 
 /// The overlay id, as in `ov-<key>`. Bypass uses the key `bp`.
 pub fn modal_key(modal: &Modal) -> &'static str {
@@ -50,7 +51,7 @@ pub fn ModalHost() -> impl IntoView {
 
 fn modal_body(modal: &Modal) -> AnyView {
     match modal {
-        Modal::Settings { .. } => view! { <SettingsModal /> }.into_any(),
+        Modal::Settings { .. } => view! { <SettingsDialog /> }.into_any(),
         Modal::Guide => view! { <GuideModal /> }.into_any(),
         Modal::Palette => view! { <PaletteModal /> }.into_any(),
         Modal::BypassConfirm => view! { <BypassConfirm /> }.into_any(),

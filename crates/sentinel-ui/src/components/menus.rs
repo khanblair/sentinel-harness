@@ -308,6 +308,8 @@ fn more_menu(ui: Ui) -> impl IntoView {
         <MenuItem icon="search" label="Command palette" desc="Ctrl or Cmd + K"
             on_pick=move |()| { close(ui); ui.modal.set(Some(Modal::Palette)) } />
         <MenuItem icon="gear" label="Settings" on_pick=move |()| settings(ui, "general") />
+        <MenuItem icon="shield" label="Install and setup"
+            on_pick=move |()| { close(ui); ui.setup_open.set(true) } />
     }
 }
 

@@ -7,12 +7,18 @@ pub mod board;
 pub mod brain {
     pub use super::panel_stubs::BrainPanel;
 }
+pub mod budget_step;
 pub mod changes;
 pub mod composer;
 pub mod cost;
+pub mod dry_run;
 pub mod files;
+pub mod folder_picker;
+pub mod install;
 pub mod modal_stubs;
+pub mod onboarding;
 pub mod pair_page;
+pub mod pairing;
 pub mod panel_stubs;
 pub mod permissions;
 pub mod remote;

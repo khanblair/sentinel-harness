@@ -21,6 +21,7 @@ use crate::prefs::Prefs;
 use crate::state::{Modal, Ui, provide_ui, use_ui};
 use crate::theme;
 use crate::views::composer::Composer;
+use crate::views::onboarding::SetupWizard;
 use crate::views::stream::StreamView;
 use crate::ws;
 
@@ -186,8 +187,25 @@ pub fn App() -> impl IntoView {
             <div class="scrim" id="scrim" on:click=move |_| close_overlays(ui)></div>
             <Toast />
             <PopoverHost />
+            <SetupGate />
             <ModalHost />
         </div>
+    }
+}
+
+/// The setup wizard covers the app until setup is done, and whenever someone opens it.
+#[component]
+fn SetupGate() -> impl IntoView {
+    let ui = use_ui();
+    let visible = move || {
+        ui.setup_open.get() || (ui.loaded.get() && !ui.snapshot.with(|s| s.onboarding.complete))
+    };
+    view! {
+        <Show when=visible>
+            <div class="wiz" id="wiz" role="dialog" aria-label="Sentinel setup">
+                <SetupWizard />
+            </div>
+        </Show>
     }
 }
 

@@ -28,6 +28,7 @@ mod run;
 mod run_ctx;
 pub mod secrets;
 pub mod server;
+mod settings;
 pub mod tailscale;
 mod verify_phase;
 mod wave;
