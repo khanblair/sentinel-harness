@@ -2,8 +2,10 @@
 //! environment.
 
 mod commands;
+mod doctor_host;
 mod serve;
 mod service;
+mod writeup;
 
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -42,12 +44,18 @@ enum Command {
         #[arg(long)]
         repo: Option<PathBuf>,
     },
-    /// Check Rust, tools, git, and Tailscale.
-    Doctor,
+    /// Check Rust, tools, git, and Tailscale, then the always-on host.
+    Doctor {
+        #[arg(long)]
+        repo: Option<PathBuf>,
+    },
     /// Print the report of the last run.
     Report {
         #[arg(long)]
         repo: Option<PathBuf>,
+        /// Print a one-page Markdown draft of what the run did, built from the report and the log.
+        #[arg(long)]
+        writeup: bool,
     },
     /// Serve the UI and the API for a repository until you press Ctrl+C.
     Daemon {
@@ -141,8 +149,8 @@ async fn dispatch(command: Command) -> anyhow::Result<ExitCode> {
             fake_agents,
         } => commands::run(&backlog, repo, cap, fake_agents).await,
         Command::Scan { repo } => commands::scan(repo).await,
-        Command::Doctor => commands::doctor().await,
-        Command::Report { repo } => commands::report(repo),
+        Command::Doctor { repo } => commands::doctor(repo).await,
+        Command::Report { repo, writeup } => commands::report(repo, writeup),
         Command::Mcp => commands::mcp().await,
         other @ (Command::Daemon { .. }
         | Command::Open { .. }
@@ -152,7 +160,7 @@ async fn dispatch(command: Command) -> anyhow::Result<ExitCode> {
     }
 }
 
-fn service_command(action: ServiceCommand) -> anyhow::Result<ExitCode> {
+fn dispatch_service(action: ServiceCommand) -> anyhow::Result<ExitCode> {
     match action {
         ServiceCommand::Install {
             repo,
@@ -183,7 +191,7 @@ async fn dispatch_serve(command: Command) -> anyhow::Result<ExitCode> {
             })
             .await
         }
-        Command::Service { action } => service_command(action),
+        Command::Service { action } => dispatch_service(action),
         Command::Open { repo, print } => serve::open(repo, print),
         Command::Pair { repo } => serve::pair(repo).await,
         Command::Keys { action } => match action {
@@ -193,7 +201,7 @@ async fn dispatch_serve(command: Command) -> anyhow::Result<ExitCode> {
         },
         Command::Run { .. }
         | Command::Scan { .. }
-        | Command::Doctor
+        | Command::Doctor { .. }
         | Command::Report { .. }
         | Command::Mcp => {
             unreachable!("handled by dispatch")
