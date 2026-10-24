@@ -83,6 +83,34 @@ pub struct Ui {
     pub toast: RwSignal<Option<Toast>>,
     pub prefs: RwSignal<Prefs>,
     pub terminal: RwSignal<HashMap<ToolId, Vec<String>>>,
+    pub popover: RwSignal<Option<Popover>>,
+}
+
+/// Which menu a popover shows. Each kind has one body in `components/menus.rs`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PopoverKind {
+    Title,
+    Agents,
+    Permission,
+    Brain,
+    Target,
+    More,
+    Panel,
+    Attach,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Align {
+    Left,
+    Right,
+}
+
+/// An open menu, pinned under the element with `anchor_id`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Popover {
+    pub anchor_id: String,
+    pub align: Align,
+    pub kind: PopoverKind,
 }
 
 impl Ui {
@@ -102,6 +130,7 @@ impl Ui {
             toast: RwSignal::new(None),
             prefs: RwSignal::new(prefs),
             terminal: RwSignal::new(HashMap::new()),
+            popover: RwSignal::new(None),
         }
     }
 
