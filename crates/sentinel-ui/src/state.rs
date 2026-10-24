@@ -158,3 +158,14 @@ pub fn provide_ui(ui: Ui) {
 pub fn use_ui() -> Ui {
     expect_context::<Ui>()
 }
+
+/// Fetch a fresh snapshot and replace the current one. Call this after any change you sent to
+/// the daemon, and when the socket reconnects.
+pub fn refresh(ui: Ui) {
+    leptos::task::spawn_local(async move {
+        match crate::api::snapshot().await {
+            Ok(snapshot) => ui.snapshot.set(snapshot),
+            Err(error) => ui.show_toast(error.to_string(), ToastKind::Danger),
+        }
+    });
+}
