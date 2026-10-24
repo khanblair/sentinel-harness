@@ -123,7 +123,7 @@ Web push needs HTTPS. Without it, alerts show only while the app is open.
 | Network | Tailscale only. No public endpoint |
 | Identity | Per-device token. Revocable |
 | Lost phone | Revoke the device from another device or the CLI |
-| Allowed actions | Pause, resume, kill agent, answer decisions, lower cap, review lessons (approve, reject, retire), accept or dismiss Brain proposals, tighten Brain mode, read notes and the graph. Nothing else |
+| Allowed actions | Pause, resume, stop, kill agent, answer decisions and approvals, lower cap, start a run, send a message to an agent, browse folders inside the home folder and choose the repository (not while a run is live), review lessons (approve, reject, retire), accept or dismiss Brain proposals, tighten Brain mode, read notes and the graph. Nothing else |
 | Forbidden from the phone | Raising the cap, loosening the Brain mode, editing or deleting notes, editing tests, running shell commands, editing files |
 | Secrets | Never sent to the phone |
 | Logging | Every phone action is recorded with the device name |

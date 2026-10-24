@@ -74,14 +74,18 @@ impl Engine {
     }
 
     /// A run needs no live run, and at least one agent that is on and ready.
-    async fn check_can_start(&self) -> Result<()> {
-        if matches!(
+    pub(crate) fn is_run_live(&self) -> bool {
+        matches!(
             self.harness_state(),
             HarnessState::Running
                 | HarnessState::Paused
                 | HarnessState::Stopping
                 | HarnessState::Resuming
-        ) {
+        )
+    }
+
+    async fn check_can_start(&self) -> Result<()> {
+        if self.is_run_live() {
             return Err(EngineError::Refused("A run is already live.".to_owned()));
         }
         if self.store().list_tools()?.is_empty() {

@@ -133,6 +133,11 @@ impl Engine {
 
     /// Choose the repository the engine works on.
     pub fn set_repo(&self, path: &str) -> Result<RepoCheckResponse> {
+        if self.is_run_live() {
+            return Err(EngineError::Refused(
+                "A run is live. Stop it before choosing another folder.".to_owned(),
+            ));
+        }
         let check = folders::check_repo(Path::new(path));
         if !check.usable {
             return Err(EngineError::Invalid(format!(

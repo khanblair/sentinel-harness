@@ -245,6 +245,9 @@ async fn a_paired_phone_reads_state_but_cannot_use_desktop_routes() {
     assert_eq!(start_again, StatusCode::FORBIDDEN);
     let (scan, _) = post_json(&base, "/api/tools/scan", &phone, &json!({})).await;
     assert_eq!(scan, StatusCode::FORBIDDEN);
+    // The folder browser is for phones, so it is not refused for who is asking.
+    let (browse, _) = get_json(&base, "/api/fs/list", Some(&phone)).await;
+    assert_ne!(browse, StatusCode::FORBIDDEN);
     let (routing, _) = send_json(
         &base,
         (reqwest::Method::PUT, "/api/routing"),

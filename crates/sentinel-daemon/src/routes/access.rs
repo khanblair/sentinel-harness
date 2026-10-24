@@ -192,12 +192,11 @@ async fn fs_pick(State(engine): State<Engine>, caller: Caller) -> ApiResult<Valu
     ))
 }
 
+/// The folder browser for a phone. The engine keeps it inside the home folder.
 async fn fs_list(
     State(engine): State<Engine>,
-    caller: Caller,
     Query(query): Query<FolderQuery>,
 ) -> ApiResult<Vec<sentinel_core::api::FolderEntry>> {
-    require_computer(&caller)?;
     blocking(engine, move |e| e.list_folders(query.path.as_deref())).await
 }
 

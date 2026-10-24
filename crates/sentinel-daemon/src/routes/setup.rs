@@ -27,10 +27,8 @@ pub(super) fn routes() -> Router<Engine> {
 
 async fn repo_check(
     State(engine): State<Engine>,
-    caller: Caller,
     Json(body): Json<RepoCheckRequest>,
 ) -> ApiResult<RepoCheckResponse> {
-    require_computer(&caller)?;
     blocking(engine, move |e| {
         Ok::<_, EngineError>(e.repo_check(&body.path))
     })
@@ -39,10 +37,8 @@ async fn repo_check(
 
 async fn starter_backlog(
     State(engine): State<Engine>,
-    caller: Caller,
     Json(body): Json<RepoCheckRequest>,
 ) -> ApiResult<Value> {
-    require_computer(&caller)?;
     blocking(engine, move |e| {
         e.create_starter_backlog(&body.path).map(|()| okay())
     })
@@ -51,10 +47,8 @@ async fn starter_backlog(
 
 async fn set_repo(
     State(engine): State<Engine>,
-    caller: Caller,
     Json(body): Json<RepoCheckRequest>,
 ) -> ApiResult<RepoCheckResponse> {
-    require_computer(&caller)?;
     blocking(engine, move |e| e.set_repo(&body.path)).await
 }
 

@@ -243,7 +243,7 @@ Money is stored as integer micro-dollars.
 | `GET /api/tailscale/status` | Not installed, signed out, or running, with address and name |
 | `POST /api/tailscale/signin` | Run `tailscale up` and report the result |
 | `POST /api/fs/pick` | Open the native folder dialog on the PC and return the chosen path |
-| `GET /api/fs/list?path=` | Folder browser for a phone, limited to the home folder |
+| `GET /api/fs/list?path=` | Folder browser for a phone, limited to the home folder. Allowed from a phone |
 | `POST /api/repo/check` | Check git, backlog.md, and a clean tree for a folder |
 | `POST /api/repo/starter-backlog` | Create a starter backlog.md with example tasks |
 
