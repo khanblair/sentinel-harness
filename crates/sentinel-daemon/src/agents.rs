@@ -13,6 +13,7 @@ use sentinel_plan::planner::{
     HeuristicPlanner, Plan, PlanRequest, PlannerBackend, parse_plan_json, planner_prompt,
     validate_plan,
 };
+use sentinel_tree::looks_like_test;
 use sentinel_workers::adapter_cli::CliWorker;
 use sentinel_workers::detect::{DetectOptions, detect_all};
 use sentinel_workers::profile::{Profile, builtin_profiles};
@@ -278,11 +279,21 @@ async fn ask_agent_for_plan(ctx: &RunCtx, request: &PlanRequest) -> Option<Plan>
         };
         let text = run_for_text(engine, job).await;
         if let Ok(plan) = parse_plan_json(&text, request) {
-            return Some(plan);
+            return Some(without_existing_tests(plan, request));
         }
         tier = tier.escalate().unwrap_or(tier);
     }
     None
+}
+
+/// Drop test files that already exist from every scope. Writing one is a tamper by rule, so a plan
+/// that lists one would send the agent straight into a failure.
+fn without_existing_tests(mut plan: Plan, request: &PlanRequest) -> Plan {
+    for task in &mut plan.tasks {
+        task.scope
+            .retain(|path| !(request.repo_files.contains(path) && looks_like_test(path)));
+    }
+    plan
 }
 
 /// One question put to a worker whose answer is plain text.
@@ -395,5 +406,19 @@ mod tests {
     fn plain_output_stays_as_it_is() {
         assert_eq!(answer_text("line one\nline two"), "line one\nline two");
         assert_eq!(answer_text(r#"{"tasks":[]}"#), r#"{"tasks":[]}"#);
+    }
+
+    #[test]
+    fn existing_test_files_leave_the_scope_and_new_ones_stay() {
+        let plan: Plan = serde_json::from_str(
+            r#"{"tasks":[{"id":"T-01","scope":["src/ledger.rs","tests/ledger.rs","tests/negative.rs"],"tier":"cheap"}]}"#,
+        )
+        .unwrap();
+        let request = PlanRequest {
+            items: Vec::new(),
+            repo_files: vec!["src/ledger.rs".to_owned(), "tests/ledger.rs".to_owned()],
+        };
+        let kept = without_existing_tests(plan, &request);
+        assert_eq!(kept.tasks[0].scope, ["src/ledger.rs", "tests/negative.rs"]);
     }
 }

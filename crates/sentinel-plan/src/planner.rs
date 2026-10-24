@@ -66,9 +66,11 @@ const PLAN_SHAPE: &str = r#"{
   ]
 }"#;
 
-const PLANNER_RULES: [&str; 7] = [
+const PLANNER_RULES: [&str; 9] = [
     "Every backlog item must have exactly one planned task.",
     "Scope entries are non-empty relative paths without '..'.",
+    "Scope lists the files the task may write. Never list a test file that already exists: editing an existing test fails the task.",
+    "Give each task one NEW test file for its own tests, named for the task and not in the repository files, for example tests/health.rs.",
     "depends_on, read_after_write, contradicts name known task ids and never the task itself.",
     "No dependency cycles.",
     "Tier is one of: cheap, mid, smart.",
