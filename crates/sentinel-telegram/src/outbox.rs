@@ -73,13 +73,15 @@ pub struct Outbox {
 }
 
 impl Outbox {
-    /// `utc_offset_minutes` is the local offset that quiet hours use, such as 180 for EAT.
-    pub fn new(quiet: Option<QuietHours>, utc_offset_minutes: i32) -> Self {
-        Self {
-            quiet,
-            utc_offset_minutes,
-            ..Self::default()
-        }
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Quiet hours can change while the queue holds messages. The queue and the live-message map
+    /// stay as they are. `utc_offset_minutes` is the local offset, such as 180 for EAT.
+    pub fn set_quiet_hours(&mut self, quiet: Option<QuietHours>, utc_offset_minutes: i32) {
+        self.quiet = quiet;
+        self.utc_offset_minutes = utc_offset_minutes;
     }
 
     /// Returns the queue id, or `None` when the message is a duplicate.

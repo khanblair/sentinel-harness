@@ -97,10 +97,24 @@ fn is_named_secret(run: &str) -> bool {
     !value.is_empty() && SECRET_WORDS.iter().any(|word| name.contains(word))
 }
 
-/// A run of 32 or more hex or base64 characters, such as a raw key or a hash.
+/// A run of 32 or more hex or base64 characters that looks random. Paths and long names have no
+/// digits or signs, so they pass. Without this, a deep file path would be hidden.
 fn has_long_run(run: &str) -> bool {
     run.split(|c: char| !(c.is_ascii_alphanumeric() || matches!(c, '+' | '/' | '=')))
-        .any(|part| part.len() >= MIN_LONG_RUN)
+        .any(looks_random)
+}
+
+fn looks_random(part: &str) -> bool {
+    if part.len() < MIN_LONG_RUN {
+        return false;
+    }
+    if part.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return true;
+    }
+    let has_digit = part.bytes().any(|b| b.is_ascii_digit());
+    let mixed_case = part.bytes().any(|b| b.is_ascii_lowercase())
+        && part.bytes().any(|b| b.is_ascii_uppercase());
+    has_digit && (mixed_case || part.contains(['+', '=']))
 }
 
 #[cfg(test)]
@@ -140,6 +154,23 @@ mod tests {
         let b64 = "abcDEF123+/abcDEF123+/abcDEF123+/ab==";
         assert_eq!(redact(hex), "[hidden]");
         assert_eq!(redact(b64), "[hidden]");
+    }
+
+    #[test]
+    fn a_deep_source_path_stays_unchanged() {
+        let path = "src/components/settings/integrations/telegram.ts";
+        assert_eq!(redact(path), path);
+    }
+
+    #[test]
+    fn a_long_camel_case_name_stays_unchanged() {
+        let name = "renderTelegramMessageWithButtonsAndQuietHours";
+        assert_eq!(redact(name), name);
+    }
+
+    #[test]
+    fn a_long_mixed_case_string_with_digits_is_hidden() {
+        assert_eq!(redact("Qz9xLm2VbN7wKp4RsT8yHj3DfG6cXa1B"), "[hidden]");
     }
 
     #[test]

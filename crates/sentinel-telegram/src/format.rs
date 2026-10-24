@@ -173,11 +173,20 @@ fn approval_card(approval: &Approval, ctx: &RenderContext<'_>) -> Card {
         .task
         .as_ref()
         .map_or_else(|| "A task".to_owned(), ToString::to_string);
-    let line = match (detail_of(ctx), approval.path.as_deref()) {
-        (Detail::Status, _) | (_, None) => format!("{task} needs approval."),
-        (_, Some(path)) => format!("{task} wants to write {path}. Nobody has reserved it."),
+    let lines = match (detail_of(ctx), approval.path.as_deref()) {
+        (Detail::Status, _) | (_, None) => vec![format!("{task} needs approval.")],
+        (_, Some(path)) => {
+            let agent = approval
+                .agent
+                .as_ref()
+                .map_or_else(|| "An agent".to_owned(), ToString::to_string);
+            vec![
+                format!("{agent} asks for another file"),
+                format!("{task} wants to write {path}. Nobody has reserved it."),
+            ]
+        }
     };
-    let mut card = Card::new(vec![line], Priority::Urgent);
+    let mut card = Card::new(lines, Priority::Urgent).without_header();
     if allowed(&ctx.settings.levels, Action::Approve) {
         let id = &approval.id;
         card.push_row(vec![

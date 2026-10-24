@@ -354,10 +354,81 @@ fn a_wave_summary_at_summary_adds_file_names_and_cost() {
 
 #[test]
 fn a_wave_summary_at_detail_adds_at_most_six_reason_lines() {
-    let text = wave_of_one(Detail::Detail).unwrap().text;
+    let all = everything(Detail::Detail);
+    let mut tracker = WaveTracker::default();
+    tracker.observe(&Event::WaveStarted {
+        wave: 1,
+        tasks: vec![TaskId::new("T-01")],
+    });
+    let reason = (1..=10)
+        .map(|n| format!("reason line {n}"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let summary = tracker
+        .observe(&Event::Verdict {
+            task: TaskId::new("T-01"),
+            status: TaskStatus::Verified,
+            reason,
+        })
+        .unwrap();
+    let text = render_wave(&summary, &ctx(&all)).unwrap().text;
 
-    assert!(text.contains("  tests pass"), "{text}");
-    assert!(text.contains("  lint clean"), "{text}");
+    let indented: Vec<&str> = text.lines().filter(|line| line.starts_with("  ")).collect();
+    assert_eq!(indented.len(), 6, "{text}");
+    assert_eq!(indented[0], "  reason line 1", "{text}");
+    assert!(!text.contains("reason line 7"), "{text}");
+}
+
+#[test]
+fn the_f20_wave_example_matches_the_doc_exactly() {
+    let all = everything(Detail::Summary);
+    let mut tracker = WaveTracker::default();
+    tracker.observe(&Event::WaveStarted {
+        wave: 2,
+        tasks: vec![
+            TaskId::new("T-04"),
+            TaskId::new("T-02"),
+            TaskId::new("T-06"),
+        ],
+    });
+    let files = [
+        ("T-04", "src/ledger/post.ts"),
+        ("T-02", "src/fees/rules.ts"),
+        ("T-06", "src/limits/daily.ts"),
+    ];
+    let mut summary = None;
+    for (task, path) in files {
+        tracker.observe(&Event::Checkpoint {
+            task: TaskId::new(task),
+            commit: String::new(),
+            paths: vec![path.to_owned()],
+        });
+        let verdict = Event::Verdict {
+            task: TaskId::new(task),
+            status: TaskStatus::Verified,
+            reason: String::new(),
+        };
+        summary = tracker.observe(&verdict).or(summary);
+    }
+    let rendered = render_wave(&summary.unwrap(), &ctx(&all)).unwrap();
+
+    assert_eq!(
+        rendered.text,
+        "Sentinel, fee-ledger-api\nWave 2 done. 3 of 3 verified.\nT-04 Verified: src/ledger/post.ts\nT-02 Verified: src/fees/rules.ts\nT-06 Verified: src/limits/daily.ts\nCost $0.88 of $2.00"
+    );
+    assert_eq!(labels(&rendered), ["Pause", "Diff summary"]);
+}
+
+#[test]
+fn the_f20_approval_example_matches_the_doc_exactly() {
+    let all = everything(Detail::Summary);
+    let rendered = render(&approval_event(), &ctx(&all)).unwrap();
+
+    assert_eq!(
+        rendered.text,
+        "codex asks for another file\nT-05 wants to write src/api/errors.ts. Nobody has reserved it."
+    );
+    assert_eq!(labels(&rendered), ["Allow", "Deny"]);
 }
 
 #[test]
