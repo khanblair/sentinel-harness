@@ -5,6 +5,7 @@ pub mod agent_stack;
 pub mod appearance_form;
 pub mod budget_form;
 pub mod connection_banner;
+pub mod connection_card;
 pub mod contrast_readout;
 pub mod css_export;
 pub mod font_select;

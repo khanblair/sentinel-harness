@@ -15,7 +15,7 @@ pub struct SegOption {
 
 /// An on or off switch. It reports the value it should move to.
 #[component]
-pub fn Toggle(checked: Signal<bool>, on_change: Callback<bool>) -> impl IntoView {
+pub fn Toggle(#[prop(into)] checked: Signal<bool>, on_change: Callback<bool>) -> impl IntoView {
     view! {
         <button
             class="tog"

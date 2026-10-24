@@ -55,3 +55,5 @@ pub mod terminal {
 
 pub mod appearance;
 pub mod settings;
+pub mod settings_pages;
+pub mod telegram_slot;
