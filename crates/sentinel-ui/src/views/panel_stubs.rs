@@ -48,11 +48,6 @@ pub fn ReservedPanel() -> impl IntoView {
 }
 
 #[component]
-pub fn TelegramPanel() -> impl IntoView {
-    view! { <div class="note">"Not built yet."</div> }
-}
-
-#[component]
 pub fn TerminalPanel() -> impl IntoView {
     view! { <div class="note">"Not built yet."</div> }
 }

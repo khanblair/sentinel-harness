@@ -4,21 +4,29 @@
 use leptos::html;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use sentinel_core::telegram_api::TelegramState;
+use sentinel_core::telegram_api::{SettingsUpdate, TelegramState};
+
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
+
+use gloo_timers::future::TimeoutFuture;
 
 use crate::api::ApiFailure;
 use crate::components::icon::Icon;
 use crate::components::telegram_levels::{DetailRow, EventToggles, LevelToggles, QuietHours};
-use crate::layout::PanelId;
-use crate::state::{Modal, ToastKind};
-use crate::telegram::{self, TelegramCtx, chip_label, valid_user_id};
+use crate::layout::{Layout, PanelId};
+use crate::state::{Modal, ToastKind, Ui, use_ui};
+use crate::telegram::{self, chip_label, valid_user_id};
+
+/// How often the card asks the daemon whether `/start` has arrived.
+const POLL_MS: u32 = 3_000;
 
 const EXPLAIN: &str = "One private chat with you. It notifies you, lets you answer approvals with one tap, adds tasks, starts runs, and passes short instructions to an agent. Sentinel calls Telegram outward, so nothing is exposed and no VPN is needed. Groups and channels are not supported.";
 
 #[component]
 pub fn TelegramCard() -> impl IntoView {
-    let ctx = TelegramCtx::load(crate::state::use_ui());
-    telegram::poll_while_waiting(ctx);
+    let ctx = TelegramCtx::load(use_ui());
+    poll_while_waiting(ctx);
     view! {
         <Show when=move || ctx.state.with(Option::is_some) fallback=|| ()>
             <div class="card" style="margin-bottom:.8em">
@@ -255,6 +263,104 @@ fn send_test(ctx: TelegramCtx) {
 fn open_activity(ctx: TelegramCtx) {
     ctx.ui.modal.set(None::<Modal>);
     ctx.ui.open_panel(PanelId::Telegram);
+}
+
+/// The Telegram state one view keeps. Each view loads its own copy on mount. Every field is
+/// `Copy`, so handlers and tasks take it by value.
+#[derive(Clone, Copy)]
+pub struct TelegramCtx {
+    pub ui: Ui,
+    pub state: RwSignal<Option<TelegramState>>,
+}
+
+impl TelegramCtx {
+    /// A context that asks the daemon for the state now.
+    pub fn load(ui: Ui) -> Self {
+        let ctx = Self {
+            ui,
+            state: RwSignal::new(None),
+        };
+        ctx.fetch();
+        ctx
+    }
+
+    /// Phones read the state but cannot change it. Every control locks there.
+    pub fn locked(self) -> bool {
+        self.ui.layout.get() == Layout::Phone
+    }
+
+    pub fn is_waiting(self) -> bool {
+        self.state
+            .with_untracked(|state| state.as_ref().is_some_and(|s| s.waiting_for_start))
+    }
+
+    /// Stores a fresh state. A failure shows its message, then the state is fetched again so the
+    /// page shows what the daemon really has.
+    pub fn apply(self, result: Result<TelegramState, ApiFailure>) {
+        match result {
+            Ok(state) => self.state.set(Some(state)),
+            Err(failure) => {
+                self.ui.show_toast(failure.to_string(), ToastKind::Danger);
+                self.fetch();
+            }
+        }
+    }
+
+    /// Asks the daemon for the state. A failed fetch keeps the last state on the page.
+    pub fn fetch(self) {
+        spawn_local(async move {
+            if let Ok(state) = telegram::load().await {
+                self.state.set(Some(state));
+            }
+        });
+    }
+
+    /// Changes the settings. The change shows at once and the whole update goes to the daemon.
+    pub fn edit(self, change: impl FnOnce(&mut SettingsUpdate)) {
+        let Some(mut next) = self
+            .state
+            .with_untracked(|state| state.as_ref().map(telegram::settings_of))
+        else {
+            return;
+        };
+        change(&mut next);
+        self.state.update(|state| {
+            if let Some(state) = state {
+                state.levels.clone_from(&next.levels);
+                state.events.clone_from(&next.events);
+                state.detail.clone_from(&next.detail);
+                state.quiet_hours = next.quiet_hours;
+            }
+        });
+        spawn_local(async move { self.apply(telegram::save_settings(&next).await) });
+    }
+}
+
+/// Asks the daemon every few seconds while the chat waits for `/start`. Call from a component
+/// body. The loop stops when the component is dropped, and a reply that comes later is dropped
+/// too, so no disposed signal is read.
+pub fn poll_while_waiting(ctx: TelegramCtx) {
+    let stopped = Arc::new(AtomicBool::new(false));
+    let flag = Arc::clone(&stopped);
+    on_cleanup(move || flag.store(true, Ordering::Relaxed));
+    spawn_local(async move {
+        loop {
+            TimeoutFuture::new(POLL_MS).await;
+            if stopped.load(Ordering::Relaxed) {
+                return;
+            }
+            if !ctx.is_waiting() {
+                continue;
+            }
+            let result = telegram::load().await;
+            if stopped.load(Ordering::Relaxed) {
+                return;
+            }
+            if let Ok(state) = result {
+                ctx.state.set(Some(state));
+            }
+        }
+    });
 }
 
 /// A successful call says `done`. Either way the state is applied, and a failure shows its message.

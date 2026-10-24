@@ -5,8 +5,9 @@
 use leptos::prelude::*;
 use sentinel_core::telegram_api::{SettingsUpdate, TelegramState};
 
+use crate::components::telegram_card::TelegramCtx;
 use crate::telegram::{
-    self, Choice, DEFAULT_QUIET, DETAILS, EVENTS, LEVELS, QuietEdge, TelegramCtx, minutes_to_time,
+    self, Choice, DEFAULT_QUIET, DETAILS, EVENTS, LEVELS, QuietEdge, minutes_to_time,
     time_to_minutes,
 };
 

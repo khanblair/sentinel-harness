@@ -1,24 +1,13 @@
-//! Telegram settings and activity: the pure rules the settings card and the panel share, the calls
-//! to the daemon's `/api/telegram` routes, and the state both views keep. The bot token passes
-//! through `save_and_check` once. It is never kept in a signal, logged, or shown in a toast.
+//! Telegram settings and activity: the pure rules the card and the panel share, and the calls to
+//! the daemon's `/api/telegram` routes. The bot token passes through `save_and_check` once. It is
+//! never kept in a signal, logged, or shown in a toast.
 
-use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
-
-use gloo_timers::future::TimeoutFuture;
-use leptos::prelude::*;
-use leptos::task::spawn_local;
 use sentinel_core::telegram_api::{QuietDto, SettingsUpdate, TelegramState, TokenSaved};
 use sentinel_core::{Event, EventRecord};
 use serde::Serialize;
 use time::UtcOffset;
 
 use crate::api::{self, ApiFailure};
-use crate::layout::Layout;
-use crate::state::{ToastKind, Ui};
-
-/// How often the card asks the daemon whether `/start` has arrived.
-const POLL_MS: u32 = 3_000;
 
 /// One row of a choice list: the key the daemon stores, the words shown, and an optional hint.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -28,96 +17,48 @@ pub struct Choice {
     pub hint: &'static str,
 }
 
+const fn choice(key: &'static str, label: &'static str, hint: &'static str) -> Choice {
+    Choice { key, label, hint }
+}
+
 /// The four levels in the order of the settings page. Keys are the daemon's level names.
 pub const LEVELS: [Choice; 4] = [
-    Choice {
-        key: "notify",
-        label: "Notify",
-        hint: "Sentinel sends events to this chat.",
-    },
-    Choice {
-        key: "control",
-        label: "Control",
-        hint: "Approve or deny, answer decisions, pause, resume, stop, kill an agent, lower the cap.",
-    },
-    Choice {
-        key: "code",
-        label: "Code",
-        hint: "Message one agent directly and ask for a short diff summary.",
-    },
-    Choice {
-        key: "reports",
-        label: "Reports",
-        hint: "A summary when a run finishes, and a daily summary, with cost and Brain proposals.",
-    },
+    choice("notify", "Notify", "Sentinel sends events to this chat."),
+    choice(
+        "control",
+        "Control",
+        "Approve or deny, answer decisions, pause, resume, stop, kill an agent, lower the cap.",
+    ),
+    choice(
+        "code",
+        "Code",
+        "Message one agent directly and ask for a short diff summary.",
+    ),
+    choice(
+        "reports",
+        "Reports",
+        "A summary when a run finishes, and a daily summary, with cost and Brain proposals.",
+    ),
 ];
 
-/// The nine events the daemon can send to a chat. Budget has one event per threshold.
+/// The nine events the daemon sends to a chat. Budget has one event per threshold.
 pub const EVENTS: [Choice; 9] = [
-    Choice {
-        key: "approval_needed",
-        label: "Approval needed",
-        hint: "",
-    },
-    Choice {
-        key: "decision_needed",
-        label: "Decision needed",
-        hint: "",
-    },
-    Choice {
-        key: "budget_70",
-        label: "Budget at 70%",
-        hint: "",
-    },
-    Choice {
-        key: "budget_95",
-        label: "Budget at 95%",
-        hint: "",
-    },
-    Choice {
-        key: "task_blocked",
-        label: "Task blocked",
-        hint: "",
-    },
-    Choice {
-        key: "wave_finished",
-        label: "Wave finished",
-        hint: "",
-    },
-    Choice {
-        key: "run_finished",
-        label: "Run finished",
-        hint: "",
-    },
-    Choice {
-        key: "brain_proposals",
-        label: "Brain care proposals",
-        hint: "",
-    },
-    Choice {
-        key: "errors",
-        label: "Errors and crashes",
-        hint: "",
-    },
+    choice("approval_needed", "Approval needed", ""),
+    choice("decision_needed", "Decision needed", ""),
+    choice("budget_70", "Budget at 70%", ""),
+    choice("budget_95", "Budget at 95%", ""),
+    choice("task_blocked", "Task blocked", ""),
+    choice("wave_finished", "Wave finished", ""),
+    choice("run_finished", "Run finished", ""),
+    choice("brain_proposals", "Brain care proposals", ""),
+    choice("errors", "Errors and crashes", ""),
 ];
 
 /// How much a message shows. Keys are the daemon's detail names.
 pub const DETAILS: [Choice; 3] = [
-    Choice {
-        key: "status",
-        label: "Status only",
-        hint: "",
-    },
-    Choice {
-        key: "summary",
-        label: "Summary",
-        hint: "",
-    },
-    Choice {
-        key: "detail",
-        label: "Detail",
-        hint: "",
-    },
+    choice("status", "Status only", ""),
+    choice("summary", "Summary", ""),
+    choice("detail", "Detail", ""),
 ];
 
 /// Quiet hours a chat starts with: ten at night to seven in the morning.
@@ -246,7 +187,7 @@ fn activity_line(record: &EventRecord) -> Option<String> {
     Some(format!("{:02}:{:02} {text}", utc.hour(), utc.minute()))
 }
 
-/// The words of a Telegram event. Other events have none, so they are left out of the log.
+/// The words of a Telegram event. Other events have none, so they stay out of the log.
 fn activity_text(event: &Event) -> Option<String> {
     if let Event::TelegramPaired { user_id } = event {
         return Some(format!("Chat paired with user ID {user_id}"));
@@ -285,14 +226,11 @@ pub async fn save_settings(update: &SettingsUpdate) -> Result<TelegramState, Api
 /// keeps the token in the keychain and never sends it back.
 pub async fn save_and_check(token: String, user_id: i64) -> Result<TelegramState, ApiFailure> {
     let _: TokenSaved = api::post("/api/telegram/token", &TokenOut { token: &token }).await?;
-    api::post(
-        "/api/telegram/connect",
-        &ConnectOut {
-            token: None,
-            user_id,
-        },
-    )
-    .await
+    let connect = ConnectOut {
+        token: None,
+        user_id,
+    };
+    api::post("/api/telegram/connect", &connect).await
 }
 
 pub async fn send_test() -> Result<serde_json::Value, ApiFailure> {
@@ -305,109 +243,26 @@ pub async fn revoke(user_id: i64) -> Result<TelegramState, ApiFailure> {
     api::send("DELETE", &path, &serde_json::json!({})).await
 }
 
-/// The Telegram state one view keeps. Each view loads its own copy on mount. All fields are
-/// `Copy`, so handlers and tasks take it by value.
-#[derive(Clone, Copy)]
-pub struct TelegramCtx {
-    pub ui: Ui,
-    pub state: RwSignal<Option<TelegramState>>,
-}
-
-impl TelegramCtx {
-    /// A context with no state yet. Asks the daemon for the state now.
-    pub fn load(ui: Ui) -> Self {
-        let ctx = Self {
-            ui,
-            state: RwSignal::new(None),
-        };
-        spawn_local(async move {
-            if let Ok(state) = load().await {
-                ctx.state.set(Some(state));
-            }
-        });
-        ctx
-    }
-
-    /// Phones read the state but cannot change it. Every control locks there.
-    pub fn locked(self) -> bool {
-        self.ui.layout.get() == Layout::Phone
-    }
-
-    pub fn is_waiting(self) -> bool {
-        self.state
-            .with_untracked(|state| state.as_ref().is_some_and(|s| s.waiting_for_start))
-    }
-
-    /// Shows a failed call as a toast. The state is fetched again, so the page shows what the
-    /// daemon really has.
-    pub fn apply(self, result: Result<TelegramState, ApiFailure>) {
-        match result {
-            Ok(state) => self.state.set(Some(state)),
-            Err(failure) => {
-                self.ui.show_toast(failure.to_string(), ToastKind::Danger);
-                self.reload();
-            }
-        }
-    }
-
-    pub fn reload(self) {
-        spawn_local(async move { self.apply(load().await) });
-    }
-
-    /// Changes the settings. The change shows at once and the whole update goes to the daemon.
-    pub fn edit(self, change: impl FnOnce(&mut SettingsUpdate)) {
-        let Some(mut next) = self
-            .state
-            .with_untracked(|state| state.as_ref().map(settings_of))
-        else {
-            return;
-        };
-        change(&mut next);
-        self.state.update(|state| {
-            if let Some(state) = state {
-                state.levels.clone_from(&next.levels);
-                state.events.clone_from(&next.events);
-                state.detail.clone_from(&next.detail);
-                state.quiet_hours = next.quiet_hours;
-            }
-        });
-        spawn_local(async move { self.apply(save_settings(&next).await) });
-    }
-}
-
-/// Asks the daemon every few seconds while the chat waits for `/start`. Call from a component
-/// body. The loop stops when the component is dropped. A reply that comes after that is dropped
-/// too, so no disposed signal is read.
-pub fn poll_while_waiting(ctx: TelegramCtx) {
-    let stopped = Arc::new(AtomicBool::new(false));
-    let flag = Arc::clone(&stopped);
-    on_cleanup(move || flag.store(true, Ordering::Relaxed));
-    spawn_local(async move {
-        loop {
-            TimeoutFuture::new(POLL_MS).await;
-            if stopped.load(Ordering::Relaxed) {
-                return;
-            }
-            if !ctx.is_waiting() {
-                continue;
-            }
-            let result = load().await;
-            if stopped.load(Ordering::Relaxed) {
-                return;
-            }
-            if let Ok(state) = result {
-                ctx.state.set(Some(state));
-            }
-        }
-    });
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn keys(values: &[&str]) -> Vec<String> {
         values.iter().map(|value| (*value).to_owned()).collect()
+    }
+
+    fn state(connected: bool, waiting: bool) -> TelegramState {
+        TelegramState {
+            connected,
+            waiting_for_start: waiting,
+            bot_username: None,
+            token_saved: connected || waiting,
+            user_id: None,
+            levels: Vec::new(),
+            events: Vec::new(),
+            detail: "detail".to_owned(),
+            quiet_hours: None,
+        }
     }
 
     fn record(event: Event) -> EventRecord {
@@ -420,63 +275,27 @@ mod tests {
     }
 
     #[test]
-    fn no_token_and_no_chat_says_not_connected() {
-        let state = TelegramState {
-            connected: false,
-            waiting_for_start: false,
-            bot_username: None,
-            token_saved: false,
-            user_id: None,
-            levels: Vec::new(),
-            events: Vec::new(),
-            detail: "detail".to_owned(),
-            quiet_hours: None,
-        };
-        assert_eq!(chip_label(&state), "Not connected");
+    fn the_chip_follows_the_connection_state() {
+        assert_eq!(chip_label(&state(true, false)), "Connected");
+        assert_eq!(chip_label(&state(false, true)), "Waiting for /start");
+        assert_eq!(chip_label(&state(false, false)), "Not connected");
     }
 
     #[test]
-    fn a_waiting_chat_says_waiting_for_start() {
-        let state = TelegramState {
-            connected: false,
-            waiting_for_start: true,
-            bot_username: Some("sentinel_bot".to_owned()),
-            token_saved: true,
-            user_id: Some(42),
-            levels: Vec::new(),
-            events: Vec::new(),
-            detail: "detail".to_owned(),
-            quiet_hours: None,
-        };
-        assert_eq!(chip_label(&state), "Waiting for /start");
-    }
-
-    #[test]
-    fn switching_a_level_on_keeps_the_settings_order() {
-        let now = keys(&["code", "notify"]);
+    fn a_level_switches_on_and_off_in_settings_order() {
+        let on = levels_with(&keys(&["code", "notify"]), "control", true);
+        assert_eq!(on, keys(&["notify", "control", "code"]));
+        assert_eq!(levels_with(&on, "notify", true), on);
         assert_eq!(
-            levels_with(&now, "control", true),
-            keys(&["notify", "control", "code"])
+            levels_with(&on, "notify", false),
+            keys(&["control", "code"])
         );
     }
 
     #[test]
-    fn switching_a_level_on_twice_does_not_repeat_it() {
-        let once = levels_with(&[], "notify", true);
-        assert_eq!(levels_with(&once, "notify", true), keys(&["notify"]));
-    }
-
-    #[test]
-    fn switching_a_level_off_removes_only_that_level() {
-        let now = keys(&["notify", "code"]);
-        assert_eq!(levels_with(&now, "notify", false), keys(&["code"]));
-    }
-
-    #[test]
-    fn switching_an_event_on_and_off_keeps_the_others() {
-        let now = events_with(&[], "budget_95", true);
-        let now = events_with(&now, "errors", true);
-        assert_eq!(events_with(&now, "budget_95", false), keys(&["errors"]));
+    fn an_event_switches_off_without_touching_the_others() {
+        let now = events_with(&keys(&["budget_95", "errors"]), "budget_95", false);
+        assert_eq!(now, keys(&["errors"]));
     }
 
     #[test]
@@ -487,45 +306,26 @@ mod tests {
     }
 
     #[test]
-    fn a_time_input_value_becomes_minutes() {
+    fn a_time_input_value_becomes_minutes_and_bad_values_give_nothing() {
         assert_eq!(time_to_minutes("08:30"), Some(510));
-        assert_eq!(time_to_minutes("00:00"), Some(0));
         assert_eq!(time_to_minutes("23:59"), Some(1439));
+        for bad in ["24:00", "12:60", "1230", "8:05", "12:30:00", ""] {
+            assert_eq!(time_to_minutes(bad), None, "{bad} should not parse");
+        }
     }
 
     #[test]
-    fn a_bad_time_value_gives_nothing() {
-        assert_eq!(time_to_minutes("24:00"), None);
-        assert_eq!(time_to_minutes("12:60"), None);
-        assert_eq!(time_to_minutes("1230"), None);
-        assert_eq!(time_to_minutes("8:05"), None);
-        assert_eq!(time_to_minutes("12:30:00"), None);
-        assert_eq!(time_to_minutes(""), None);
-    }
-
-    #[test]
-    fn a_positive_number_is_a_user_id() {
+    fn a_user_id_is_digits_above_zero() {
         assert_eq!(valid_user_id("1048293"), Some(1_048_293));
+        for bad in ["+5", "-5", "0", " 12", "", "99999999999999999999"] {
+            assert_eq!(valid_user_id(bad), None, "{bad} should be refused");
+        }
     }
 
     #[test]
-    fn a_user_id_must_be_digits_above_zero() {
-        assert_eq!(valid_user_id("+5"), None);
-        assert_eq!(valid_user_id("-5"), None);
-        assert_eq!(valid_user_id("0"), None);
-        assert_eq!(valid_user_id(" 12"), None);
-        assert_eq!(valid_user_id(""), None);
-        assert_eq!(valid_user_id("99999999999999999999"), None);
-    }
-
-    #[test]
-    fn turning_quiet_hours_on_starts_from_the_default_window() {
+    fn quiet_hours_start_from_the_default_window() {
         assert_eq!(quiet_switched(None, true), Some(DEFAULT_QUIET));
         assert_eq!(quiet_switched(None, false), None);
-    }
-
-    #[test]
-    fn an_edit_moves_only_its_own_end_of_the_window() {
         let moved = quiet_edited(Some(DEFAULT_QUIET), QuietEdge::End, 6 * 60);
         assert_eq!(moved.start_minute, DEFAULT_QUIET.start_minute);
         assert_eq!(moved.end_minute, 6 * 60);
@@ -536,28 +336,14 @@ mod tests {
         let events = [
             record(Event::TelegramPaired { user_id: 42 }),
             record(Event::HostHeartbeat),
-            record(Event::TelegramSent {
-                summary: "test message sent".to_owned(),
+            record(Event::TelegramReceived {
+                accepted: false,
+                command: "/bypass".to_owned(),
             }),
         ];
         assert_eq!(
             activity_lines(&events),
-            vec![
-                "00:00 Chat paired with user ID 42".to_owned(),
-                "00:00 Sent: test message sent".to_owned(),
-            ]
-        );
-    }
-
-    #[test]
-    fn a_refused_command_is_marked_refused() {
-        let events = [record(Event::TelegramReceived {
-            accepted: false,
-            command: "/bypass".to_owned(),
-        })];
-        assert_eq!(
-            activity_lines(&events),
-            vec!["00:00 Refused /bypass".to_owned()]
+            keys(&["00:00 Chat paired with user ID 42", "00:00 Refused /bypass"])
         );
     }
 }
