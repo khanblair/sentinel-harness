@@ -9,6 +9,7 @@ mod components;
 mod icons;
 mod layout;
 mod prefs;
+mod slash;
 mod state;
 mod theme;
 mod views;

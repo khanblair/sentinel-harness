@@ -1,14 +1,31 @@
 //! One file per component in `docs/ui-registry.md`.
 
 pub mod agent_stack;
+pub mod agent_step_card;
+pub mod approval_card;
+pub mod barrier_card;
+pub mod blocked_write_card;
+pub mod brain_chip;
+pub mod budget_banner;
 pub mod connection_banner;
+pub mod decision_card;
+pub mod empty_run_state;
+pub mod file_change_card;
 pub mod icon;
 pub mod menus;
+pub mod message_cards;
 pub mod modal;
 pub mod panel_host;
+pub mod permission_chip;
+pub mod plan_card;
 pub mod popover;
+pub mod report_card;
 pub mod sidebar;
+pub mod slash_menu;
 pub mod status_badge;
 pub mod tab_bar;
+pub mod target_chip;
 pub mod toast;
 pub mod top_bar;
+pub mod verdict_card;
+pub mod wave_card;

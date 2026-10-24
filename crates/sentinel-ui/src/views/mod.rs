@@ -1,8 +1,11 @@
 //! Views that hang off the shell. Panels and modal bodies land here one at a time; until a
 //! panel is built, its module re-exports a stub from `panel_stubs`.
 
+pub mod composer;
 pub mod modal_stubs;
 pub mod panel_stubs;
+pub mod stream;
+pub mod stream_model;
 pub mod stream_slot;
 
 pub mod agents {
