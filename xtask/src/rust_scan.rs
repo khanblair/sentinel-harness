@@ -114,7 +114,7 @@ fn span_at(
 ) -> Option<FnSpan> {
     let name = fn_name(line.trim_start())?;
     let (open_line, open_col) = body_open(code, idx)?;
-    let above = idx > 0 && code[idx - 1].contains("#[test]");
+    let above = idx > 0 && (code[idx - 1].contains("#[test]") || code[idx - 1].contains("::test"));
     let cfg = idx > 0 && code[idx - 1].contains("#[cfg(test)]");
     let start_line = idx + 1;
     Some(FnSpan {

@@ -99,7 +99,7 @@ CSS variables only for values that tokens define. Class names follow `block__ele
 | Smell | Limit | Caught by |
 |---|---|---|
 | Long function | 40 lines | `smell-check` |
-| Big file | 400 lines | `smell-check` |
+| Big file | 400 lines of code. Test modules and files under `tests/` do not count | `smell-check` |
 | Many parameters | 4 (use a struct beyond) | clippy |
 | Deep nesting | 3 levels | clippy cognitive complexity and `smell-check` |
 | Large enum match with `_` catch-all hiding cases | Avoid | clippy `wildcard_enum_match_arm` |

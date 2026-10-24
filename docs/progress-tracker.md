@@ -24,7 +24,7 @@ The live status of the project. Update at the start and end of every work sessio
 
 ## Current Phase
 
-**Phase 0: Foundations.** Docs are drafted. No code yet.
+**Phases 0 to 5 mostly built, UI in progress.** A full run with the scripted fake agents on the sample repo gives honest statuses (`cargo nextest run -p sentinel-daemon --test engine_run`). `cargo xtask ci` is red until the cleanup pass (smell and duplicate findings). The UI is being ported from the prototype.
 
 ## Phase Status
 
@@ -53,13 +53,51 @@ Hackathon cut line: end of P7.
 
 | ID | Task | Owner | Status |
 |---|---|---|---|
-| P0-01 | Workspace, toolchain, lint config | unassigned | todo |
-| P0-02 | `xtask` with `ci` command | unassigned | todo |
-| P0-03 | `slop-check` | unassigned | todo |
-| P0-04 | `smell-check`, `doc-check`, `ban-check` | unassigned | todo |
-| P0-05 | `deny.toml` | unassigned | todo |
-| P0-06 | Extended `smell-check` and `dup-check` | unassigned | todo |
+| P0-01 | Workspace, toolchain, lint config | Claude | done |
+| P0-02 | `xtask` with `ci` command | Claude | done |
+| P0-03 | `slop-check` | opencode | done |
+| P0-04 | `smell-check`, `doc-check`, `ban-check` | opencode | done |
+| P0-05 | `deny.toml` | Claude | review |
+| P0-06 | Extended `smell-check` and `dup-check` | opencode | review |
 | P0-07 | GitHub workflows and dependabot | Claude | review |
+| P0-08 | `contrast-check` | opencode | doing |
+| P1-01 | Core types | Claude | done |
+| P1-02 | Store schema, migrations, extra tables | opencode | done |
+| P1-03 | Reservation table | opencode | done |
+| P1-04 | Wave builder | opencode | done |
+| P1-05 | Scheduler and barrier | opencode | done |
+| P2-01 | Git wrapper | opencode | done |
+| P2-02 | Checkpoint with private index | opencode | done |
+| P2-03 | Filesystem watcher and guard | opencode | done |
+| P2-04 | Restore and revert | opencode | done |
+| P2-05 | Tamper detection | opencode | done |
+| P2-06 | Barrier logic | opencode | done |
+| P3-01 | Worker trait and supervisor | opencode | done |
+| P3-02 | Budget guard | Claude | done |
+| P3-03 | Adapter profiles | opencode | done |
+| P3-04 | CLI detection | opencode | done |
+| P3-05 | Profiles for claude, codex, opencode, gemini, goose, pi | opencode | review |
+| P3-06 | Profiles for agy, deepseek, mcode, generic | opencode | review |
+| P3-07 | OpenRouter worker loop | unassigned | todo |
+| P3-08 | MCP file server | unassigned | todo |
+| P3-09 | Router | opencode | done |
+| P3-10 | Context builder | opencode | done |
+| P3-11 | Per-task cost ceiling | Claude | done |
+| P3-12 | Permission modes and approvals | opencode | review |
+| P4-01 | Backlog parser | opencode | done |
+| P4-02 | Planner contract | opencode | done |
+| P4-03 | Contradictions and already-done | opencode | done |
+| P4-04 | Test gate | opencode | done |
+| P4-05 | Diff reviewer contract | opencode | done |
+| P4-06 | Verdict and honest report | opencode | done |
+| P4-07 | Quality notes | opencode | doing |
+| P5-01 | Run loop | Claude | done |
+| P5-02 | Append-only log | Claude | done |
+| P5-03 | Crash resume | unassigned | todo |
+| P5-04 | HTTP API and WebSocket | opencode | doing |
+| P5-05 | Real agents on the sample repo | unassigned | todo |
+| P6-01 to P6-13 | Web UI core | opencode | doing |
+| P7-01 to P7-06 | Phone over Tailscale | unassigned | todo |
 
 Add the rows for later phases when a phase starts. Copy IDs from [build-plan.md](build-plan.md).
 
@@ -148,6 +186,9 @@ Paths listed in [project-structure.md](project-structure.md) that do not exist y
 | D59 | (autopilot, review) Workers may not run `rustup`, `cargo install`, `brew`, `npm`, or `pip` | Same incident |
 | D60 | (autopilot, review) The repo is public, so it carries an MIT `LICENSE` (owner: Khan Blair, from git config). Remove or change it if you want other terms | An open repo without a license has unclear terms. The hackathon wants an open repo |
 | D61 | (autopilot, review) Approved `sha2` and `hex` (device token hashes) and `console_error_panic_hook` (UI debugging). `reqwest` uses its default rustls build, so `deny.toml` allows the `OpenSSL` license text that `aws-lc-sys` carries | Needed by pairing and the UI. No other way to hash a token safely |
+| D62 | (autopilot, review) smell-check: code in `#[cfg(test)]` modules and in `tests/` does not count toward the 400-line file limit, and `#[tokio::test]` counts as a test. Long functions and nesting limits still apply to non-test code | Test modules sit at the bottom of files by rule, so counting them punishes thorough tests |
+| D63 | (autopilot, review) A desktop browser gets its token from `sentinel open`, which opens `http://HOST:PORT/#t=TOKEN`. The UI reads the fragment, stores it on the device, and removes it from the address bar. The token is never in a query string | Fragments are not sent to the server |
+| D64 | (autopilot, review) Free worker quota is shared and small. After it runs out, Haiku subagents do mechanical UI ports from the same briefs, and Ornith writes single files by direct completion | Keeps the build moving without paid Opus tokens |
 
 ## Open Questions
 
@@ -178,6 +219,7 @@ Paths listed in [project-structure.md](project-structure.md) that do not exist y
 | Q23 | Telegram: `/task` and `/run` in v1? Answered: yes, both | Done |
 | Q24 | How-to site: mdBook (Rust, proposed) or hand-written HTML and CSS? | Before P15-01 |
 | Q25 | Always-on host on Windows: a service, or Task Scheduler? Not needed for v1 | Later |
+| Q26 | The free worker quota (opencode Zen free models) ran out on 2026-10-24 around 21:00 EAT. If every free model fails, switch the opencode, goose, or pi account (or add credit) to resume free workers. Until then the build uses the OpenRouter free models, the local Ornith model, and Haiku subagents | When quota resets |
 
 ## Session Log
 

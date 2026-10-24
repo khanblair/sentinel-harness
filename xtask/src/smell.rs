@@ -89,8 +89,11 @@ fn long_function(file: &RustFile) -> Vec<Finding> {
         .collect()
 }
 
+/// Test code does not count toward the file limit: a unit test module sits at the bottom of the
+/// file on purpose (`docs/code-standards.md`), and a file under `tests/` is all tests.
 fn big_file(file: &RustFile) -> Vec<Finding> {
-    let lines = file.lines.len();
+    let tests = file.test_lines();
+    let lines = tests.iter().filter(|is_test| !**is_test).count();
     if lines <= BIG_FILE_LINES {
         return Vec::new();
     }
