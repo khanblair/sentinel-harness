@@ -8,6 +8,7 @@ license.workspace = true
 build = "build.rs"
 
 [dependencies]
+sentinel-brain = { path = "../sentinel-brain" }
 sentinel-core = { path = "../sentinel-core" }
 sentinel-gate = { path = "../sentinel-gate" }
 sentinel-plan = { path = "../sentinel-plan" }

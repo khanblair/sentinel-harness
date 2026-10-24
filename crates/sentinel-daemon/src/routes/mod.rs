@@ -2,6 +2,7 @@
 //! Errors leave as `ApiError` bodies. Blocking store work runs off the async runtime.
 
 mod access;
+mod brain;
 mod chats;
 mod run;
 mod setup;
@@ -74,6 +75,7 @@ impl From<EngineError> for ApiFailure {
             EngineError::NotFound(_) => StatusCode::NOT_FOUND,
             EngineError::Invalid(_) => StatusCode::BAD_REQUEST,
             EngineError::Refused(_) => StatusCode::FORBIDDEN,
+            EngineError::Conflict(_) => StatusCode::CONFLICT,
             EngineError::Store(_)
             | EngineError::Config(_)
             | EngineError::Onboarding(_)
@@ -148,6 +150,7 @@ pub fn protected_routes() -> Router<Engine> {
         .merge(run::routes())
         .merge(access::routes())
         .merge(setup::routes())
+        .merge(brain::routes())
 }
 
 async fn health() -> Json<Value> {
