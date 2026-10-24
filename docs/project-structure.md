@@ -17,6 +17,7 @@ sentinel/
   rust-toolchain.toml     pinned Rust version and components
   rustfmt.toml            format rules
   clippy.toml             lint thresholds
+  .cargo/config.toml      cargo alias for xtask
   deny.toml               license rules and banned crates
   .gitignore              ignores target, .sentinel, dist
   docs/                   the 13 project docs
@@ -83,6 +84,10 @@ docs/
 xtask/
   Cargo.toml              xtask crate manifest
   src/main.rs             command dispatch for ci, checks, build
+  src/ci.rs               runs the cargo steps and the file checks, reports all failures
+  src/finding.rs          Finding and CheckResult shared by every check
+  src/files.rs            lists repo files (git ls-files, or a folder walk)
+  src/rust_scan.rs        small Rust scanner: function spans, nesting depth
   src/slop.rs             banned words and patterns scanner
   src/smell.rs            function, file, nesting, parameter, data clump, message chain, public field checks
   src/dup.rs              duplicate block check (normalized token windows)

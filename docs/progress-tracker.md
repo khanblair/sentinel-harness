@@ -62,6 +62,28 @@ Hackathon cut line: end of P7.
 
 Add the rows for later phases when a phase starts. Copy IDs from [build-plan.md](build-plan.md).
 
+## Planned Files
+
+Paths listed in [project-structure.md](project-structure.md) that do not exist yet. `cargo xtask doc-check` accepts a listed file that is missing only when its path starts with a prefix below. Remove a line when its files land.
+
+- `crates/sentinel-core/`
+- `crates/sentinel-store/`
+- `crates/sentinel-reserve/`
+- `crates/sentinel-tree/`
+- `crates/sentinel-workers/`
+- `crates/sentinel-plan/`
+- `crates/sentinel-verify/`
+- `crates/sentinel-brain/`
+- `crates/sentinel-telegram/`
+- `crates/sentinel-daemon/`
+- `crates/sentinel-cli/`
+- `crates/sentinel-ui/`
+- `site/`
+- `.github/`
+- `fixtures/`
+- `tests/`
+- `rust-toolchain.toml`
+
 ## Decisions Log
 
 | # | Decision | Reason |
