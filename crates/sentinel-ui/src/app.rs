@@ -60,7 +60,7 @@ fn window_width() -> f64 {
         .unwrap_or(FALLBACK_WIDTH)
 }
 
-fn load_prefs() -> Prefs {
+pub(crate) fn load_prefs() -> Prefs {
     LocalStorage::get::<Prefs>(PREFS_KEY)
         .unwrap_or_default()
         .clamped()

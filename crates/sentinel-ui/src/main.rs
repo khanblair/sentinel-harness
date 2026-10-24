@@ -18,5 +18,16 @@ mod ws;
 fn main() {
     console_error_panic_hook::set_once();
     api::capture_token_from_url();
-    leptos::mount::mount_to_body(app::App);
+    if on_pair_page() {
+        leptos::mount::mount_to_body(views::pair_page::PairPage);
+    } else {
+        leptos::mount::mount_to_body(app::App);
+    }
+}
+
+/// A phone that scans the pairing QR code lands on `/pair`.
+fn on_pair_page() -> bool {
+    web_sys::window()
+        .and_then(|window| window.location().pathname().ok())
+        .is_some_and(|path| path.trim_end_matches('/') == "/pair")
 }

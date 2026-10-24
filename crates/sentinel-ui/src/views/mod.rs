@@ -3,6 +3,7 @@
 
 pub mod composer;
 pub mod modal_stubs;
+pub mod pair_page;
 pub mod panel_stubs;
 pub mod stream;
 pub mod stream_model;
