@@ -42,5 +42,7 @@ pub mod task_card;
 pub mod toast;
 pub mod tool_row;
 pub mod top_bar;
+pub mod tour_coach;
+pub mod tour_menu;
 pub mod verdict_card;
 pub mod wave_card;
