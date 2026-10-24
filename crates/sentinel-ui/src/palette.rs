@@ -15,6 +15,7 @@ pub enum PaletteAction {
     FocusAgent(ToolId),
     OpenPanel(PanelId),
     StartRun,
+    NewChat,
     ToggleTheme,
     OpenSettings,
     OpenGuide,
@@ -73,9 +74,10 @@ fn panel_item(panel: PanelId) -> PaletteItem {
     )
 }
 
-fn page_items() -> [PaletteItem; 5] {
+fn page_items() -> [PaletteItem; 6] {
     [
         PaletteItem::new("Start a run".to_owned(), "play2", PaletteAction::StartRun),
+        PaletteItem::new("New chat".to_owned(), "plus", PaletteAction::NewChat),
         PaletteItem::new("Toggle theme".to_owned(), "sun", PaletteAction::ToggleTheme),
         PaletteItem::new(
             "Open settings".to_owned(),

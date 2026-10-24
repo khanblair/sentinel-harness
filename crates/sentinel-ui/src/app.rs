@@ -13,7 +13,7 @@ use crate::components::icon::Icon;
 use crate::components::modal::ModalHost;
 use crate::components::panel_host::PanelHost;
 use crate::components::popover::{PopoverHost, install_outside_click};
-use crate::components::sidebar::Sidebar;
+use crate::components::sidebar::{Sidebar, new_chat};
 use crate::components::tab_bar::{TabBar, touch_ended, touch_started};
 use crate::components::toast::Toast;
 use crate::components::top_bar::TopBar;
@@ -47,6 +47,11 @@ pub fn shortcut_for(key: &str) -> Option<Shortcut> {
         "k" => Some(Shortcut::Palette),
         _ => None,
     }
+}
+
+/// Ctrl or Cmd + Shift + O starts a new chat, as the New chat button does.
+pub fn is_new_chat_key(key: &str, shift: bool) -> bool {
+    shift && key.eq_ignore_ascii_case("o")
 }
 
 /// The name shown for an agent in the focus bar. An unknown id shows as its raw text.
@@ -113,7 +118,10 @@ fn close_top(ui: Ui) {
 fn handle_key(ui: Ui, event: &web_sys::KeyboardEvent) {
     let key = event.key();
     if event.ctrl_key() || event.meta_key() {
-        if let Some(shortcut) = shortcut_for(&key) {
+        if is_new_chat_key(&key, event.shift_key()) {
+            event.prevent_default();
+            new_chat(ui);
+        } else if let Some(shortcut) = shortcut_for(&key) {
             event.prevent_default();
             run_shortcut(ui, shortcut);
         }

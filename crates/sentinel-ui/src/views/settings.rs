@@ -122,7 +122,17 @@ pub fn page_from_id(id: &str) -> &'static SettingsPage {
 pub fn active_page_id(modal: Option<&Modal>) -> &'static str {
     match modal {
         Some(Modal::Settings { page }) => page_from_id(page).id,
-        Some(Modal::Guide | Modal::Palette | Modal::BypassConfirm) | None => SET_PAGES[0].id,
+        Some(
+            Modal::Guide
+            | Modal::Palette
+            | Modal::BypassConfirm
+            | Modal::ConfirmDelete { .. }
+            | Modal::AddFiles
+            | Modal::AddFolder
+            | Modal::AddBacklog
+            | Modal::AddNote,
+        )
+        | None => SET_PAGES[0].id,
     }
 }
 

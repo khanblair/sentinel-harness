@@ -6,8 +6,9 @@ use std::collections::HashMap;
 
 use leptos::prelude::*;
 use sentinel_core::chat::ChatChange;
-use sentinel_core::{ChatId, Event, EventRecord, Snapshot, ToolId};
+use sentinel_core::{Attachment, ChatId, Event, EventRecord, Snapshot, ToolId};
 
+use crate::chats::RenameState;
 use crate::layout::{Layout, PanelId};
 use crate::prefs::Prefs;
 
@@ -28,10 +29,20 @@ pub enum Connection {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Modal {
-    Settings { page: String },
+    Settings {
+        page: String,
+    },
     Guide,
     Palette,
     BypassConfirm,
+    /// Asks before a chat and its uploads are removed.
+    ConfirmDelete {
+        chat: ChatId,
+    },
+    AddFiles,
+    AddFolder,
+    AddBacklog,
+    AddNote,
 }
 
 /// A short result message, shown about three seconds.
@@ -83,6 +94,10 @@ pub struct Ui {
     /// The chat the stream shows. `None` until the first snapshot picks one.
     pub open_chat: RwSignal<Option<ChatId>>,
     pub modal: RwSignal<Option<Modal>>,
+    /// Pending attachments of the open chat. They go with the next message.
+    pub attachments: RwSignal<Vec<Attachment>>,
+    /// The chat row whose title is being edited in place.
+    pub renaming: RwSignal<Option<RenameState>>,
     pub toast: RwSignal<Option<Toast>>,
     pub prefs: RwSignal<Prefs>,
     pub terminal: RwSignal<HashMap<ToolId, Vec<String>>>,
@@ -104,6 +119,8 @@ pub enum PopoverKind {
     More,
     Panel,
     Attach,
+    /// The menu of one chat row, opened from its more button or a long press.
+    Chat,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -144,6 +161,8 @@ impl Ui {
             target: RwSignal::new(Target::Sentinel),
             open_chat: RwSignal::new(None),
             modal: RwSignal::new(None),
+            attachments: RwSignal::new(Vec::new()),
+            renaming: RwSignal::new(None),
             toast: RwSignal::new(None),
             prefs: RwSignal::new(prefs),
             terminal: RwSignal::new(HashMap::new()),

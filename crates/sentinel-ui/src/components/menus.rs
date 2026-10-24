@@ -9,11 +9,13 @@ use sentinel_core::{BrainMode, PermissionMode, Snapshot, ToolId};
 use crate::api;
 use crate::brain::phone_may_pick;
 use crate::components::agent_stack::{avatar_color, avatar_letter, ready_agents};
+use crate::components::attach_menu::attach_items;
+use crate::components::chat_menu::{ChatMenu, chat_from_anchor};
 use crate::components::icon::Icon;
 use crate::components::panel_host::panel_icon;
 use crate::components::top_bar::{post_action, spend_label};
 use crate::layout::PanelId;
-use crate::state::{Modal, PopoverKind, Target, ToastKind, Ui};
+use crate::state::{Modal, PopoverKind, Target, Ui};
 
 /// One popover body per kind.
 pub fn body(kind: PopoverKind, ui: Ui) -> AnyView {
@@ -25,7 +27,8 @@ pub fn body(kind: PopoverKind, ui: Ui) -> AnyView {
         PopoverKind::Target => target_menu(ui).into_any(),
         PopoverKind::More => more_menu(ui).into_any(),
         PopoverKind::Panel => panel_menu(ui).into_any(),
-        PopoverKind::Attach => attach_menu(ui).into_any(),
+        PopoverKind::Attach => attach_items(ui).into_any(),
+        PopoverKind::Chat => chat_row_menu(ui),
     }
 }
 
@@ -104,16 +107,20 @@ fn agent_spend(snapshot: &Snapshot, agent: &ToolId) -> String {
         )
 }
 
-fn title_menu(ui: Ui) -> impl IntoView {
-    let live = ui.snapshot.with(crate::components::sidebar::is_live);
-    view! {
-        {live.then(|| view! {
-            <MenuItem icon="stop" label="Stop run" desc="Checkpoints are kept" danger=true
-                on_pick=move |()| { close(ui); post_action(ui, "/api/stop".to_owned()) } />
-            <div class="sep"></div>
-        })}
-        <MenuItem icon="download" label="Export report"
-            on_pick=move |()| pick_panel(ui, PanelId::Report) />
+/// The top bar title menu: the menu of the open chat.
+fn title_menu(ui: Ui) -> AnyView {
+    match ui.open_chat.get_untracked() {
+        Some(chat) => view! { <ChatMenu chat=chat title=true /> }.into_any(),
+        None => ().into_any(),
+    }
+}
+
+/// The menu of the chat row that opened it. The row's anchor names the chat.
+fn chat_row_menu(ui: Ui) -> AnyView {
+    let anchor = ui.popover.get_untracked().map(|open| open.anchor_id);
+    match anchor.as_deref().and_then(chat_from_anchor) {
+        Some(chat) => view! { <ChatMenu chat=chat title=false /> }.into_any(),
+        None => ().into_any(),
     }
 }
 
@@ -332,20 +339,6 @@ fn panel_menu(ui: Ui) -> impl IntoView {
             }
         })
         .collect_view()
-}
-
-fn attach_menu(ui: Ui) -> impl IntoView {
-    view! {
-        <MenuItem icon="file" label="Attach a backlog file"
-            on_pick=move |()| unavailable(ui, "Attaching a file is not available yet.") />
-        <MenuItem icon="book" label="Add a context note" desc="Goes into every agent prompt"
-            on_pick=move |()| unavailable(ui, "Context notes are not available yet.") />
-    }
-}
-
-fn unavailable(ui: Ui, text: &str) {
-    close(ui);
-    ui.show_toast(text, ToastKind::Info);
 }
 
 fn settings(ui: Ui, page: &str) {
