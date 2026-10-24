@@ -18,6 +18,7 @@ sentinel/
   rustfmt.toml            format rules
   clippy.toml             lint thresholds
   .cargo/config.toml      cargo alias for xtask
+  .config/nextest.toml    test runner timeouts
   deny.toml               license rules and banned crates
   .gitignore              ignores target, .sentinel, dist
   LICENSE                 MIT license text
@@ -118,8 +119,10 @@ xtask/
 crates/sentinel-core/
   Cargo.toml                           manifest
   src/api.rs                           typed API client
+  src/brain_api.rs                     Request and response bodies of the Brain routes (`docs/architecture.md`, API). The daemon
   src/chat.rs                          Chats and attachments (`docs/product-scope.md`, F23). A chat is one conversation in a project
   src/cost.rs                          Cost in micro-dollars, estimate flag
+  src/dry_run.rs                       The dry run: a short rehearsal on a sample project that ships with Sentinel
   src/error.rs                         error types
   src/event.rs                         Event enum shared by daemon and UI
   src/ids.rs                           TaskId, RunId, ReservationId, DeviceId
@@ -132,6 +135,7 @@ crates/sentinel-core/
   src/snapshot.rs                      The full state the daemon sends to a device on connect (`GET /api/state`). The UI builds every
   src/state.rs                         HarnessState, TailscaleState, ConnectionState, Decision
   src/task.rs                          Task, TaskStatus, Tier
+  src/telegram_api.rs                  Telegram settings as the API and the UI see them. The bot token is never in these types
   src/tool.rs                          ToolInfo and ToolStatus
 ```
 
@@ -159,6 +163,7 @@ crates/sentinel-store/
   src/runs.rs                          run and cost queries
   src/settings.rs                      settings queries
   src/tasks.rs                         task queries
+  src/telegram.rs                      The Telegram chat row. Sentinel keeps one private chat. The four level switches are four integer
   src/tools.rs                         Detected worker CLIs. A rescan rewrites what it found but never changes the
   src/verifications.rs                 Verification records: the four checks and the verdict for one task
   tests/store.rs                       store integration tests
@@ -215,16 +220,22 @@ crates/sentinel-workers/
   profiles/opencode.toml               profile for OpenCode
   profiles/pi.toml                     profile for pi
   src/adapter_cli.rs                   generic CLI adapter driven by a profile
+  src/agent_schema.rs                  The function definitions the `OpenRouter` worker sends with every request
+  src/agent_tools.rs                   The tools the `OpenRouter` worker offers its model, and the executor that runs them
   src/budget.rs                        budget wrapper, per-task ceiling, kill signal
   src/capture.rs                       Reads a worker's stdout and stderr line by line, keeps a bounded tail, and drains the
   src/context.rs                       retry prompt builder, failure summary, output truncation, loop compaction
   src/detect.rs                        PATH scan, version probe, login check
   src/lib.rs                           exports
+  src/openrouter.rs                    The `OpenRouter` worker: Sentinel's own agent loop for models reached through `OpenRouter`
+  src/openrouter_config.rs             Settings and errors of the `OpenRouter` worker
   src/profile.rs                       adapter profile loader (TOML)
   src/router.rs                        tier selection and escalation
   src/supervisor.rs                    spawn, timeout, kill, output capture
+  src/transcript.rs                    The messages of the `OpenRouter` loop, and their compaction. Summaries are built here from the
   src/worker.rs                        Worker trait
   tests/detect.rs                      detection tests with fake binaries
+  tests/openrouter.rs                  The `OpenRouter` worker against a fake API (`wiremock`), and the tool executor on its own
 ```
 
 ## crates/sentinel-plan
@@ -265,11 +276,19 @@ crates/sentinel-brain/
   src/error.rs                         error types
   src/frontmatter.rs                   Front matter tokens: the `---` fences, `key: value` lines, and quoting
   src/index.rs                         brain.db: search, links, backlinks, graph data
+  src/journal.rs                       Run journal: run, task, and file notes. Pure builders. The daemon writes the notes
+  src/lesson.rs                        Lessons: typed notes that record what helped or hurt an agent. A lesson holds no free text
   src/lib.rs                           exports
+  src/mode.rs                          Brain modes: what the Brain may read and write, and who may move it
   src/note.rs                          Note, NoteType, front matter, wikilink parsing
+  src/proposal.rs                      Proposals: changes to notes, saved as files in `_proposals/`. A change to a note you wrote needs an accept
   src/query.rs                         Read side of the index: search, backlinks, the link graph, and pinned notes
+  src/schedule.rs                      Care schedule: when a care run is due. The caller passes today's date, so tests use a fake clock
+  src/select.rs                        Agent memory: pick the Brain notes for one task within a token cap
+  src/strength.rs                      Note strength: how much a note is used and trusted. Weak notes load last
   src/vault.rs                         read and write markdown files, atomic replace, generated-text markers
   src/watcher.rs                       watch the vault for outside edits
+  tests/brain_logic.rs                 Brain logic on a real vault and index: selection, lessons, journal links, and proposals
   tests/index.rs                       file
   tests/vault.rs                       round trip, outside edits, generated markers
 ```
@@ -278,18 +297,24 @@ crates/sentinel-brain/
 
 ```
 crates/sentinel-telegram/
-  Cargo.toml              manifest
-  src/lib.rs              exports
-  src/poller.rs           long polling of the Bot API
-  src/router.rs           commands and button presses to API calls
-  src/format.rs           message text at three detail levels
-  src/outbox.rs           queue, retries, batching, live-message edits
-  src/auth.rs             allowlist, pairing code, one-time button tokens
-  src/notifier.rs         Notifier interface
-  src/drafts.rs           pending /task text and confirm tokens
-  tests/format.rs         Summary never holds file contents, keys, or note text
-  tests/auth.rs           unknown senders are ignored, expired buttons fail
-  tests/router.rs         each level allows only its routes
+  Cargo.toml                           manifest
+  src/api.rs                           typed API client
+  src/buttons.rs                       One-time button tokens. A button carries only a token. The token maps to one action, one chat,
+  src/client.rs                        Bot API calls over HTTPS. Each method is one request and returns one typed result
+  src/command.rs                       Slash commands from the chat. A command maps to one route. Parsing never runs anything
+  src/error.rs                         error types
+  src/format.rs                        message text at three detail levels
+  src/format/wave.rs                   The wave summary. `WaveTracker` groups the verdicts of one wave into one message
+  src/levels.rs                        Chat levels and the routes each level may call. A route that no level allows is refused
+  src/lib.rs                           exports
+  src/outbox.rs                        queue, retries, batching, live-message edits
+  src/quiet.rs                         Quiet hours hold ordinary messages. Approvals and budget alerts always pass
+  src/redact.rs                        Replaces key-like text with `[hidden]` before any text goes to Telegram
+  tests/buttons.rs                     file
+  tests/client.rs                      file
+  tests/command.rs                     file
+  tests/format.rs                      Summary never holds file contents, keys, or note text
+  tests/outbox.rs                      file
 ```
 
 ## crates/sentinel-daemon
@@ -305,6 +330,12 @@ crates/sentinel-daemon/
   src/attach.rs                        Attachments: what the composer plus button adds to a chat. A file, a folder, or a backlog is a
   src/attempt.rs                       One attempt at one task: choose an agent, run it, and either checkpoint its work or put the
   src/auth.rs                          allowlist, pairing code, one-time button tokens
+  src/brain.rs                         The Brain in the daemon. The vault and the index open on first use. A watcher keeps the index in
+  src/brain_care.rs                    The care schedule and the care run. The run calls no agent. It lowers the strength of unused
+  src/brain_edit.rs                    Changes a person makes in the Brain panel. These ignore the Brain mode, which limits only what
+  src/brain_notes.rs                   Reading the Brain: the notes list, one note with its links, and the graph
+  src/brain_proposals.rs               Proposals from care runs and their answers. A proposal file in `_proposals/` waits until you
+  src/brain_run.rs                     The Brain during a run: the notes an agent reads before a task, and the journal a run writes
   src/chats.rs                         Chats: create, list, rename, pin, archive, delete. A chat is one conversation in the project
   src/close_out.rs                     Closing a run: every task that has not reached an end gets one, the report is written, and the
   src/cmd.rs                           Run external programs behind one trait
@@ -312,9 +343,11 @@ crates/sentinel-daemon/
   src/connections.rs                   connection state and test actions (Tailscale, OpenRouter, MCP, git, keychain)
   src/controls.rs                      Engine methods that change settings and answer questions. Each one says who did it, because a
   src/doctor.rs                        install check used by onboarding and `sentinel doctor`
+  src/dry_run.rs                       The dry run: a rehearsal on a sample project that ships with Sentinel. A second engine runs the
   src/engine.rs                        The engine: one handle that owns the state of a Sentinel daemon. The HTTP layer, the CLI, and the
   src/folders.rs                       native folder dialog, phone folder browser, repo checks
   src/hashing.rs                       Device tokens: generation, hashing, and comparison
+  src/host.rs                          The always-on host (`docs/product-scope.md`, F21). The daemon writes a heartbeat every few
   src/lib.rs                           exports
   src/live.rs                          What the engine keeps while a run is live: control channels, the budget, and the questions the
   src/onboarding.rs                    onboarding state and steps
@@ -326,11 +359,14 @@ crates/sentinel-daemon/
   src/resume.rs                        Crash resume. A run that stopped without finishing keeps its tasks in the store. The next
   src/reviewer.rs                      Who reviews a task's diff. A different agent gives the real review. Without one (fake mode, or
   src/routes/access.rs                 Pairing, devices, Tailscale, and the folder pickers
+  src/routes/brain.rs                  The Brain routes under `/api/brain`. A phone may read notes and the graph, review lessons, and
   src/routes/chats.rs                  Chats and their attachments: the sidebar list, new chat, rename, pin, archive, delete, and the
+  src/routes/dry_run.rs                The dry run routes. Only the computer starts one. Any device may read the last one, so a page
   src/routes/mod.rs                    The HTTP routes. Each handler checks the caller, calls one Engine method, and returns JSON
   src/routes/run.rs                    Routes that start, steer, and answer a run
   src/routes/setup.rs                  Repository choice, the first-run steps, and the settings only the computer may change
   src/routes/state.rs                  Read routes and the settings that change what the daemon is allowed to use
+  src/routes/telegram.rs               The Telegram routes under `/api/telegram`. A phone may read the state. Saving the token, the
   src/run.rs                           run loop tying planner, scheduler, workers, verifier
   src/run_ctx.rs                       Everything the tasks of one run share. A run owns one `RunCtx`; every wave and attempt gets an
   src/run_source.rs                    What a run starts from. A message in a chat can bring plain words, a backlog file, and
@@ -338,14 +374,27 @@ crates/sentinel-daemon/
   src/server.rs                        Binds the daemon to the tailnet address and serves the API, the WebSocket, and the UI
   src/settings.rs                      settings queries
   src/tailscale.rs                     address lookup, bind rules, serve helper
+  src/telegram.rs                      Telegram inside the daemon. The `sentinel-telegram` crate holds the Bot API client, the parser,
+  src/telegram_code.rs                 The phone commands that read or write the repository: `/task` adds a section to `backlog.md`,
+  src/telegram_notify.rs               The notifier turns bus events into queued messages. The sender drains the queue to the Bot API
+  src/telegram_poll.rs                 The long-poll loop. It fetches updates, drops the ones from anyone but the owner, and hands the
+  src/telegram_router.rs               The router turns one chat command or one button press into one Engine call, made as the phone
+  src/telegram_store.rs                The Telegram chat row and the paired flag, read and written by the daemon. The store keeps
   src/verify_phase.rs                  After the barrier: check each checkpointed task of the wave and give it a status. Only
   src/wave.rs                          One wave: reserve files, run the tasks together, wait at the barrier, run the full suite on a
   src/ws.rs                            The live stream on `GET /ws`. The first frame must authenticate. Then the client subscribes
   tests/api.rs                         The HTTP API, served on a real listener and called with `reqwest`. The WebSocket framing is
+  tests/brain_api.rs                   The Brain API, served on a real listener and called with `reqwest`. Notes are written through the
+  tests/brain_api/support.rs           Helpers for the Brain API tests: an engine on a temporary repository, a listener, requests with a
+  tests/brain_run.rs                   The Brain during a run: pinned notes reach the stream as "loaded", and the journal is written
   tests/chats.rs                       Chats end to end with the fake agents: create, rename, pin, archive, delete, a run from plain
   tests/common/mod.rs                  Helpers the integration tests share: the repository root, a copy of the sample repository, git
+  tests/dry_run.rs                     The dry run on the built-in sample project, over the real HTTP routes. The fake agents run the
   tests/engine_run.rs                  A whole run with the fake agents on the sample repository. It proves the harness end to end:
   tests/folders.rs                     Folder browser, repository checks, and starter backlog behavior
+  tests/host.rs                        The always-on host: the heartbeat, the back-online gap, and the host card
+  tests/telegram.rs                    Telegram inside the daemon, against a `wiremock` Bot API. The tests drive the real routes with a
+  tests/telegram_code.rs               The phone commands `/task`, `/diff`, and `/daily`, against a `wiremock` Bot API. The rig is a
 ```
 
 ## crates/sentinel-cli
@@ -356,6 +405,7 @@ crates/sentinel-cli/
   src/commands.rs                      run, scan, pair, report, doctor
   src/main.rs                          entry
   src/serve.rs                         The commands that run or reach the daemon: `daemon`, `open`, `pair`, and `keys`
+  src/service.rs                       `sentinel service`: run the daemon at boot and restart it when it stops. A launchd job on
   tests/resume.rs                      Crash resume, end to end: start a run, kill the whole process with SIGKILL after the first
 ```
 
@@ -382,18 +432,29 @@ crates/sentinel-ui/
   manifest.webmanifest                 PWA manifest
   src/api.rs                           typed API client
   src/app.rs                           router and layout
+  src/brain.rs                         Brain panel logic: link parsing, strength classes, the phone rule, the graph layout, and the care
+  src/brain_text.rs                    Brain panel copy: labels, button words, and the lines the panel shows after an action. Plain
+  src/chats.rs                         Chats: the conversations of a project. The engine adds the run state to each row
+  src/chats/menu.rs                    The lines of a chat menu: what each line does, and which lines are disabled and why. The menu
+  src/chats/tests.rs                   file
   src/components/accent_picker.rs      `AccentPicker`: the six accent swatches, a custom color, and Reset to default
   src/components/agent_stack.rs        `AgentStack`: avatars of the ready agents in the top bar, each with a state dot. Opens the
   src/components/agent_step_card.rs    One agent's card for one attempt at one task. The steps are not in the events, so the card
   src/components/appearance_form.rs    The controls of Settings, Appearance, from theme down to corner radius. The density choices
   src/components/approval_card.rs      An approval card: an agent asks for one more file, or the user approves a wave or the plan
+  src/components/attach_menu.rs        The entries of the composer's plus menu. Each entry opens one add dialog
+  src/components/attachment_chip.rs    `AttachmentChip`: one pending attachment of the open chat, and the `Chip` markup it uses
   src/components/barrier_card.rs       The barrier card: the full test suite on a clean tree after a wave
   src/components/blocked_write_card.rs A write to a file the task had not reserved. Sentinel blocks it and puts the file back
   src/components/board_column.rs       `BoardColumn`: one status group on the Board, with its heading and cards
   src/components/brain_chip.rs         The Brain chip: shows the Brain mode and opens the Brain menu
   src/components/budget_banner.rs      The budget banner: a warn notice at 70 percent of the cap, a danger notice at 95 percent
   src/components/budget_form.rs        The Agents and tools page, the Budget page, and the routing choices they share. The cap can only
+  src/components/care_settings.rs      `CareSettings`: the care schedule, the budget per run, the switch that lets care apply changes
+  src/components/chat_menu.rs          `ChatMenu`: the menu of one chat, used by the chat row and the top bar title
+  src/components/chat_row.rs           `ChatRow`: one chat in the sidebar (`docs/ui-rules.md`, Layout). Its more button and a long
   src/components/command_palette.rs    `CommandPalette`: Ctrl or Cmd + K. It draws its own overlay (`.pal`), not the modal frame,
+  src/components/confirm_delete.rs     `ConfirmDelete`: asks before a chat, its messages and its uploads are removed. The repository
   src/components/connection_banner.rs  `ConnectionBanner`: says when the page shows the last known state, not the live one
   src/components/connection_card.rs    The Connections page and the Devices page of Settings (`docs/product-scope.md`, F18). Each
   src/components/contrast_readout.rs   `ContrastReadout`: the live contrast check in Settings, Appearance. Each pair shows its ratio and
@@ -401,20 +462,28 @@ crates/sentinel-ui/
   src/components/cost_meter.rs         `CostMeter`: the spend bar with marks at 70 and 95 percent of the cap
   src/components/css_export.rs         `CssExport`: the current tokens as one `:root` block, with a Copy button (`prefs::tokens_css`)
   src/components/decision_card.rs      A decision card: two tasks contradict each other, and only the user can choose which goes on
+  src/components/device_file.rs        Files chosen on this device. Each file is read with `FileReader` and sent as base64. A file over
   src/components/device_list.rs        `DeviceList`: paired devices, each with a revoke action that asks first
   src/components/dry_run_stages.rs     `DryRunStages`: the six stages the dry run goes through, shown as a static preview. The daemon
   src/components/empty_run_state.rs    The empty stream: what the run does, and the three first actions
   src/components/file_change_card.rs   A file checkpoint: one changed path and the short commit that holds it
   src/components/font_select.rs        `FontSelect`: a dropdown of the font choices in `prefs::UI_FONTS` or `prefs::MONO_FONTS`. The
+  src/components/graph_view.rs         `GraphView`: one dot per note, grouped by type, with a line for each link. Tapping a dot opens
   src/components/guide_modal.rs        `GuideModal`: the thirteen-step guide. `ModalHost` draws the dialog frame. This is its body
+  src/components/host_card.rs          The "Where Sentinel runs" card in Settings, Integrations. It shows what the daemon reports about
   src/components/icon.rs               `Icon`: one inline SVG from the outline set, sized in `em` so it scales with the text size
   src/components/install_checklist.rs  `InstallChecklist`: the install check rows, each found or missing, with the command that
   src/components/install_log.rs        `InstallLog`: the terminal-style box that shows the install commands and what to do with
   src/components/kill_button.rs        `KillButton`: stops one task after a confirm that names the files it releases
+  src/components/lesson_card.rs        `LessonCard`: the typed fields of a lesson with Approve, Reject, and Retire. A phone may review
   src/components/menus.rs              Menu bodies for the one popover. Each entry calls into `Ui` or the daemon API, then closes
   src/components/message_cards.rs      Plain stream lines: the user's instruction, a Sentinel line, and a muted note with an icon
   src/components/mod.rs                One file per component in `docs/ui-registry.md`
   src/components/modal.rs              `ModalHost`: the overlay frame for settings, the guide, the palette, and the bypass confirm
+  src/components/note_dialog.rs        `NoteDialog`: a context note that goes into every agent prompt of the chat
+  src/components/note_editor.rs        `NoteEditor`: the text box that replaces a note's text while you edit it. Save sends the text
+  src/components/note_row.rs           `NoteRow`: one line of the notes list. The type, the title, a pin chip, and either the strength
+  src/components/note_view.rs          `NoteView`: one note. Its text with links, the lesson card for a lesson, Edit and pin on the
   src/components/onboarding_stepper.rs `OnboardingStepper`: the six step names across the top of the setup wizard, and the rules
   src/components/output_view.rs        `OutputView`: monospace agent output. It follows the newest line while the reader is at the
   src/components/pair_checklist.rs     `PairChecklist`: Part 1 of pairing. Tailscale must be installed, running, and signed in, with
@@ -426,17 +495,23 @@ crates/sentinel-ui/
   src/components/permission_mode_list.rs `PermissionModeList`: the four permission mode cards (`docs/ui-registry.md`, Permissions)
   src/components/plan_card.rs          The plan card: the plan's counts, and the task table from the snapshot
   src/components/popover.rs            The one popover of the page. It sits under its anchor, flips above when there is no room
+  src/components/proposal_list.rs      `ProposalList`: one card per proposal from a care run, with Accept and Dismiss. Nothing changes
   src/components/range_field.rs        `RangeField`: a slider with its value in pixels, used for text size, stream width, and corner
   src/components/receipt_block.rs      `ReceiptBlock`: the commit that proves a VERIFIED task (`docs/ui-registry.md`, Board and Tasks)
   src/components/repo_checks.rs        `RepoChecks`: the rows of a check (the repository's git, backlog.md, and clean tree, or the
+  src/components/repo_file_picker.rs   `PickerDialog`: the add dialogs for files, a folder, and a backlog file. The "This project" tab
   src/components/report_card.rs        The report card: counts by status from the snapshot, and buttons to the Report and the Brain
   src/components/reserved_row.rs       `ReservedRow`: one file path, the task that holds it, and the queue of waiting tasks
   src/components/sidebar.rs            `Sidebar`: the run list grouped by repository, the New run button, search, and the footer
   src/components/slash_menu.rs         The command list under the composer. The arrow keys and Tab are handled by the composer, which
   src/components/status_badge.rs       `StatusBadge`: a shape, a color, and a label together, so state is never color alone
+  src/components/strength_bar.rs       `StrengthBar`: how strong a note is, as a thin bar with the prototype's `sbar` classes
   src/components/tab_bar.rs            `TabBar`: the phone tabs Stream, Board, Reserved, Changes, More, and the swipe between them
   src/components/target_chip.rs        The send-to chip: shows where the next message goes, and opens the target menu
   src/components/task_card.rs          `TaskCard`: one task on the Board. Click opens the detail inline under the card
+  src/components/telegram_card.rs      The Telegram card of Settings, Integrations. It saves the bot, waits for `/start`, and once the
+  src/components/telegram_levels.rs    The Telegram rows that choose what the chat gets: levels, detail, events, and quiet hours
+  src/components/telegram_log.rs       The Activity list of the Telegram panel: one line per Telegram event in the snapshot, newest
   src/components/toast.rs              `Toast`: one short result message, about three seconds, centered above the composer
   src/components/toggle.rs             `Toggle` and `Segmented`: the two small choice controls of Settings. Both use the prototype's
   src/components/token_editor.rs       `TokenEditor`: one color input per theme token in Settings, Appearance. Each edit is kept in
@@ -446,8 +521,10 @@ crates/sentinel-ui/
   src/components/tour_menu.rs          `TourMenu`: shows how far the tour got, and replays or skips it. Settings uses it
   src/components/verdict_card.rs       A verdict card: the task, its status, the reason, and the quality notes for the task
   src/components/wave_card.rs          The wave card: the tasks that run together, each with the agent it was routed to
+  src/dry_run.rs                       Pure logic for the dry run step: stage titles, how a stage looks, how stage events fold into
   src/fonts.css                        styles
   src/guide.rs                         The guide's thirteen steps and the Try it buttons under each one. The copy is the prototype's
+  src/host.rs                          The always-on host card: what the daemon reports about the host, as check rows and short text,
   src/icons.rs                         Icon paths, ported from the prototype's `ICONS` table. One outline set, 1.7 px stroke
   src/layout.rs                        breakpoints and panel open state
   src/main.rs                          mount
@@ -455,6 +532,7 @@ crates/sentinel-ui/
   src/prefs.rs                         appearance preferences and token overrides, stored per device
   src/slash.rs                         Slash commands. One parser and one list. Each command maps to one API route in `composer.rs`,
   src/state.rs                         client state from snapshot and events
+  src/telegram.rs                      Telegram settings and activity: the pure rules the card and the panel share, and the calls to
   src/theme.css                        CSS variables from ui-tokens
   src/theme.rs                         Applies appearance prefs to the page root: the `data-theme` attribute and the CSS variables
   src/tour.rs                          The tour's seven stops, their copy, and the math that places a coach mark. Reading the DOM
@@ -462,9 +540,16 @@ crates/sentinel-ui/
   src/views/agents.rs                  The Agents panel: detected worker CLIs, and which agent serves each tier
   src/views/appearance.rs              The Appearance page of Settings. Every control writes to `ui.prefs`. The app saves the prefs
   src/views/board.rs                   The Board panel: tasks grouped by status (`docs/ui-rules.md`, Views)
+  src/views/brain.rs                   The Brain panel: a header with the mode, the note count, and the vault path, then three tabs
+  src/views/brain_graph.rs             The Graph tab: the note graph from `GET /api/brain/graph`, a legend of the types, and one
+  src/views/brain_notes.rs             The Notes tab: a search box and a type filter over the list, a New note form on the computer,
+  src/views/brain_proposals.rs         The Proposals tab: the open proposals from care runs, or the empty card with Run care now
+  src/views/brain_settings.rs          The Brain settings page: the mode, the vault folder, the run journal, and the care schedule
   src/views/budget_step.rs             The budget step of the setup wizard: the cap, the permission mode, the Brain mode, and which
   src/views/changes.rs                 The Changes panel: checkpoint commits, blocked writes, and quality notes, from the event log
   src/views/composer.rs                The composer: the text box, the slash menu, the footer chips, and what each send does. A plain
+  src/views/composer_chips.rs          The pending attachments of the open chat: the chips row above the footer, and the reload that
+  src/views/composer_send.rs           The composer's send path: a plain message starts a run or goes to the live run, a slash
   src/views/cost.rs                    The Cost panel: spend against the cap, the 70 and 95 percent marks, per-agent cost, spend over
   src/views/dry_run.rs                 The dry run step of the setup wizard (`docs/product-scope.md`, F8 step 5). It says what the
   src/views/files.rs                   The Files panel: the repository files with reserved-file markers and a filter
@@ -477,12 +562,14 @@ crates/sentinel-ui/
   src/views/panel_stubs.rs             Temporary panel bodies. The reviewer replaces each one with its real panel
   src/views/permissions.rs             The Permissions panel: the four modes and the per-agent capability matrix
   src/views/remote.rs                  The Remote panel: Tailscale state, pairing a phone, paired devices, and what a phone can do
+  src/views/remote_tailscale.rs        The Tailscale half of the Remote panel: the three checks on this computer, the setup steps
   src/views/report.rs                  The Report panel: the honest per-task report, reasons for tasks not done, and an export
   src/views/reserved.rs                The Reserved panel: which task holds each file, and who waits (`docs/ui-rules.md`, Views)
   src/views/settings.rs                The Settings modal (`docs/ui-rules.md`, Views: Settings). The overlay frame is
   src/views/settings_pages.rs          Settings pages: General (repository and wake lock) and Brain. The other pages live in
   src/views/stream.rs                  The stream: the run's items in order, built from the snapshot. The view follows the newest
   src/views/stream_model.rs            Turns the daemon's events into stream items. Pure: no signals, no DOM, so every mapping has a
+  src/views/telegram_panel.rs          The Telegram panel. Once the chat is paired it shows the bot, the detail, the levels that are
   src/views/telegram_slot.rs           Empty slots in Settings, Integrations. The Telegram card and the always-on host card are built
   src/views/terminal.rs                The Terminal panel: raw output per agent, with a switcher and a load-earlier action
   src/ws.rs                            The live socket. It keeps the page in step with the daemon: events go into the snapshot, and

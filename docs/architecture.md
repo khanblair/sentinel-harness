@@ -252,6 +252,7 @@ Money is stored as integer micro-dollars.
 | `POST /api/telegram/connect` | Save the token and user ID, check the bot, and wait for `/start` |
 | `POST /api/telegram/test` | Send a test message |
 | `DELETE /api/telegram/chats/:id` | Revoke a chat |
+| `GET /api/dry-run`, `POST /api/dry-run` | Last dry run (stages, result), and start one on the built-in sample project. Computer only. 409 while a run or another dry run is live |
 | `GET /api/tailscale/status` | Not installed, signed out, or running, with address and name |
 | `POST /api/tailscale/signin` | Run `tailscale up` and report the result |
 | `POST /api/fs/pick` | Open the native folder dialog on the PC and return the chosen path |
@@ -265,7 +266,7 @@ Server sends `Event` frames. Client sends `Subscribe{topics}` and `Ping`. No con
 
 ### Events
 
-`ChatChanged` (created, renamed, pinned, archived, deleted), `RunStarted`, `PlanReady`, `WaveStarted`, `Verdict`, `RunFinished`, `ReportReady`, `Message`, `TaskStatus`, `FilesReserved`, `FilesReleased`, `WriteBlocked`, `Checkpoint`, `BarrierStart`, `BarrierEnd`, `CostUpdate`, `BudgetThreshold`, `ToolDetected`, `AgentOutput`, `DecisionRequested`, `HarnessState`, `DeviceAction`, `NoteWritten`, `LessonStateChanged`, `ProposalCreated`, `CareFinished`, `QualityNote`, `ContextCompacted`, `TaskCeilingHit`, `ApprovalRequested`, `ApprovalResolved`, `PermissionChanged`, `ToolStatusChanged`, `ConnectionChanged`, `TailscaleChanged`, `TelegramPaired`, `TelegramSent`, `TelegramReceived`, `HostHeartbeat`, `HostBackOnline`.
+`ChatChanged` (created, renamed, pinned, archived, deleted), `RunStarted`, `PlanReady`, `WaveStarted`, `Verdict`, `RunFinished`, `ReportReady`, `Message`, `TaskStatus`, `FilesReserved`, `FilesReleased`, `WriteBlocked`, `Checkpoint`, `BarrierStart`, `BarrierEnd`, `CostUpdate`, `BudgetThreshold`, `ToolDetected`, `AgentOutput`, `DecisionRequested`, `HarnessState`, `DeviceAction`, `NoteWritten`, `LessonStateChanged`, `ProposalCreated`, `CareFinished`, `QualityNote`, `ContextCompacted`, `TaskCeilingHit`, `ApprovalRequested`, `ApprovalResolved`, `PermissionChanged`, `ToolStatusChanged`, `ConnectionChanged`, `TailscaleChanged`, `TelegramPaired`, `TelegramSent`, `TelegramReceived`, `HostHeartbeat`, `HostBackOnline`, `DryRunStage`, `DryRunFinished`.
 
 ### Shared Types
 
