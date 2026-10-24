@@ -3335,6 +3335,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "sentinel-brain"
+version = "0.1.0"
+dependencies = [
+ "notify",
+ "rusqlite",
+ "sentinel-core",
+ "tempfile",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "sentinel-cli"
 version = "0.1.0"
 dependencies = [
