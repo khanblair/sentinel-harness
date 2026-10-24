@@ -284,3 +284,22 @@ async fn result_order_is_profile_order_then_extras() {
     let ids: Vec<&str> = results.iter().map(|i| i.id.as_str()).collect();
     assert_eq!(ids, ["opencode", "testlogin", "needstemplate", "myextra"]);
 }
+
+#[tokio::test]
+async fn with_no_search_path_the_real_path_is_used() {
+    // `sh` is on every PATH where these tests run. Before the fix, no path meant no search.
+    let mut profile = base_profile("sh", "Shell", true, LoginKind::None, "", false);
+    profile.binary = "sh".to_owned();
+    profile.version_args = vec!["-c".to_owned(), "echo shell 1.0.0".to_owned()];
+    let options = DetectOptions {
+        search_path: None,
+        home: None,
+        extra_names: Vec::new(),
+        probe_timeout: Duration::from_secs(5),
+    };
+
+    let found = detect_all(&[profile], &options).await;
+
+    assert_eq!(found[0].status, ToolStatus::Ready);
+    assert!(!found[0].path.is_empty());
+}

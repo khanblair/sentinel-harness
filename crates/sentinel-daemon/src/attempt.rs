@@ -129,7 +129,12 @@ fn build_spec(ctx: &RunCtx, task: &Task, tool: &ToolInfo) -> RunSpec {
     RunSpec {
         task: task.id.clone(),
         agent: tool.id.clone(),
-        model: String::new(),
+        model: ctx
+            .config
+            .models
+            .get(tool.id.as_str())
+            .cloned()
+            .unwrap_or_default(),
         prompt,
         workdir: ctx.engine.repo_path(),
         timeout: ctx.task_timeout(),

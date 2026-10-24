@@ -120,7 +120,12 @@ async fn detect_extra(name: &str, options: &DetectOptions) -> Option<ToolInfo> {
 
 fn find_binary(name: &str, options: &DetectOptions) -> Option<PathBuf> {
     let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-    which::which_in(name, options.search_path.as_deref(), cwd).ok()
+    // `which_in` looks nowhere when given no path, so "the real PATH" must be passed in.
+    let search = options
+        .search_path
+        .clone()
+        .or_else(|| std::env::var_os("PATH"));
+    which::which_in(name, search, cwd).ok()
 }
 
 async fn probe_version(binary: &Path, args: &[String], timeout: Duration) -> String {
