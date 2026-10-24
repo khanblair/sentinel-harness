@@ -9,6 +9,7 @@ mod brain;
 mod brain_text;
 mod chats;
 mod components;
+mod dry_run;
 mod guide;
 mod icons;
 mod layout;
