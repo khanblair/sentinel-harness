@@ -32,6 +32,7 @@ pub mod file_change_card;
 pub mod font_select;
 pub mod graph_view;
 pub mod guide_modal;
+pub mod host_card;
 pub mod icon;
 pub mod install_checklist;
 pub mod install_log;

@@ -10,6 +10,7 @@ mod brain_text;
 mod chats;
 mod components;
 mod guide;
+mod host;
 mod icons;
 mod layout;
 mod palette;

@@ -3,6 +3,7 @@
 
 use leptos::prelude::*;
 
+use crate::components::host_card::HostCard;
 use crate::components::telegram_card::TelegramCard;
 
 #[component]
@@ -11,4 +12,6 @@ pub fn TelegramSettingsSlot() -> impl IntoView {
 }
 
 #[component]
-pub fn HostCardSlot() -> impl IntoView {}
+pub fn HostCardSlot() -> impl IntoView {
+    view! { <HostCard /> }
+}
