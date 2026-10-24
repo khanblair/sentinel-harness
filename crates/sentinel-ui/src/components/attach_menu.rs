@@ -49,6 +49,12 @@ fn entries(backlog: String) -> Vec<AttachEntry> {
             modal: Modal::AddBacklog,
         },
         AttachEntry {
+            icon: "book",
+            label: "Use a skill",
+            desc: "Adds a skill to the next message".to_owned(),
+            modal: Modal::AddSkill,
+        },
+        AttachEntry {
             icon: "edit",
             label: "Add a context note",
             desc: "Goes into every agent prompt".to_owned(),
@@ -57,7 +63,7 @@ fn entries(backlog: String) -> Vec<AttachEntry> {
     ]
 }
 
-/// The four plus menu entries, in order.
+/// The five plus menu entries, in order.
 pub fn attach_items(ui: Ui) -> impl IntoView {
     let backlog = ui
         .snapshot
@@ -107,7 +113,7 @@ mod tests {
     }
 
     #[test]
-    fn the_plus_menu_has_four_entries_in_order() {
+    fn the_plus_menu_has_five_entries_in_order() {
         let labels: Vec<&str> = entries("backlog.md".to_owned())
             .iter()
             .map(|entry| entry.label)
@@ -118,6 +124,7 @@ mod tests {
                 "Add files",
                 "Add a folder",
                 "Use a backlog file",
+                "Use a skill",
                 "Add a context note"
             ]
         );

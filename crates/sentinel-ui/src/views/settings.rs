@@ -142,7 +142,8 @@ pub fn active_page_id(modal: Option<&Modal>) -> &'static str {
             | Modal::AddFiles
             | Modal::AddFolder
             | Modal::AddBacklog
-            | Modal::AddNote,
+            | Modal::AddNote
+            | Modal::AddSkill,
         )
         | None => SET_PAGES[0].id,
     }

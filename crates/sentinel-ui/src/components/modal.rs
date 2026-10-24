@@ -13,6 +13,7 @@ use crate::components::guide_modal::GuideModal;
 use crate::components::icon::Icon;
 use crate::components::note_dialog::NoteDialog;
 use crate::components::repo_file_picker::PickerDialog;
+use crate::components::skill_picker::SkillPicker;
 use crate::components::top_bar::settle;
 use crate::state::{Modal, ToastKind, Ui, use_ui};
 use crate::views::settings::SettingsDialog;
@@ -25,7 +26,11 @@ pub fn modal_key(modal: &Modal) -> &'static str {
         Modal::Palette => "palette",
         Modal::BypassConfirm => "bp",
         Modal::ConfirmDelete { .. } => "del",
-        Modal::AddFiles | Modal::AddFolder | Modal::AddBacklog | Modal::AddNote => "att",
+        Modal::AddFiles
+        | Modal::AddFolder
+        | Modal::AddBacklog
+        | Modal::AddNote
+        | Modal::AddSkill => "att",
     }
 }
 
@@ -37,7 +42,8 @@ pub fn modal_class(modal: &Modal) -> &'static str {
         | Modal::AddFiles
         | Modal::AddFolder
         | Modal::AddBacklog
-        | Modal::AddNote => "modal sm",
+        | Modal::AddNote
+        | Modal::AddSkill => "modal sm",
         Modal::Settings { .. } | Modal::Guide | Modal::Palette => "modal",
     }
 }
@@ -72,6 +78,7 @@ fn modal_body(modal: &Modal) -> AnyView {
         Modal::AddFolder => view! { <PickerDialog kind=PickerKind::Folder /> }.into_any(),
         Modal::AddBacklog => view! { <PickerDialog kind=PickerKind::Backlog /> }.into_any(),
         Modal::AddNote => view! { <NoteDialog /> }.into_any(),
+        Modal::AddSkill => view! { <SkillPicker /> }.into_any(),
     }
 }
 

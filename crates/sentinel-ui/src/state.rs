@@ -45,6 +45,8 @@ pub enum Modal {
     AddFolder,
     AddBacklog,
     AddNote,
+    /// Use a skill: one skill for the next message.
+    AddSkill,
 }
 
 /// A short result message, shown about three seconds.

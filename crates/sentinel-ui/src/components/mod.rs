@@ -69,6 +69,7 @@ pub mod routine_row;
 pub mod sidebar;
 pub mod skill_editor;
 pub mod skill_import_list;
+pub mod skill_picker;
 pub mod skill_row;
 pub mod slash_menu;
 pub mod status_badge;
