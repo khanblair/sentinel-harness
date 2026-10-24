@@ -4,6 +4,8 @@ Sentinel runs many coding agents in one shared working tree without collisions. 
 
 Open the how-to site: <https://khanblair.github.io/sentinel-harness/>
 
+**Download for Mac:** [Sentinel 0.1.0 (.dmg)](https://github.com/khanblair/sentinel-harness/releases/latest) for Apple silicon and Intel. Open the image, drag Sentinel to Applications, and open it. The first build is signed ad hoc, so macOS asks you to confirm the first open (right click the app, then Open).
+
 ## What it does
 
 - **Chats and projects.** You talk to Sentinel in a chat inside a project (a repository). A message starts a run. Attach files, folders, a backlog, or a note with the plus button.
