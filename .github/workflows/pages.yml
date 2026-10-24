@@ -47,7 +47,12 @@ jobs:
       - if: steps.site.outputs.present == 'true'
         run: cargo xtask slop-check
       - if: steps.site.outputs.present == 'true'
+        run: sh site/check-links.sh
+      - if: steps.site.outputs.present == 'true'
         run: mdbook build site
+      # The Try it page embeds the interactive prototype.
+      - if: steps.site.outputs.present == 'true'
+        run: mkdir -p site/book/prototype && cp design/sentinel-prototype.html site/book/prototype/
       - if: steps.site.outputs.present == 'true'
         uses: actions/configure-pages@v5
       - if: steps.site.outputs.present == 'true'
