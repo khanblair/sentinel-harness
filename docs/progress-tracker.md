@@ -261,6 +261,7 @@ Paths listed in [project-structure.md](project-structure.md) that do not exist y
 | (add) | README, overview, scope, architecture, structure, plan, standards, development, libraries, ui-tokens (rewritten), ui-rules, ui-registry, mobile, tracker | Synced with the interactive prototype: stream-first workspace (F14), permissions (F15), agent switching (F16), appearance settings (F17), install and connections (F18), user flow, new tokens and breakpoints |
 
 | 2026-10-24 | overview, scope, architecture, structure, development, build-plan, ui-rules, ui-registry, tracker | Drift fixes against the prototype and decisions: feature list numbers match F1 to F22, Telegram default detail is Detail, Telegram setup has no pairing code, structure doc fence and heading, `--r` radius, eleven settings pages, open questions live only here. Added goose and pi (D42). Closed Q1 and Q2 (D44) |
+| 2026-10-24 | `docs/*.md and README.md` | Chat wording pass (D71) |
 
 ## Notes for Later
 

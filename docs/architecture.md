@@ -383,7 +383,7 @@ Defined once in `sentinel-core` and used by both daemon and UI (same Rust types,
 - The reservation guard is the same in every mode. A write to a file the task has not reserved is blocked and restored.
 - After a Plan only approval the run switches to Auto inside reserved files and says so in the stream.
 - Per-agent capabilities are checked before a mode applies. A capability that is off wins over the mode.
-- An approval card has a state machine: pending, then allowed, denied, or defaulted. A pending card marks its run with an attention dot and a phone alert.
+- An approval card has a state machine: pending, then allowed, denied, or defaulted. A pending card marks its chat with an attention dot and a phone alert.
 - Every decision is logged with who made it (a device name or the default).
 
 ## Performance Budgets

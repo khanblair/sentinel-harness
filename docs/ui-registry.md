@@ -46,7 +46,7 @@ Every UI component. If it is not here, it does not exist yet.
 
 | Name | Purpose | Props | States | Phase | Status |
 |---|---|---|---|---|---|
-| Stream | Ordered feed of one run | events, focus | live, paused, empty, filtered | P6 | planned |
+| Stream | Ordered feed of the open chat: messages and the events of its runs | events, focus | live, paused, empty, filtered | P6 | planned |
 | EmptyChatState | Empty chat: describe the work, use the backlog, plan only, take the tour | chat | idle | P6 | planned |
 | UserMessage | Instruction from the user, optionally to one agent | text, to | default | P6 | planned |
 | SystemMessage | Sentinel narrative text | html | default | P6 | planned |

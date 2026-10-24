@@ -54,7 +54,7 @@ Sentinel is the **outer loop** around agents. Each worker CLI runs its own inner
 | Lesson | A note with typed front matter: an evidence-backed fact from past runs. Candidate, proven, rejected, or retired |
 | Brain | A folder of plain markdown notes linked like Obsidian notes. Agent memory, run journal, and lessons live there |
 | Brain care | A scheduled run that keeps the Brain fresh and proposes improvements |
-| Stream | The ordered feed of one run: plan, waves, agent steps, checkpoints, barriers, verdicts, approvals |
+| Stream | The ordered feed of one open chat: its messages, then the plan, waves, agent steps, checkpoints, barriers, verdicts, and approvals of its runs |
 | Panel | A tab that slides in beside the stream: Board, Terminal, Changes, Reserved, Brain, Remote, Files, Cost, Report, Agents, Permissions |
 | Permission mode | One of four settings for how much agents may do without asking. Reserved files stay the hard boundary |
 | Approval card | A card in the stream asking the user to allow or deny an agent request |

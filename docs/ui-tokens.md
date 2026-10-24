@@ -4,7 +4,7 @@ Every design value lives here. Components use CSS variables. No raw values in co
 
 ## Design Direction
 
-**Graphite workbench.** A quiet, neutral surface like the coding tools people already use (Claude Code, Codex, Antigravity), so the layout is familiar on day one: runs on the left, one stream in the middle, panels that slide in on the right.
+**Graphite workbench.** A quiet, neutral surface like the coding tools people already use (Claude Code, Codex, Antigravity), so the layout is familiar on day one: chats on the left, one stream in the middle, panels that slide in on the right.
 
 Color is rare and carries meaning. One amber accent marks the main action, focus, and the active tab. Status colors mark task state. Everything else is grey.
 
@@ -17,7 +17,7 @@ Color is rare and carries meaning. One amber accent marks the main action, focus
 | Token | Value | Use |
 |---|---|---|
 | `--bg` | `#191919` | Stream and panel background |
-| `--sidebar` | `#141414` | Run sidebar |
+| `--sidebar` | `#141414` | Chat sidebar |
 | `--surface` | `#212121` | Cards, composer, popovers |
 | `--surface2` | `#2B2B2B` | Hover, selected row, user message |
 | `--border` | `#303030` | Dividers, outlines |

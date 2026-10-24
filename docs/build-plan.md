@@ -135,7 +135,7 @@ Goal: the whole harness visible in a browser.
 | P6-04 | Agent stream and task detail | Output streams for a running task |
 | P6-05 | Tools view, report view, settings | All data from the API |
 | P6-06 | Controls: pause, resume, kill, lower cap, decisions | Each control works and is logged |
-| P6-07 | Workspace shell: run sidebar, top bar with panel icons, stream, composer, slide-in panels | Matches `design/sentinel-prototype.html` at desktop, tablet, and phone widths. Sidebar is open by default on tablet and desktop |
+| P6-07 | Workspace shell: chat sidebar, top bar with panel icons, stream, composer, slide-in panels | Matches `design/sentinel-prototype.html` at desktop, tablet, and phone widths. Sidebar is open by default on tablet and desktop |
 | P6-08 | Slash commands and command palette | `/help` lists commands. Ctrl or Cmd + K switches agents and opens panels |
 | P6-09 | Permission modes, approval cards, capability matrix | Mode changes who answers extension requests. Writes to files a task has not reserved stay blocked in every mode |
 | P6-10 | Agent stack, agent popover, send-to chip | Focus, terminal, and kill work for each agent. Messages never change which files a task has reserved |
@@ -186,7 +186,7 @@ Dependencies: P3, P6, P7.
 | ID | Task | Done when |
 |---|---|---|
 | P9-01 | Tour engine with anchors | Steps highlight real elements |
-| P9-02 | Tour content for seven stops: run list, agent switcher, panel icons, stream, permission chip, send-to chip, settings | Reads at plain language level, passes slop check |
+| P9-02 | Tour content for seven stops: chat list, agent switcher, panel icons, stream, permission chip, send-to chip, settings | Reads at plain language level, passes slop check |
 | P9-03 | Replay from Settings, skip, resume | Works on desktop and phone. **M5** |
 | P9-04 | In-app guide with the 13-step user flow, each step with a try-it action | Every action opens the right screen. Text passes slop check |
 

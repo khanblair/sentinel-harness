@@ -102,7 +102,7 @@ Before step 1 an install check confirms Rust, the WASM target, trunk, git, and T
 
 ### F9. Guided Tour
 
-- **What:** A coach-mark tour in seven stops: the run list, the agent switcher, the panel icons, the stream, the permission chip, the send-to chip, and settings.
+- **What:** A coach-mark tour in seven stops: the chat list, the agent switcher, the panel icons, the stream, the permission chip, the send-to chip, and settings.
 - **How:** Anchored tooltips, one at a time, keyboard and swipe navigable, replayable from Settings, with a sample run so there is something to point at.
 - **Why:** First-time users should understand the board in two minutes.
 

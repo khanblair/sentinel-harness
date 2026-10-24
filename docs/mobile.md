@@ -93,7 +93,7 @@ Web push needs HTTPS. Without it, alerts show only while the app is open.
 
 | Tab | Screen |
 |---|---|
-| Stream | The run stream and composer, with approval cards |
+| Stream | The chat stream and composer, with approval cards |
 | Board | Tasks grouped by status |
 | Reserved | Reserved files and queue |
 | Changes | Checkpoints, diffs, blocked writes, quality notes |
