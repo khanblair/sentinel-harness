@@ -64,25 +64,49 @@ impl Store {
 
     /// Saves a new routine. `created_at` is only written here, never changed later.
     pub fn insert_routine(&self, routine: &Routine, created_at: OffsetDateTime) -> Result<()> {
-        let connection = self.connection()?;
-        connection.execute(
-            "INSERT INTO routines (id, name, kind, minute_of_day, days, enabled, to_telegram,
-                                   text, backlog, last_fired_on, created_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
-            params![
-                routine.id.as_str(),
-                routine.name,
-                enum_text(&routine.kind)?,
-                i64::from(routine.minute_of_day),
-                i64::from(routine.days),
-                routine.enabled,
-                routine.to_telegram,
-                routine.text,
-                routine.backlog,
-                routine.last_fired_on,
-                time_text(created_at)?
-            ],
-        )?;
+        self.write_routines(std::slice::from_ref(routine), created_at, "")
+    }
+
+    /// Saves the routines that are not there yet, in one transaction. A routine that exists keeps
+    /// its fields, so an edit to a built-in routine is never reset by a later start.
+    pub fn seed_routines(&self, routines: &[Routine], created_at: OffsetDateTime) -> Result<()> {
+        self.write_routines(routines, created_at, "OR IGNORE")
+    }
+
+    /// `clause` is empty for a plain insert, or `OR IGNORE` for a seed.
+    fn write_routines(
+        &self,
+        routines: &[Routine],
+        created_at: OffsetDateTime,
+        clause: &str,
+    ) -> Result<()> {
+        let sql = format!(
+            "INSERT {clause} INTO routines (id, name, kind, minute_of_day, days, enabled,
+                                           to_telegram, text, backlog, last_fired_on, created_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)"
+        );
+        let mut connection = self.connection()?;
+        let transaction = connection.transaction()?;
+        let created = time_text(created_at)?;
+        for routine in routines {
+            transaction.execute(
+                &sql,
+                params![
+                    routine.id.as_str(),
+                    routine.name,
+                    enum_text(&routine.kind)?,
+                    i64::from(routine.minute_of_day),
+                    i64::from(routine.days),
+                    routine.enabled,
+                    routine.to_telegram,
+                    routine.text,
+                    routine.backlog,
+                    routine.last_fired_on,
+                    created
+                ],
+            )?;
+        }
+        transaction.commit()?;
         Ok(())
     }
 

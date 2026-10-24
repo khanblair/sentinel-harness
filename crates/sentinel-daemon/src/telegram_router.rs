@@ -3,6 +3,7 @@
 //! mode, edit notes or tests, or run a shell: no branch calls those routes.
 
 use sentinel_core::api::RunRequest;
+use sentinel_core::routines::RoutineKind;
 use sentinel_core::{Event, PermissionMode, TaskId, ToolId};
 use sentinel_telegram::Button;
 use sentinel_telegram::buttons::{ButtonAction, ButtonError};
@@ -112,6 +113,8 @@ fn command_name(command: &Command) -> &'static str {
         Command::Run(_) => "/run",
         Command::Report => "/report",
         Command::Daily => "/daily",
+        Command::Brief => "/brief",
+        Command::Wrapup => "/wrapup",
         Command::Brain(_) => "/brain",
     }
 }
@@ -212,6 +215,8 @@ impl Turn<'_> {
             Command::Agent { tool, text } => self.message_agent(&tool, &text, &caller),
             Command::Diff(task) => self.diff(task.as_ref(), self.row.settings.detail),
             Command::Daily => text_reply(self.engine.daily_summary()),
+            Command::Brief => text_reply(self.brief_text(RoutineKind::Morning)),
+            Command::Wrapup => text_reply(self.brief_text(RoutineKind::Sundown)),
             Command::Task(text) => self.task_confirm(&text),
             Command::Run(task) => self.run_confirm(task),
             Command::Report => self.report(),
@@ -244,6 +249,11 @@ impl Turn<'_> {
             ButtonAction::DiffSummary { task } => self.diff(task.as_ref(), Detail::Summary),
             ButtonAction::AddTask { text } => self.add_task(&text, &caller),
         }
+    }
+
+    /// The brief text for a chat command. The title is not sent, so only the text is returned.
+    fn brief_text(&self, kind: RoutineKind) -> Result<String> {
+        self.engine.build_brief(kind).map(|(_, text)| text)
     }
 
     fn diff(&self, task: Option<&TaskId>, detail: Detail) -> Reply {
