@@ -99,13 +99,23 @@ impl Engine {
     /// State and a test for every connection on the Connections page.
     pub async fn connections(&self) -> Vec<ConnectionStatus> {
         let tailscale = self.tailscale_status().await;
+        let mcp_binary = self.mcp_binary().await;
         vec![
             tailscale_connection(&tailscale),
             connections::openrouter(self.inner.secrets.as_ref(), "https://openrouter.ai").await,
-            connections::mcp_file_server(None),
+            connections::mcp_file_server(mcp_binary.as_deref()),
             connections::git(self.inner.runner.as_ref()).await,
             connections::keychain(self.inner.secrets.as_ref()),
         ]
+    }
+
+    /// The running `sentinel` binary, when its help lists the `mcp` subcommand. Agents start the
+    /// MCP file server from that binary.
+    async fn mcp_binary(&self) -> Option<PathBuf> {
+        let exe = std::env::current_exe().ok()?;
+        let exe_text = exe.to_str()?;
+        let output = self.inner.runner.run(exe_text, &["--help"]).await;
+        offers_mcp(&output.stdout).then_some(exe)
     }
 
     pub fn repo_check(&self, path: &str) -> RepoCheckResponse {
@@ -172,6 +182,12 @@ impl Engine {
     pub fn onboarding_reset(&self) -> Result<OnboardingState> {
         Ok(onboarding::reset(&self.inner.store)?)
     }
+}
+
+/// True when a help text lists an `mcp` subcommand. Clap lists each one on its own indented line.
+fn offers_mcp(help: &str) -> bool {
+    help.lines()
+        .any(|line| line.split_whitespace().next() == Some("mcp"))
 }
 
 fn tailscale_connection(status: &TailscaleStatus) -> ConnectionStatus {
@@ -270,4 +286,21 @@ fn write_private(path: &Path, text: &str) -> Result<()> {
 fn write_private(path: &Path, text: &str) -> Result<()> {
     std::fs::write(path, text)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::offers_mcp;
+
+    #[test]
+    fn help_listing_an_mcp_subcommand_counts_as_offered() {
+        let help = "Commands:\n  daemon  Serve the UI\n  mcp     Serve the file and Brain tools\n";
+        assert!(offers_mcp(help));
+    }
+
+    #[test]
+    fn help_without_an_mcp_subcommand_does_not_count() {
+        let help = "Commands:\n  daemon  Serve the UI\n  --mcp-config  Not a subcommand\n";
+        assert!(!offers_mcp(help));
+    }
 }

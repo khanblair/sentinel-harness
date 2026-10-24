@@ -89,6 +89,8 @@ enum Command {
         #[command(subcommand)]
         action: KeysCommand,
     },
+    /// Serve the file and Brain tools over stdio for an agent. Agent CLIs start it; no need to run it by hand.
+    Mcp,
 }
 
 #[derive(Subcommand)]
@@ -141,11 +143,24 @@ async fn dispatch(command: Command) -> anyhow::Result<ExitCode> {
         Command::Scan { repo } => commands::scan(repo).await,
         Command::Doctor => commands::doctor().await,
         Command::Report { repo } => commands::report(repo),
+        Command::Mcp => commands::mcp().await,
         other @ (Command::Daemon { .. }
         | Command::Open { .. }
         | Command::Pair { .. }
         | Command::Service { .. }
         | Command::Keys { .. }) => dispatch_serve(other).await,
+    }
+}
+
+fn service_command(action: ServiceCommand) -> anyhow::Result<ExitCode> {
+    match action {
+        ServiceCommand::Install {
+            repo,
+            port,
+            no_start,
+        } => service::install(repo, port, !no_start),
+        ServiceCommand::Uninstall => service::uninstall(),
+        ServiceCommand::Status => service::status(),
     }
 }
 
@@ -168,15 +183,7 @@ async fn dispatch_serve(command: Command) -> anyhow::Result<ExitCode> {
             })
             .await
         }
-        Command::Service { action } => match action {
-            ServiceCommand::Install {
-                repo,
-                port,
-                no_start,
-            } => service::install(repo, port, !no_start),
-            ServiceCommand::Uninstall => service::uninstall(),
-            ServiceCommand::Status => service::status(),
-        },
+        Command::Service { action } => service_command(action),
         Command::Open { repo, print } => serve::open(repo, print),
         Command::Pair { repo } => serve::pair(repo).await,
         Command::Keys { action } => match action {
@@ -184,7 +191,11 @@ async fn dispatch_serve(command: Command) -> anyhow::Result<ExitCode> {
             KeysCommand::Delete { name } => serve::keys(&serve::KeysAction::Delete, &name),
             KeysCommand::Status { name } => serve::keys(&serve::KeysAction::Status, &name),
         },
-        Command::Run { .. } | Command::Scan { .. } | Command::Doctor | Command::Report { .. } => {
+        Command::Run { .. }
+        | Command::Scan { .. }
+        | Command::Doctor
+        | Command::Report { .. }
+        | Command::Mcp => {
             unreachable!("handled by dispatch")
         }
     }
