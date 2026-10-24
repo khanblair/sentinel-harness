@@ -227,6 +227,9 @@ pub fn morning_text(facts: &BriefFacts, hackathon: bool) -> String {
     ));
     lines.push(tailnet_line(facts));
     lines.extend(backlog_line(facts));
+    if facts.run_live {
+        lines.push("A run is live.".to_owned());
+    }
     lines.push(format!("Start with: {}.", next_step(facts, hackathon)));
     lines.join("\n")
 }
@@ -381,6 +384,14 @@ mod tests {
         assert!(text.contains("Tasks: 2 verified, 0 partial, 1 blocked, 0 skipped."));
         assert!(text.contains("Spent today $0.88."));
         assert!(text.ends_with("Tasks needing a look: 1."));
+    }
+
+    #[test]
+    fn the_morning_brief_says_when_a_run_is_live() {
+        let mut live = facts();
+        live.run_live = true;
+        assert!(morning_text(&live, false).contains("A run is live."));
+        assert!(!morning_text(&facts(), false).contains("A run is live."));
     }
 
     #[test]
