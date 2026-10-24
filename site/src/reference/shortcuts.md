@@ -17,9 +17,12 @@ Shortcuts and slash commands run controls without the mouse.
    - `/skill NAME` adds a skill to your next message.
 4. Press Tab to move focus in reading order. The focus outline is always visible.
 
-## Screenshot
+## See it
 
-![Screenshot of shortcuts-palette](../images/shortcuts-palette.png)
+<figure class="fig" data-fig="shortcuts-palette" data-ratio="16 / 10" data-title="The command palette.">
+<figcaption>The command palette.<ol><li>Type part of a command. The list narrows as you type.</li><li>Press Enter, or click, to run it.</li></ol></figcaption>
+<noscript><p>This view needs JavaScript. Open the <a href="../prototype/sentinel-prototype.html">prototype</a> instead.</p></noscript>
+</figure>
 
 ## Tip
 

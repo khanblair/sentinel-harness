@@ -13,9 +13,12 @@ Brain care is a scheduled run that refreshes the notes, merges duplicates, and p
 5. Accept or dismiss each proposal in the Brain panel. Proposals are also saved as files in `_proposals/`.
 6. Each care run has its own budget, by default $0.10. It uses the cheapest ready agent and stops at its budget.
 
-## Screenshot
+## See it
 
-![Screenshot of brain-care-proposals](../images/brain-care-proposals.png)
+<figure class="fig" data-fig="brain-care-proposals" data-ratio="16 / 10" data-title="The Brain proposals tab.">
+<figcaption>The Brain proposals tab.<ol><li>Proposals wait here. Nothing changes until you accept.</li><li>Each proposal says what changes and why.</li><li>Accept applies it. Dismiss drops it.</li></ol></figcaption>
+<noscript><p>This view needs JavaScript. Open the <a href="../prototype/sentinel-prototype.html">prototype</a> instead.</p></noscript>
+</figure>
 
 ## Tip
 

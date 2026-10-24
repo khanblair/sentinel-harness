@@ -23,9 +23,12 @@ Settings holds the options Sentinel keeps, grouped into sections.
    - About holds the details of this install.
 3. Change a value. Each setting is also kept in a config file.
 
-## Screenshot
+## See it
 
-![Screenshot of settings-sections](../images/settings-sections.png)
+<figure class="fig" data-fig="settings-sections" data-ratio="16 / 10" data-title="The Settings window, with its pages marked.">
+<figcaption>The Settings window. Each page holds one kind of setting.<ol><li>Agents and tools: turn each agent on or off.</li><li>Integrations: Telegram and the always-on machine.</li><li>Devices: phones and tablets paired over Tailscale.</li></ol></figcaption>
+<noscript><p>This view needs JavaScript. Open the <a href="../prototype/sentinel-prototype.html">prototype</a> instead.</p></noscript>
+</figure>
 
 ## Tip
 

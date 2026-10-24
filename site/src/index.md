@@ -11,9 +11,12 @@ Sentinel is a coding tool you talk to. You open a chat in a project and say what
 3. Agents work. Tasks with no shared files run together in a wave.
 4. Tests decide. The full suite runs at each barrier. Only the verifier marks a task VERIFIED.
 
-## Screenshot
+## See it
 
-![Screenshot of home-stream](images/home-stream.png)
+<figure class="fig" data-fig="home-stream" data-ratio="16 / 10" data-title="A finished chat, with the Board panel open.">
+<figcaption>A finished chat, with the Board panel open.<ol><li>The chat list. The open chat is highlighted.</li><li>The stream: each plan, step, and result, in order.</li><li>Panels open as tabs on the right.</li></ol></figcaption>
+<noscript><p>This view needs JavaScript. Open the <a href="prototype/sentinel-prototype.html">prototype</a> instead.</p></noscript>
+</figure>
 
 ## Tip
 

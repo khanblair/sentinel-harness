@@ -12,9 +12,12 @@ Onboarding has five steps, and each step sets one part of Sentinel. Every settin
 4. Pair your phone over Tailscale. This step can be skipped. Sentinel first checks that Tailscale is running.
 5. Finish with the dry run. It uses a built-in sample project and never touches your repository. The screen ticks off each stage as it runs.
 
-## Screenshot
+## See it
 
-![Screenshot of set-up-wizard](../images/set-up-wizard.png)
+<figure class="fig" data-fig="set-up-wizard" data-ratio="16 / 10" data-title="A setup step: choosing the repository.">
+<figcaption>A setup step: choosing the repository.<ol><li>Six steps. A tick marks each one that is done.</li><li>Choose the project folder. Sentinel uses it as it is.</li><li>Checks: Git, backlog.md, and a clean tree.</li></ol></figcaption>
+<noscript><p>This view needs JavaScript. Open the <a href="../prototype/sentinel-prototype.html">prototype</a> instead.</p></noscript>
+</figure>
 
 ## Tip
 

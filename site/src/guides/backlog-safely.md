@@ -14,9 +14,12 @@ This guide runs a backlog with the least risk to your repository and to your bud
 6. Approve the file requests that make sense. Deny the rest.
 7. Read each verdict. Trust only VERIFIED. A VERIFIED task has a passing suite, a new test, and a review by a different model. Quality notes are warnings.
 
-## Screenshot
+## See it
 
-![Screenshot of backlog-run](../images/backlog-run.png)
+<figure class="fig" data-fig="backlog-run" data-ratio="16 / 10" data-title="A run in progress, in waves.">
+<figcaption>A run in progress, in waves.<ol><li>The plan: three tasks, two waves.</li><li>A wave: tasks that touch different files run together.</li><li>After each wave, the full test suite runs.</li></ol></figcaption>
+<noscript><p>This view needs JavaScript. Open the <a href="../prototype/sentinel-prototype.html">prototype</a> instead.</p></noscript>
+</figure>
 
 ## Tip
 

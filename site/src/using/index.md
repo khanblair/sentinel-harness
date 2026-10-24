@@ -14,10 +14,6 @@ The using pages explain chats and each part of the run screen: the stream, reser
 6. Read [Panels](panels.md) to find each panel from the top bar or the More menu.
 7. Read [Budget](budget.md) to learn when Sentinel stops new work.
 
-## Screenshot
-
-![Screenshot of using-overview](../images/using-overview.png)
-
 ## Tip
 
 Open the stream first. The other panels sit beside it.

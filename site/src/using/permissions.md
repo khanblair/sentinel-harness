@@ -17,9 +17,12 @@ One setting decides how much agents may do without asking. Reserved files stay t
 5. Answer approval cards in the stream, or from a paired phone. Phone answers can be turned off.
 6. Set the capability matrix for each agent. It covers read, write reserved files, ask for more files, run tests, run shell commands, and network.
 
-## Screenshot
+## See it
 
-![Screenshot of permissions-panel](../images/permissions-panel.png)
+<figure class="fig" data-fig="permissions-panel" data-ratio="16 / 10" data-title="The Permissions panel.">
+<figcaption>The Permissions panel: the modes and the per-agent matrix.<ol><li>Pick a mode. Auto writes only to files a task reserved.</li><li>One row per agent. Turn a capability on or off.</li><li>No mode turns off the file locks.</li></ol></figcaption>
+<noscript><p>This view needs JavaScript. Open the <a href="../prototype/sentinel-prototype.html">prototype</a> instead.</p></noscript>
+</figure>
 
 ## Tip
 

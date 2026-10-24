@@ -12,9 +12,12 @@ A chat opens in one project. Send a message in it, and Sentinel starts a run to 
 4. Check the title. An empty chat has no title until you send a message. Then the title becomes the first line of that message, cut at 48 characters. If you attach a backlog file, the title becomes the file name.
 5. Rename the chat at any time. See [Rename, pin, archive, and delete](manage-chats.md).
 
-## Screenshot
+## See it
 
-![Screenshot of start-a-chat](../../images/start-a-chat.png)
+<figure class="fig" data-fig="start-a-chat" data-ratio="16 / 10" data-title="An empty chat, with its starting cards.">
+<figcaption>An empty chat, with its three starting cards and the composer.<ol><li>Use backlog.md runs the tasks in the file.</li><li>Plan only first. Nothing is written until you approve.</li><li>Type your goal here, then press Send.</li></ol></figcaption>
+<noscript><p>This view needs JavaScript. Open the <a href="../../prototype/sentinel-prototype.html">prototype</a> instead.</p></noscript>
+</figure>
 
 ## Tip
 

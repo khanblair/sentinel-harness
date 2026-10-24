@@ -12,9 +12,12 @@ The Brain folder is a plain Obsidian vault, so you can edit notes in Obsidian an
 4. If an edit is missing in Sentinel, run `brain reindex` from the command line.
 5. Make edits on the PC only. Notes become agent prompts, and the phone cannot edit notes.
 
-## Screenshot
+## See it
 
-![Screenshot of brain-obsidian-vault](../images/brain-obsidian-vault.png)
+<figure class="fig" data-fig="brain-obsidian-vault" data-ratio="16 / 10" data-title="Settings, Brain, with the vault folder row.">
+<figcaption>Settings, Brain, with the vault folder row.<ol><li>Vault folder: plain markdown files that Obsidian can open.</li><li>The folder path. Edits in Obsidian show up here.</li></ol></figcaption>
+<noscript><p>This view needs JavaScript. Open the <a href="../prototype/sentinel-prototype.html">prototype</a> instead.</p></noscript>
+</figure>
 
 ## Tip
 

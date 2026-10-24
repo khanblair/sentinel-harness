@@ -12,9 +12,12 @@ The Brain is a folder of plain markdown notes. Agents read it as memory, every r
 4. Read [Brain care](care.md) to schedule upkeep and review proposals.
 5. Read [Using the vault in Obsidian](obsidian.md) to edit the same folder in Obsidian.
 
-## Screenshot
+## See it
 
-![Screenshot of brain-overview](../images/brain-overview.png)
+<figure class="fig" data-fig="brain-overview" data-ratio="16 / 10" data-title="The Brain panel.">
+<figcaption>The Brain panel: the mode, the notes, and the search.<ol><li>The mode, the note count, and the vault folder.</li><li>Notes, Graph, or Proposals.</li><li>Search by title, text, or tag.</li></ol></figcaption>
+<noscript><p>This view needs JavaScript. Open the <a href="../prototype/sentinel-prototype.html">prototype</a> instead.</p></noscript>
+</figure>
 
 ## Tip
 

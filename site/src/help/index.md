@@ -10,10 +10,6 @@ Help covers common problems, the questions people ask most, and the release hist
 2. Check [FAQ](faq.md) for a question about how Sentinel works.
 3. Open [Changelog](changelog.md) to see what changed in each release.
 
-## Screenshot
-
-![Screenshot of help-overview](../images/help-overview.png)
-
 ## Tip
 
 Run `sentinel doctor` first. It reports the detected CLIs, the Tailscale state, and the git version.

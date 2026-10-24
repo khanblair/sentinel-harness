@@ -12,9 +12,12 @@ A note is one markdown file in the Brain, with a short header and links to other
 4. Pick a type for each note: convention, decision, fix, file, task, run, lesson, glossary, or how-to.
 5. Open the Brain panel. It has a notes list with search and a type filter, a note view with backlinks, an editor, a graph view, and a proposals tab.
 
-## Screenshot
+## See it
 
-![Screenshot of brain-notes-list](../images/brain-notes-list.png)
+<figure class="fig" data-fig="brain-notes-list" data-ratio="16 / 10" data-title="The notes list, with search and the type filter.">
+<figcaption>The notes list, with search and the type filter.<ol><li>Search by title, text, or tag.</li><li>Show one type of note, such as Lesson.</li><li>Each note: its type, its name, and a strength bar.</li></ol></figcaption>
+<noscript><p>This view needs JavaScript. Open the <a href="../prototype/sentinel-prototype.html">prototype</a> instead.</p></noscript>
+</figure>
 
 ## Tip
 

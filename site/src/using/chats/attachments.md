@@ -17,9 +17,12 @@ The plus button in the composer attaches files, folders, a backlog, or a note to
 5. Check the limits. Each upload can be at most 1 MB. Every file reaches the planner and the agents as a path. A small file's text goes in too. A big file goes as a path only. A chip that cannot be used says why in its tooltip: a file over 1 MB, or a path outside the repository.
 6. Uploads are saved under `.sentinel/chats/<chat>/attachments/`. They never land in the tracked tree.
 
-## Screenshot
+## See it
 
-![Screenshot of attachment-chips](../../images/attachment-chips.png)
+<figure class="fig" data-fig="attachment-chips" data-ratio="16 / 10" data-title="Chips above the text box, and the plus menu.">
+<figcaption>The chips above the text box, and the plus menu.<ol><li>A file, a folder, a note. The x removes one.</li><li>The plus: files, a folder, a backlog, a skill, or a note.</li></ol></figcaption>
+<noscript><p>This view needs JavaScript. Open the <a href="../../prototype/sentinel-prototype.html">prototype</a> instead.</p></noscript>
+</figure>
 
 ## Tip
 

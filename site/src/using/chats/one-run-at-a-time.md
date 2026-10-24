@@ -12,9 +12,12 @@ A project has one working tree, so it has one live run at a time. A chat holds m
 4. Open the busy chat. Watch its stream, or send it a note.
 5. To free the project, wait for the run to finish, or stop it. Click the stop control in the top bar, or type `/stop` in the composer. Stop asks once. Then send your message again in the other chat.
 
-## Screenshot
+## See it
 
-![Screenshot of busy-chat-note](../../images/busy-chat-note.png)
+<figure class="fig" data-fig="busy-chat-note" data-ratio="16 / 10" data-title="A chat that waits for the live run.">
+<figcaption>A chat that waits while another chat holds the run in its project.<ol><li>Another chat holds the run in this project.</li><li>Open the live chat from here.</li></ol></figcaption>
+<noscript><p>This view needs JavaScript. Open the <a href="../../prototype/sentinel-prototype.html">prototype</a> instead.</p></noscript>
+</figure>
 
 ## Tip
 

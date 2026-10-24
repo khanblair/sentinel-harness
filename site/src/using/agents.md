@@ -12,9 +12,12 @@ Agent switching lets you see each agent, focus its output, and send it a message
 4. Open Settings to set routing. Choose which agent takes easy, normal, and hard tasks. A failed task moves one step up.
 5. Open Agents from the More menu to see the detected tools. Each one shows as found or missing, with a switch to use it.
 
-## Screenshot
+## See it
 
-![Screenshot of agent-stack](../images/agent-stack.png)
+<figure class="fig" data-fig="agent-stack" data-ratio="16 / 10" data-title="The agent stack in the top bar, with its menu open.">
+<figcaption>The agent stack in the top bar, with its menu open.<ol><li>One letter for each agent ready in this run.</li><li>Focus: show only this agent in the stream.</li><li>Kill stops this agent now.</li></ol></figcaption>
+<noscript><p>This view needs JavaScript. Open the <a href="../prototype/sentinel-prototype.html">prototype</a> instead.</p></noscript>
+</figure>
 
 ## Tip
 

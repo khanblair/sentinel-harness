@@ -13,9 +13,12 @@ This guide steers a run from Telegram: alerts, approvals, short commands, and sm
 5. Use `/agent <name> <text>` to send one agent a message. Use `/diff [task]` for a short summary. Use `/task <text>` to add a task to `backlog.md`. Use `/run [task]` to start a run.
 6. Expect a request for a PC-only action to be refused and logged. Those actions are switching to Bypass permissions, raising the cap, editing notes or tests, and running shell commands.
 
-## Screenshot
+## See it
 
-![Screenshot of telegram-control](../images/telegram-control.png)
+<figure class="fig" data-fig="telegram-control" data-ratio="16 / 10" data-title="The Telegram panel, with a command and its buttons.">
+<figcaption>The Telegram panel, with a command and its buttons.<ol><li>The command, as you sent it.</li><li>The bot asks first. It stops nothing until you tap.</li><li>A button does the same as the typed command.</li></ol></figcaption>
+<noscript><p>This view needs JavaScript. Open the <a href="../prototype/sentinel-prototype.html">prototype</a> instead.</p></noscript>
+</figure>
 
 ## Tip
 
