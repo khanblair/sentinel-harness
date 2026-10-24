@@ -1,6 +1,7 @@
 //! Shared types for the daemon and the UI. One definition, no schema drift.
 
 pub mod api;
+pub mod brain_api;
 pub mod chat;
 pub mod cost;
 pub mod error;

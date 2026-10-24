@@ -229,7 +229,9 @@ Money is stored as integer micro-dollars.
 | `GET /api/report` | Honest report |
 | `POST /api/pair`, `GET/DELETE /api/devices` | Pairing and revoke |
 | `GET /api/onboarding`, `POST /api/onboarding/:step` | Onboarding state |
-| `GET /api/brain/notes?q=&type=` | Search and list notes |
+| `GET /api/brain/notes?q=&type=` | Search and list notes (`NoteList` in `sentinel-core/src/brain_api.rs`, which holds every Brain body) |
+| `POST /api/brain/notes` | Write a new note (`NewNote`). The computer only |
+| `POST /api/brain/notes/:id/pin` | Pin or unpin a note (`PinNote`): a pinned note is always loaded for agents. The computer only |
 | `GET /api/brain/notes/:id`, `PUT /api/brain/notes/:id` | Read a note. Edit a note (PC only, not from a phone) |
 | `GET /api/brain/graph` | Nodes and links for the graph |
 | `POST /api/brain/lessons/:id/review` | Approve, reject, or retire a lesson note |
