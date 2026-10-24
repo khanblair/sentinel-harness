@@ -7,6 +7,7 @@ use time::OffsetDateTime;
 
 use crate::chat::{AttachmentRef, ChatChange};
 use crate::cost::Cost;
+use crate::dry_run::{DryRunStage, StageState};
 use crate::ids::{ApprovalId, ChatId, DeviceId, NoteId, RunId, TaskId, ToolId};
 use crate::note::LessonState;
 use crate::permission::{Approval, ApprovalState, PermissionMode};
@@ -176,6 +177,16 @@ pub enum Event {
     HostBackOnline {
         gap_seconds: u64,
     },
+    /// One stage of the dry run changed. The dry run uses a sample project, never the repository.
+    DryRunStage {
+        stage: DryRunStage,
+        state: StageState,
+    },
+    /// The dry run ended. `verified` of `total` tasks passed on the sample project.
+    DryRunFinished {
+        verified: u32,
+        total: u32,
+    },
 }
 
 impl Event {
@@ -247,6 +258,18 @@ mod tests {
             event: Event::HostHeartbeat,
         };
         assert!(!serde_json::to_string(&record).unwrap().contains("chat"));
+    }
+
+    #[test]
+    fn a_dry_run_stage_event_round_trips_with_snake_case_names() {
+        let e = Event::DryRunStage {
+            stage: DryRunStage::AgentsWork,
+            state: StageState::Running,
+        };
+        let json = serde_json::to_string(&e).unwrap();
+        assert!(json.contains("\"kind\":\"DryRunStage\""), "{json}");
+        assert!(json.contains("\"stage\":\"agents_work\""), "{json}");
+        assert_eq!(serde_json::from_str::<Event>(&json).unwrap(), e);
     }
 
     #[test]
