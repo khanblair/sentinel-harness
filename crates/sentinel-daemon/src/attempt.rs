@@ -127,6 +127,7 @@ fn build_spec(ctx: &RunCtx, task: &Task, tool: &ToolInfo) -> RunSpec {
     });
     let prompt = task_prompt(task, retry.as_ref(), &ctx.limits);
     RunSpec {
+        scope: task.scope.entries().map(str::to_owned).collect(),
         task: task.id.clone(),
         agent: tool.id.clone(),
         model: ctx

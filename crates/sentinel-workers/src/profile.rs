@@ -217,6 +217,7 @@ mod tests {
 
     fn run_spec(model: &str) -> RunSpec {
         RunSpec {
+            scope: Vec::new(),
             task: TaskId::new("T-07"),
             agent: ToolId::new("opencode"),
             model: model.to_string(),

@@ -30,6 +30,10 @@ pub struct RunSpec {
     pub prompt: String,
     pub workdir: PathBuf,
     pub timeout: Duration,
+    /// The paths the task may write: files and folders of its scope. A worker that writes files
+    /// itself refuses a write outside them. A CLI agent ignores this, and the write guard
+    /// catches it instead.
+    pub scope: Vec<String>,
 }
 
 /// One line of agent output, tagged so the stream can show who said it.

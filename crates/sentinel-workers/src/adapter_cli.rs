@@ -91,6 +91,7 @@ mod tests {
 
     fn make_spec(model: &str) -> RunSpec {
         RunSpec {
+            scope: Vec::new(),
             task: TaskId::new("T-01"),
             agent: ToolId::new("test"),
             model: model.to_string(),

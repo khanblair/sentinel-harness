@@ -293,6 +293,7 @@ pub(crate) async fn run_for_text(engine: &Engine, job: TextJob<'_>) -> String {
         budget: job.budget,
     };
     let spec = RunSpec {
+        scope: Vec::new(),
         task: sentinel_core::TaskId::new("PLAN"),
         agent: job.tool.id.clone(),
         model: String::new(),

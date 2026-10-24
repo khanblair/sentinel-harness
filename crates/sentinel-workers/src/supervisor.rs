@@ -343,6 +343,7 @@ mod tests {
 
     fn spec(timeout: Duration) -> RunSpec {
         RunSpec {
+            scope: Vec::new(),
             task: TaskId::new("T-01"),
             agent: sentinel_core::ToolId::new("sh"),
             model: String::new(),
