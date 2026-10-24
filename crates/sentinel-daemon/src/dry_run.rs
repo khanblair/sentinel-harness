@@ -443,7 +443,11 @@ mod tests {
         };
         assert_eq!(
             book.handle(&running),
-            vec![(DryRunStage::AgentsWork, StageState::Running)]
+            vec![
+                (DryRunStage::Plan, StageState::Done),
+                (DryRunStage::LockFiles, StageState::Done),
+                (DryRunStage::AgentsWork, StageState::Running),
+            ]
         );
         assert_eq!(book.handle(&running), Vec::new());
     }
