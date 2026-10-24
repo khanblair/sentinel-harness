@@ -52,3 +52,5 @@ pub mod telegram {
 pub mod terminal {
     pub use super::panel_stubs::TerminalPanel;
 }
+
+pub mod settings;
