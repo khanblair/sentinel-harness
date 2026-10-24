@@ -23,7 +23,7 @@ See [project-structure.md](project-structure.md). One Cargo workspace. Crates un
 
 | Area | Rule |
 |---|---|
-| Edition and toolchain | Pinned in `rust-toolchain.toml` |
+| Edition and toolchain | Stable Rust, edition 2024. A pin file is planned (D58) |
 | Formatting | `rustfmt` defaults plus `rustfmt.toml` |
 | Lints | `clippy` with `-D warnings`. Pedantic group on, a short allow list in `clippy.toml` |
 | Unsafe | Forbidden (`#![forbid(unsafe_code)]`) |

@@ -13,8 +13,8 @@
 ```
 sentinel/
   Cargo.toml              workspace members and shared dependency versions
+  README.md               what Sentinel is and how to try it
   Cargo.lock              pinned dependency versions, committed
-  rust-toolchain.toml     pinned Rust version and components
   rustfmt.toml            format rules
   clippy.toml             lint thresholds
   .cargo/config.toml      cargo alias for xtask

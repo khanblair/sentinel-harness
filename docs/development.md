@@ -4,7 +4,7 @@
 
 | Tool | Why |
 |---|---|
-| Rust (version in `rust-toolchain.toml`) | Everything |
+| Rust, stable channel, edition 2024 (no pin file yet, see D58 in the tracker) | Everything |
 | `wasm32-unknown-unknown` target | UI build |
 | `trunk` | UI bundling |
 | `git` (recent) | Plumbing commands |
@@ -15,7 +15,7 @@
 ## First-Time Setup
 
 1. Clone the repo.
-2. Install the toolchain: `rustup show` (reads the pinned file).
+2. Install the stable toolchain: `rustup toolchain install stable`.
 3. Add the WASM target: `rustup target add wasm32-unknown-unknown`.
 4. Install tools: `cargo install trunk cargo-nextest cargo-deny cargo-machete cargo-llvm-cov`.
 5. Run `cargo xtask ci` once. It must pass on a clean clone.
@@ -39,14 +39,11 @@ See [project-structure.md](project-structure.md).
 
 | Variable | Purpose | Default |
 |---|---|---|
-| `SENTINEL_REPO` | Repo path | current directory |
-| `SENTINEL_CAP_USD` | Budget cap (can only be lowered after start) | required for a run |
-| `SENTINEL_BIND` | Bind address. Must be a Tailscale address | auto-detected |
-| `SENTINEL_PORT` | Port | 7480 |
-| `SENTINEL_LOG` | Log level | `info` |
-| `SENTINEL_BRAIN` | Brain mode: `off`, `read-only`, `learn` | `read-only` |
-| `SENTINEL_TELEGRAM_TOKEN` | Bot token. Prefer the keychain. Used only if no keychain exists | none |
-| `OPENROUTER_API_KEY` | Cheap worker and verifier | read from the OS keychain if unset |
+| `OPENROUTER_API_KEY` | OpenRouter key, used when the keychain has none | read from the OS keychain first |
+| `SENTINEL_TELEGRAM_TOKEN` | Bot token, used only when the keychain has none | none |
+| `SENTINEL_UTC_OFFSET_MINUTES` | Overrides the computer's time zone for Telegram quiet hours | read from `date +%z` |
+
+The repository, port, and bind are options of the commands: `sentinel daemon --repo PATH --port 7878`. The default port is 7878. The daemon binds only the Tailscale address, or `127.0.0.1` with `--dev-bind` for development. The budget cap, the Brain mode, and the routing live in `.sentinel/config.toml` and in Settings.
 
 Keys are never printed. Prefer the keychain, set through `sentinel keys set`.
 
@@ -67,7 +64,8 @@ Keys are never printed. Prefer the keychain, set through `sentinel keys set`.
 | `cargo run -- pair` | Show the QR code |
 | `cargo run -- report` | Print the last honest report |
 | `cargo run -- doctor` | Environment check |
-| `cargo run -- brain list` | List notes by type, with strength |
+| `cargo run -- daemon --repo PATH --dev-bind` | Serve the UI and API on 127.0.0.1 |
+| `cargo run -- open` | Open the UI, signed in as this computer |
 | `cargo run -- brain mode read-only` | Set the Brain mode (`off`, `read-only`, `learn`) |
 | `cargo run -- brain care` | Run Brain care now |
 | `cargo run -- brain reindex` | Rebuild `brain.db` from the vault |
@@ -158,7 +156,7 @@ Linux x86_64, macOS (Apple silicon and Intel), Windows x86_64. Hackathon build t
 | Cost shows "estimated" | Tool gives no dollar figure | Expected. Estimates run high |
 | Task stuck waiting | Files reserved by a stalled agent | Kill the holder from the UI |
 | UI is blank | UI not built before the binary | Build the UI first |
-| Notes not used by agents | Brain mode is `off`, or the notes are weak or unlinked | `brain list`, check the mode and pinned notes |
+| Notes not used by agents | Brain mode is `off`, or the notes are weak or unlinked | the Brain panel, check the mode and pinned notes |
 | Edits in Obsidian missing | The watcher is off or the file is in a hidden folder rule | `brain reindex` |
 | Retry prompt looks short | Compaction is working | Open the full output from the log reference |
 | Task killed at its ceiling | Task cost passed 2x the tier estimate | Check the cost estimate, or let it escalate |
