@@ -34,5 +34,6 @@ pub mod brain_graph;
 pub mod brain_notes;
 pub mod brain_proposals;
 pub mod brain_settings;
+pub mod remote_tailscale;
 pub mod telegram_slot;
 pub mod terminal;

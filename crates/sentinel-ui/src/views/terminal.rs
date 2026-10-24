@@ -118,16 +118,24 @@ fn load_earlier(ui: Ui, earlier: RwSignal<HashMap<String, Vec<String>>>, agent: 
     spawn_local(async move {
         let path = format!("/api/tasks/{task}/output?after=0&limit=2000");
         match api::get::<Vec<EventRecord>>(&path).await {
-            Ok(records) => {
-                let loaded = output_lines(&records, &agent);
-                let live = live_lines(ui, &agent);
-                let extra = earlier_lines(&loaded, &live);
-                earlier.update(|map| {
-                    map.insert(agent, extra);
-                });
-            }
+            Ok(records) => store_earlier(ui, earlier, &agent, &records),
             Err(failure) => ui.show_toast(failure.to_string(), ToastKind::Danger),
         }
+    });
+}
+
+/// Keeps the loaded lines that are not in the live buffer yet.
+fn store_earlier(
+    ui: Ui,
+    earlier: RwSignal<HashMap<String, Vec<String>>>,
+    agent: &str,
+    records: &[EventRecord],
+) {
+    let loaded = output_lines(records, agent);
+    let live = live_lines(ui, agent);
+    let extra = earlier_lines(&loaded, &live);
+    earlier.update(|map| {
+        map.insert(agent.to_owned(), extra);
     });
 }
 

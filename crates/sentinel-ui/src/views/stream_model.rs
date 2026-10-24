@@ -178,6 +178,11 @@ fn run_item(event: &Event) -> Option<Item> {
             already_done: *already_done,
         });
     }
+    wave_item(event)
+}
+
+/// Wave and checkpoint events.
+fn wave_item(event: &Event) -> Option<Item> {
     if let Event::WaveStarted { wave, tasks } = event {
         return Some(Item::Wave {
             wave: *wave,

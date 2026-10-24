@@ -83,22 +83,29 @@ pub fn share_percent(cost: Cost, largest: Cost) -> u8 {
 fn lower_cap(ui: Ui, draft: RwSignal<String>, error: RwSignal<Option<String>>) {
     let current = ui.snapshot.with_untracked(|s| s.cost.cap);
     let text = draft.get_untracked();
-    match lower_cap_valid(current, &text) {
-        Err(message) => error.set(Some(message)),
-        Ok(next) => {
-            error.set(None);
-            let body = LowerCap {
-                cap: cap_input_text(next),
-            };
-            spawn_local(async move {
-                let result = api::post::<_, serde_json::Value>("/api/cap/lower", &body).await;
-                if result.is_ok() {
-                    ui.show_toast(format!("Cap lowered to {next}."), ToastKind::Ok);
-                }
-                settle(ui, result);
-            });
+    let next = match lower_cap_valid(current, &text) {
+        Ok(next) => next,
+        Err(message) => {
+            error.set(Some(message));
+            return;
         }
-    }
+    };
+    error.set(None);
+    send_lower_cap(ui, next);
+}
+
+/// Posts the new cap. The toast shows only when the daemon accepts it.
+fn send_lower_cap(ui: Ui, next: Cost) {
+    let body = LowerCap {
+        cap: cap_input_text(next),
+    };
+    spawn_local(async move {
+        let result = api::post::<_, serde_json::Value>("/api/cap/lower", &body).await;
+        if result.is_ok() {
+            ui.show_toast(format!("Cap lowered to {next}."), ToastKind::Ok);
+        }
+        settle(ui, result);
+    });
 }
 
 #[component]

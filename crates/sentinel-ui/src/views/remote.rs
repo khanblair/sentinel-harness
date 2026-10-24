@@ -1,5 +1,5 @@
 //! The Remote panel: Tailscale state, pairing a phone, paired devices, and what a phone can do
-//! (`docs/mobile.md`, Pairing and Security).
+//! (`docs/mobile.md`, Pairing and Security). The Tailscale checks live in `remote_tailscale`.
 
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
@@ -12,8 +12,8 @@ use crate::api;
 use crate::components::device_list::{DeviceList, active_devices};
 use crate::components::icon::Icon;
 use crate::components::pair_qr::PairQr;
-use crate::components::status_badge::shape_markup;
 use crate::state::{ToastKind, Ui, refresh, use_ui};
+use crate::views::remote_tailscale::{TailscaleCard, refresh_status};
 
 /// How often the open pairing asks for new requests.
 const PENDING_POLL_MS: u32 = 2_000;
@@ -25,91 +25,9 @@ pub struct PendingPairing {
     pub device_name: String,
 }
 
-/// Mirrors the three dot states of the prototype's pairing checklist.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Level {
-    Ok,
-    Warn,
-    Bad,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct CheckRow {
-    pub level: Level,
-    pub title: &'static str,
-    pub detail: String,
-}
-
 /// `mm:ss` for a number of seconds, such as `04:59`.
 pub fn format_countdown(seconds: u32) -> String {
     format!("{:02}:{:02}", seconds / 60, seconds % 60)
-}
-
-/// Color token and shape name for a checklist level.
-pub fn level_look(level: Level) -> (&'static str, &'static str) {
-    match level {
-        Level::Ok => ("ok", "dot"),
-        Level::Warn => ("warn", "ring"),
-        Level::Bad => ("danger", "oct"),
-    }
-}
-
-/// The word after each checklist row.
-pub fn level_word(level: Level) -> &'static str {
-    match level {
-        Level::Ok => "OK",
-        Level::Warn => "Needs action",
-        Level::Bad => "Missing",
-    }
-}
-
-/// The three checks on this computer: installed, signed in, and an address.
-pub fn tailscale_rows(status: &TailscaleStatus) -> Vec<CheckRow> {
-    let installed = status.state != TailscaleState::NotInstalled;
-    let (run_level, run_detail) = running_check(status);
-    let (address_level, address_detail) = address_check(status);
-    vec![
-        CheckRow {
-            level: if installed { Level::Ok } else { Level::Bad },
-            title: "Tailscale is installed",
-            detail: if installed {
-                "The tailscale command was found on this computer.".to_owned()
-            } else {
-                "The tailscale command was not found.".to_owned()
-            },
-        },
-        CheckRow {
-            level: run_level,
-            title: "Tailscale is running and signed in",
-            detail: run_detail,
-        },
-        CheckRow {
-            level: address_level,
-            title: "This computer has a private address",
-            detail: address_detail,
-        },
-    ]
-}
-
-fn running_check(status: &TailscaleStatus) -> (Level, String) {
-    match (status.state, &status.machine_name) {
-        (TailscaleState::Running, Some(name)) => {
-            (Level::Ok, format!("Signed in. This computer is {name}."))
-        }
-        (TailscaleState::Running, None) => (Level::Ok, "Signed in.".to_owned()),
-        (TailscaleState::SignedOut, _) => (Level::Warn, "Installed, but signed out.".to_owned()),
-        (TailscaleState::NotInstalled, _) => (Level::Bad, "Install it first.".to_owned()),
-    }
-}
-
-fn address_check(status: &TailscaleStatus) -> (Level, String) {
-    match &status.address {
-        Some(address) if status.state == TailscaleState::Running => (
-            Level::Ok,
-            format!("{address}. Only your own devices can reach it."),
-        ),
-        _ => (Level::Bad, "No address yet.".to_owned()),
-    }
 }
 
 /// What a phone can do. From `docs/mobile.md`, Security.
@@ -138,15 +56,6 @@ fn tick_every(interval_ms: u32, alive: RwSignal<bool>, action: impl Fn() + 'stat
                 break;
             }
             action();
-        }
-    });
-}
-
-fn refresh_status(status: RwSignal<Option<TailscaleStatus>>, ui: Ui) {
-    spawn_local(async move {
-        match api::get::<TailscaleStatus>("/api/tailscale/status").await {
-            Ok(value) => status.set(Some(value)),
-            Err(failure) => ui.show_toast(failure.to_string(), ToastKind::Danger),
         }
     });
 }
@@ -197,93 +106,6 @@ fn decide(ui: Ui, pending: RwSignal<Vec<PendingPairing>>, id: &str, approve: boo
         }
         refresh(ui);
     });
-}
-
-fn sign_in(ui: Ui, status: RwSignal<Option<TailscaleStatus>>) {
-    spawn_local(async move {
-        match api::post_empty::<serde_json::Value>("/api/tailscale/signin").await {
-            Ok(body) => {
-                let message = body
-                    .get("message")
-                    .and_then(serde_json::Value::as_str)
-                    .unwrap_or("")
-                    .to_owned();
-                let kind = if body.get("ok").and_then(serde_json::Value::as_bool) == Some(true) {
-                    ToastKind::Ok
-                } else {
-                    ToastKind::Warn
-                };
-                ui.show_toast(message, kind);
-                refresh_status(status, ui);
-            }
-            Err(failure) => ui.show_toast(failure.to_string(), ToastKind::Danger),
-        }
-    });
-}
-
-#[component]
-fn CheckLine(row: CheckRow) -> impl IntoView {
-    let (color, shape) = level_look(row.level);
-    view! {
-        <div class="chk">
-            <span><svg class="shp" viewBox="0 0 12 12" aria-hidden="true" inner_html=shape_markup(shape, color)></svg></span>
-            <div class="n"><b style="font-weight:500">{row.title}</b><small>{row.detail}</small></div>
-            <span class="sub">{level_word(row.level)}</span>
-        </div>
-    }
-}
-
-#[component]
-fn TailscaleCard(status: RwSignal<Option<TailscaleStatus>>) -> impl IntoView {
-    let ui = use_ui();
-    view! {
-        <div class="card">
-            <div class="row sp wrap">
-                <b>"Part 1. This computer"</b>
-                <button class="btn sm" on:click=move |_| refresh_status(status, ui)>
-                    <Icon name="refresh" size=13 /> " Check again"
-                </button>
-            </div>
-            {move || match status.get() {
-                None => view! { <div class="sub" style="margin-top:.5em">"Checking Tailscale."</div> }.into_any(),
-                Some(value) => view! {
-                    <div>
-                        {tailscale_rows(&value).into_iter().map(|row| view! { <CheckLine row=row /> }).collect_view()}
-                        {setup_steps(value.state, ui, status)}
-                    </div>
-                }.into_any(),
-            }}
-        </div>
-    }
-}
-
-/// What to do next when Tailscale is missing or signed out. Empty when it runs.
-fn setup_steps(
-    state: TailscaleState,
-    ui: Ui,
-    status: RwSignal<Option<TailscaleStatus>>,
-) -> impl IntoView {
-    match state {
-        TailscaleState::NotInstalled => view! {
-            <div style="margin-top:.7em">
-                <div class="sub" style="margin-bottom:.3em">"Install Tailscale, then press Check again."</div>
-                <ol class="ol">
-                    <li><span>"macOS or Windows: download the app from tailscale.com/download, open it, and sign in."</span></li>
-                    <li><span>"Linux: install Tailscale with the official steps from tailscale.com, then run sudo tailscale up."</span></li>
-                    <li><span>"Come back here and press Check again."</span></li>
-                </ol>
-            </div>
-        }
-        .into_any(),
-        TailscaleState::SignedOut => view! {
-            <div style="margin-top:.7em">
-                <div class="sub" style="margin-bottom:.5em">"Tailscale is installed but signed out. Signing in opens your browser."</div>
-                <button class="btn pri" on:click=move |_| sign_in(ui, status)>"Sign in to Tailscale"</button>
-            </div>
-        }
-        .into_any(),
-        TailscaleState::Running => ().into_any(),
-    }
 }
 
 #[component]
@@ -427,49 +249,11 @@ fn PhoneLimits() -> impl IntoView {
 mod tests {
     use super::*;
 
-    fn status(state: TailscaleState, address: Option<&str>) -> TailscaleStatus {
-        TailscaleStatus {
-            state,
-            address: address.map(str::to_owned),
-            machine_name: Some("blair-mac".to_owned()),
-        }
-    }
-
     #[test]
     fn countdown_is_minutes_and_seconds() {
         assert_eq!(format_countdown(300), "05:00");
         assert_eq!(format_countdown(59), "00:59");
         assert_eq!(format_countdown(0), "00:00");
-    }
-
-    #[test]
-    fn a_missing_install_fails_all_three_checks() {
-        let rows = tailscale_rows(&status(TailscaleState::NotInstalled, None));
-        assert_eq!(rows[0].level, Level::Bad);
-        assert_eq!(rows[1].level, Level::Bad);
-        assert_eq!(rows[2].level, Level::Bad);
-    }
-
-    #[test]
-    fn signed_out_needs_action_not_missing() {
-        let rows = tailscale_rows(&status(TailscaleState::SignedOut, None));
-        assert_eq!(rows[0].level, Level::Ok);
-        assert_eq!(rows[1].level, Level::Warn);
-        assert_eq!(level_word(rows[1].level), "Needs action");
-    }
-
-    #[test]
-    fn a_running_client_shows_its_address_and_name() {
-        let rows = tailscale_rows(&status(TailscaleState::Running, Some("100.101.102.103")));
-        assert!(rows.iter().all(|row| row.level == Level::Ok));
-        assert!(rows[1].detail.contains("blair-mac"));
-        assert!(rows[2].detail.starts_with("100.101.102.103"));
-    }
-
-    #[test]
-    fn level_colors_pair_with_shapes() {
-        assert_eq!(level_look(Level::Ok), ("ok", "dot"));
-        assert_eq!(level_look(Level::Bad), ("danger", "oct"));
     }
 
     #[test]
