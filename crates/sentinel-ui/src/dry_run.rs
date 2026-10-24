@@ -2,7 +2,7 @@
 //! the rows the page shows, and the result sentences. No browser calls here, so the tests run on
 //! the host.
 
-use sentinel_core::dry_run::{DryRunStage, DryRunStageRow, StageState};
+use sentinel_core::dry_run::{DryRunStage, DryRunStageRow, DryRunStatus, StageState};
 
 /// The stage title, the same words as the wizard's stage list.
 pub fn stage_title(stage: DryRunStage) -> &'static str {
@@ -84,6 +84,18 @@ pub fn failure_text(stage: DryRunStage) -> String {
         "The dry run stopped at {}. Your agents or the sample tests did not finish.",
         stage_title(stage)
     )
+}
+
+/// The last words of a run that ended: the count when the daemon counted the tasks, else the
+/// failed stage. A run that still goes on has no outcome yet.
+pub fn outcome_text(status: &DryRunStatus) -> Option<String> {
+    if status.running {
+        return None;
+    }
+    match (status.verified, status.total) {
+        (Some(verified), Some(total)) => Some(result_text(verified, total)),
+        _ => failed_stage(&status.stages).map(failure_text),
+    }
 }
 
 #[cfg(test)]
@@ -170,6 +182,47 @@ mod tests {
     fn the_result_sentence_counts_verified_tasks_of_the_total() {
         assert_eq!(result_text(3, 3), "3 of 3 sample tasks verified.");
         assert_eq!(result_text(1, 3), "1 of 3 sample tasks verified.");
+    }
+
+    fn status(
+        running: bool,
+        counts: Option<(u32, u32)>,
+        stages: Vec<DryRunStageRow>,
+    ) -> DryRunStatus {
+        DryRunStatus {
+            running,
+            stages,
+            verified: counts.map(|(verified, _)| verified),
+            total: counts.map(|(_, total)| total),
+        }
+    }
+
+    #[test]
+    fn a_run_that_is_still_going_has_no_outcome() {
+        let going = status(true, None, vec![row(DryRunStage::Plan, StageState::Done)]);
+        assert_eq!(outcome_text(&going), None);
+    }
+
+    #[test]
+    fn a_counted_run_says_how_many_tasks_verified() {
+        let counted = status(false, Some((2, 3)), vec![]);
+        assert_eq!(
+            outcome_text(&counted).as_deref(),
+            Some("2 of 3 sample tasks verified.")
+        );
+    }
+
+    #[test]
+    fn a_run_that_failed_before_counting_names_the_failed_stage() {
+        let failed = status(
+            false,
+            None,
+            vec![row(DryRunStage::Review, StageState::Failed)],
+        );
+        assert_eq!(
+            outcome_text(&failed).as_deref(),
+            Some(failure_text(DryRunStage::Review).as_str())
+        );
     }
 
     #[test]
