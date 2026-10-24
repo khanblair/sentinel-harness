@@ -53,4 +53,5 @@ pub mod terminal {
     pub use super::panel_stubs::TerminalPanel;
 }
 
+pub mod appearance;
 pub mod settings;

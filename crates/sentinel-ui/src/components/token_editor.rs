@@ -2,7 +2,10 @@
 //! `prefs.overrides` for the theme that is showing, so light and dark keep their own values
 //! (`docs/ui-tokens.md`, Settings-Driven Tokens).
 
+use leptos::prelude::*;
+
 use crate::prefs::{self, Prefs, Resolved};
+use crate::state::{Ui, use_ui};
 
 /// The color tokens the editor shows, with their labels.
 pub const TOKEN_KEYS: [(&str, &str); 10] = [
@@ -56,6 +59,40 @@ pub fn token_value(prefs: &Prefs, resolved: Resolved, key: &str) -> String {
         .get(key)
         .cloned()
         .unwrap_or_default()
+}
+
+#[component]
+pub fn TokenEditor() -> impl IntoView {
+    let ui = use_ui();
+    view! {
+        <div class="tokgrid" style="margin-top:.5em">
+            {TOKEN_KEYS
+                .into_iter()
+                .map(|(key, label)| token_input(ui, key, label))
+                .collect_view()}
+        </div>
+    }
+}
+
+fn token_input(ui: Ui, key: &'static str, label: &'static str) -> impl IntoView {
+    let value = move || {
+        let prefs = ui.prefs.get();
+        token_value(&prefs, resolved_now(&prefs), key)
+    };
+    view! {
+        <label>
+            <input
+                type="color"
+                aria-label=label
+                prop:value=value
+                on:input=move |ev| {
+                    let next = event_target_value(&ev);
+                    ui.prefs.update(|p| *p = token_edit(p, resolved_now(p), key, &next));
+                }
+            />
+            {label}
+        </label>
+    }
 }
 
 #[cfg(test)]

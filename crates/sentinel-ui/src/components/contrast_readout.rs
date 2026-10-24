@@ -4,6 +4,9 @@
 
 use std::collections::BTreeMap;
 
+use leptos::prelude::*;
+
+use crate::components::icon::Icon;
 use crate::prefs::{self, Prefs, Resolved};
 
 /// Body text and button text need 4.5:1. Accent on the background only needs 3:1.
@@ -75,6 +78,32 @@ fn check_pair(tokens: &BTreeMap<String, String>, pair: &Pair) -> ContrastRow {
 /// The readout text for one row, such as `Text 14.2:1`.
 pub fn row_text(row: &ContrastRow) -> String {
     format!("{} {:.1}:1", row.label, row.ratio)
+}
+
+#[component]
+pub fn ContrastReadout(#[prop(into)] rows: Signal<Vec<ContrastRow>>) -> impl IntoView {
+    view! {
+        <div class="row wrap" style="gap:.4em" id="contrastRow">
+            {move || rows.get().into_iter().map(|row| chip(&row)).collect_view()}
+        </div>
+    }
+}
+
+fn chip(row: &ContrastRow) -> AnyView {
+    let (color, icon) = if row.pass {
+        ("ok", "check")
+    } else {
+        ("danger", "x")
+    };
+    let text = row_text(row);
+    view! {
+        <span class="chip" style=format!("color:var(--{color})")>
+            <Icon name=icon size=11 />
+            " "
+            {text}
+        </span>
+    }
+    .into_any()
 }
 
 #[cfg(test)]

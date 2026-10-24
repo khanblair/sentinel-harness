@@ -2,8 +2,11 @@
 //! (`docs/ui-tokens.md`, Accent Options). The text on the accent is picked by luminance in
 //! `prefs::foreground_for`, so this file only stores the accent.
 
-use crate::components::token_editor::normalize_hex;
-use crate::prefs::{self, Prefs, Resolved};
+use leptos::prelude::*;
+
+use crate::components::token_editor::{normalize_hex, resolved_now};
+use crate::prefs::{self, Prefs, Resolved, SWATCHES};
+use crate::state::{Ui, use_ui};
 
 /// Sets the accent to a `#RRGGBB` value. Any other value leaves the prefs as they are.
 pub fn pick_accent(prefs: &Prefs, value: &str) -> Prefs {
@@ -34,6 +37,45 @@ pub fn shown_accent(prefs: &Prefs, resolved: Resolved) -> String {
         .get("accent")
         .cloned()
         .unwrap_or_default()
+}
+
+#[component]
+pub fn AccentPicker() -> impl IntoView {
+    let ui = use_ui();
+    let custom = move || {
+        let prefs = ui.prefs.get();
+        shown_accent(&prefs, resolved_now(&prefs))
+    };
+    view! {
+        <div class="sw">
+            {SWATCHES.into_iter().map(|hex| swatch(ui, hex)).collect_view()}
+            <label class="swl">
+                <span>"Custom"</span>
+                <input
+                    type="color"
+                    aria-label="Custom accent"
+                    prop:value=custom
+                    on:input=move |ev| ui.prefs.update(|p| *p = pick_accent(p, &event_target_value(&ev)))
+                />
+            </label>
+            <button class="btn sm" on:click=move |_| ui.prefs.update(|p| *p = reset_accent(p))>
+                "Reset to default"
+            </button>
+        </div>
+    }
+}
+
+fn swatch(ui: Ui, hex: &'static str) -> impl IntoView {
+    let pressed = move || (ui.prefs.get().accent.as_deref() == Some(hex)).to_string();
+    view! {
+        <button
+            class="swc"
+            style=format!("background:{hex}")
+            aria-label=format!("Accent {hex}")
+            aria-pressed=pressed
+            on:click=move |_| ui.prefs.update(|p| *p = pick_accent(p, hex))
+        ></button>
+    }
 }
 
 #[cfg(test)]

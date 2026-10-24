@@ -1,6 +1,8 @@
 //! The Settings modal's page list and the page dispatch (`docs/ui-rules.md`, Views: Settings).
 //! The overlay frame is `components/modal.rs`. This file fills it: the nav and the body.
 
+use leptos::prelude::*;
+
 /// One row of the settings nav: its id as the modal stores it, its icon, and its label.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SettingsPage {
@@ -67,6 +69,28 @@ pub static SET_PAGES: [SettingsPage; 11] = [
         label: "About",
     },
 ];
+
+/// One labeled row of a settings page: the label and hint on the left, the control on the right.
+/// `modifier` adds a class such as `col` for rows that stack their control below the label.
+#[component]
+pub fn Field(
+    #[prop(into)] label: String,
+    #[prop(optional, into)] hint: String,
+    #[prop(optional)] modifier: &'static str,
+    children: Children,
+) -> impl IntoView {
+    let class = format!("fld {modifier}");
+    let hint_view = (!hint.is_empty()).then(|| view! { <span>{hint}</span> });
+    view! {
+        <div class=class>
+            <div class="l">
+                <b>{label}</b>
+                {hint_view}
+            </div>
+            {children()}
+        </div>
+    }
+}
 
 /// The page for a stored id. An unknown id opens General, so a stale link never shows an
 /// empty body.
