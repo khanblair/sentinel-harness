@@ -137,7 +137,7 @@ Paths listed in [project-structure.md](project-structure.md) that do not exist y
 | D48 | (autopilot, review) doc-check lists files with `git ls-files` plus untracked and not ignored. A listed file that is missing passes only under a prefix in Planned Files below | Rule 5 of project-structure.md |
 | D49 | (autopilot, review) slop-check skips the Writing Style Rules section and fenced code. ban-check scans only `crates/` and `xtask/`, and skips its own pattern line | The lists must name the banned things |
 | D50 | (autopilot, review) Loopback dev bind: `--dev-bind` or `SENTINEL_DEV_LOOPBACK=1` allows 127.0.0.1 and ::1 for tests and the browser pane. 0.0.0.0 is always refused. Off by default | The Tailscale-only bind rule blocks local tests |
-| D51 | (autopilot, review) `sentinel-ui` is outside `default-members` and excluded from host clippy. It is checked on `wasm32-unknown-unknown` in its own step | WASM-only dependencies break host builds |
+| D51 | (autopilot, review) `sentinel-ui` is outside `default-members`. It builds on the host, so host clippy and tests include it for pure logic. A separate step checks it on `wasm32-unknown-unknown` | The host build works, so pure UI logic gets normal tests |
 | D52 | (autopilot, review) The prototype CSS and icon SVG paths are copied into the UI crate unchanged. Class names and DOM follow the prototype | Stops visual drift |
 | D53 | (autopilot, review) Ornith (local, 127.0.0.1:8089, about 3 tokens per second) is an opencode provider for short drafts. Stopped when idle | Unlimited and local, but slow |
 | D54 | (autopilot, review) The UI build output folder keeps a committed placeholder `index.html` so a fresh clone builds the daemon without trunk | rust-embed needs the folder at compile time |

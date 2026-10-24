@@ -55,7 +55,7 @@ jobs:
       - run: |
           git config --global user.name "ci"
           git config --global user.email "ci@localhost"
-      - run: cargo nextest run --workspace --exclude sentinel-ui --no-tests=pass
+      - run: cargo nextest run --workspace --no-tests=pass
 
   ui:
     name: ui (wasm build and size budget)

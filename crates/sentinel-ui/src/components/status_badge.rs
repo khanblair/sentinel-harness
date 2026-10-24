@@ -23,21 +23,33 @@ pub fn look(status: TaskStatus) -> StatusLook {
         TaskStatus::Skipped => ("Skipped", "muted", "dash"),
         TaskStatus::Partial => ("Partial", "warn", "half"),
     };
-    StatusLook { label, color, shape }
+    StatusLook {
+        label,
+        color,
+        shape,
+    }
 }
 
 /// The inner SVG markup of one shape in a 12 by 12 box.
 pub fn shape_markup(shape: &str, color: &str) -> String {
     let col = format!("var(--{color})");
     match shape {
-        "ring" => format!(r#"<circle cx="6" cy="6" r="4.2" fill="none" stroke="{col}" stroke-width="1.6"/>"#),
+        "ring" => format!(
+            r#"<circle cx="6" cy="6" r="4.2" fill="none" stroke="{col}" stroke-width="1.6"/>"#
+        ),
         "dot" => format!(r#"<circle cx="6" cy="6" r="4.6" fill="{col}"/>"#),
-        "square" => format!(r#"<rect x="1.8" y="1.8" width="8.4" height="8.4" rx="1.2" fill="{col}"/>"#),
+        "square" => {
+            format!(r#"<rect x="1.8" y="1.8" width="8.4" height="8.4" rx="1.2" fill="{col}"/>"#)
+        }
         "tri" => format!(r#"<polygon points="6,1.4 11,10.6 1,10.6" fill="{col}"/>"#),
         "diamond" => format!(r#"<polygon points="6,1 11,6 6,11 1,6" fill="{col}"/>"#),
         "oct" => format!(r#"<polygon points="4,1 8,1 11,4 11,8 8,11 4,11 1,8 1,4" fill="{col}"/>"#),
-        "split" => format!(r#"<circle cx="6" cy="6" r="4.4" fill="none" stroke="{col}" stroke-width="1.5"/><path d="M6 1.6a4.4 4.4 0 010 8.8z" fill="{col}"/>"#),
-        "half" => format!(r#"<circle cx="6" cy="6" r="4.4" fill="none" stroke="{col}" stroke-width="1.5"/><path d="M1.6 6a4.4 4.4 0 008.8 0z" fill="{col}"/>"#),
+        "split" => format!(
+            r#"<circle cx="6" cy="6" r="4.4" fill="none" stroke="{col}" stroke-width="1.5"/><path d="M6 1.6a4.4 4.4 0 010 8.8z" fill="{col}"/>"#
+        ),
+        "half" => format!(
+            r#"<circle cx="6" cy="6" r="4.4" fill="none" stroke="{col}" stroke-width="1.5"/><path d="M1.6 6a4.4 4.4 0 008.8 0z" fill="{col}"/>"#
+        ),
         "dash" => format!(r#"<rect x="1.5" y="5" width="9" height="2" rx="1" fill="{col}"/>"#),
         _ => String::new(),
     }
@@ -62,18 +74,35 @@ mod tests {
     fn every_status_has_a_label_and_a_shape() {
         use TaskStatus::*;
         for status in [
-            Planned, Ready, Waiting, Reserved, Running, Checkpointed, Verifying, Verified, Failed,
-            Blocked, Contradiction, Skipped, Partial,
+            Planned,
+            Ready,
+            Waiting,
+            Reserved,
+            Running,
+            Checkpointed,
+            Verifying,
+            Verified,
+            Failed,
+            Blocked,
+            Contradiction,
+            Skipped,
+            Partial,
         ] {
             let look = look(status);
             assert!(!look.label.is_empty());
-            assert!(!shape_markup(look.shape, look.color).is_empty(), "{status:?}");
+            assert!(
+                !shape_markup(look.shape, look.color).is_empty(),
+                "{status:?}"
+            );
         }
     }
 
     #[test]
     fn labels_match_the_core_labels() {
-        assert_eq!(look(TaskStatus::Verified).label, TaskStatus::Verified.label());
+        assert_eq!(
+            look(TaskStatus::Verified).label,
+            TaskStatus::Verified.label()
+        );
         assert_eq!(look(TaskStatus::Partial).label, TaskStatus::Partial.label());
     }
 }

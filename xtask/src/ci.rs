@@ -38,8 +38,6 @@ const FIRST_STEPS: [CargoStep; 3] = [
         args: &[
             "clippy",
             "--workspace",
-            "--exclude",
-            "sentinel-ui",
             "--all-targets",
             "--",
             "-D",
@@ -49,14 +47,7 @@ const FIRST_STEPS: [CargoStep; 3] = [
     },
     CargoStep {
         name: "nextest",
-        args: &[
-            "nextest",
-            "run",
-            "--workspace",
-            "--exclude",
-            "sentinel-ui",
-            "--no-tests=pass",
-        ],
+        args: &["nextest", "run", "--workspace", "--no-tests=pass"],
         needs: None,
     },
 ];
