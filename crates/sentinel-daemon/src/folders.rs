@@ -207,6 +207,26 @@ pub fn create_starter_backlog(path: &Path) -> Result<()> {
 }
 
 /// Blocking native dialog. The caller runs this inside `spawn_blocking`.
+/// Keep Sentinel's own folder out of the repository's `git status` without touching any tracked
+/// file: add it to `.git/info/exclude`, which is local to this clone.
+pub fn exclude_sentinel_folder(repo: &Path) {
+    let exclude = repo.join(".git/info/exclude");
+    let known = fs::read_to_string(&exclude).unwrap_or_default();
+    if known.lines().any(|line| line.trim() == "/.sentinel/") {
+        return;
+    }
+    if let Some(parent) = exclude.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    let mut text = known;
+    if !text.is_empty() && !text.ends_with('\n') {
+        text.push('\n');
+    }
+    text.push_str("/.sentinel/\n");
+    // A repository we cannot write to is reported later, when git itself fails.
+    let _ = fs::write(&exclude, text);
+}
+
 pub fn pick_native(start: Option<&Path>) -> Option<PathBuf> {
     let mut dialog = rfd::FileDialog::new();
     if let Some(start) = start {

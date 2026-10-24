@@ -179,3 +179,17 @@ fn an_empty_home_lists_no_children() -> TestResult {
     assert_eq!(folders, Vec::<FolderEntry>::new());
     Ok(())
 }
+
+#[test]
+fn sentinel_folder_is_excluded_locally_once() {
+    let dir = tempfile::tempdir().unwrap();
+    std::process::Command::new("git")
+        .current_dir(dir.path())
+        .args(["init", "-q", "-b", "main"])
+        .status()
+        .unwrap();
+    sentinel_daemon::folders::exclude_sentinel_folder(dir.path());
+    sentinel_daemon::folders::exclude_sentinel_folder(dir.path());
+    let text = std::fs::read_to_string(dir.path().join(".git/info/exclude")).unwrap();
+    assert_eq!(text.matches("/.sentinel/").count(), 1, "{text}");
+}
