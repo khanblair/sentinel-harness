@@ -67,7 +67,7 @@ fn engine_in(repo: &Path) -> Engine {
     .unwrap();
     engine
         .update_config(|c| {
-            c.cap_usd = "5.00".to_owned();
+            "5.00".clone_into(&mut c.cap_usd);
             c.task_timeout_seconds = 5;
             c.max_parallel = 3;
         })
@@ -106,8 +106,7 @@ async fn get_json(base: &str, path: &str, token: Option<&str>) -> (StatusCode, V
 
 async fn send_json(
     base: &str,
-    method: reqwest::Method,
-    path: &str,
+    (method, path): (reqwest::Method, &str),
     token: &str,
     body: &Value,
 ) -> (StatusCode, Value) {
@@ -123,7 +122,7 @@ async fn send_json(
 }
 
 async fn post_json(base: &str, path: &str, token: &str, body: &Value) -> (StatusCode, Value) {
-    send_json(base, reqwest::Method::POST, path, token, body).await
+    send_json(base, (reqwest::Method::POST, path), token, body).await
 }
 
 #[tokio::test]
@@ -166,7 +165,7 @@ async fn the_desktop_token_reads_a_snapshot() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let snapshot: Snapshot = response.json().await.unwrap();
-    assert!(snapshot.tasks.is_empty());
+    assert_eq!(snapshot.tasks, Vec::new());
 }
 
 #[tokio::test]
@@ -204,18 +203,13 @@ async fn a_changing_request_from_the_same_origin_passes() {
     assert_eq!(response.status(), StatusCode::OK);
 }
 
-#[tokio::test]
-async fn a_paired_phone_reads_state_but_cannot_use_desktop_routes() {
-    let dir = tempfile::tempdir().unwrap();
-    let engine = engine_in(dir.path());
-    let desktop = desktop_token(&engine);
-    let base = start(engine).await;
-
-    let (status, started) = post_json(&base, "/api/pair/start", &desktop, &json!({})).await;
+/// Pair a phone through the real routes and return its token.
+async fn pair_phone(base: &str, desktop: &str) -> String {
+    let (status, started) = post_json(base, "/api/pair/start", desktop, &json!({})).await;
     assert_eq!(status, StatusCode::OK, "{started}");
     let code = started["code"].as_str().unwrap().to_owned();
     let (_, submitted) = post_json(
-        &base,
+        base,
         "/api/pair",
         "",
         &json!({ "code": code, "device_name": "Blair phone" }),
@@ -223,17 +217,25 @@ async fn a_paired_phone_reads_state_but_cannot_use_desktop_routes() {
     .await;
     let id = submitted["id"].as_str().unwrap().to_owned();
     let (approved, _) = post_json(
-        &base,
+        base,
         &format!("/api/pair/{id}/approve"),
-        &desktop,
+        desktop,
         &json!({}),
     )
     .await;
     assert_eq!(approved, StatusCode::OK);
-
-    let (_, outcome) = get_json(&base, &format!("/api/pair/{id}/outcome"), None).await;
+    let (_, outcome) = get_json(base, &format!("/api/pair/{id}/outcome"), None).await;
     assert_eq!(outcome["state"], "approved", "{outcome}");
-    let phone = outcome["token"].as_str().unwrap().to_owned();
+    outcome["token"].as_str().unwrap().to_owned()
+}
+
+#[tokio::test]
+async fn a_paired_phone_reads_state_but_cannot_use_desktop_routes() {
+    let dir = tempfile::tempdir().unwrap();
+    let engine = engine_in(dir.path());
+    let desktop = desktop_token(&engine);
+    let base = start(engine).await;
+    let phone = pair_phone(&base, &desktop).await;
 
     let (read, _) = get_json(&base, "/api/state", Some(&phone)).await;
     assert_eq!(read, StatusCode::OK);
@@ -241,10 +243,19 @@ async fn a_paired_phone_reads_state_but_cannot_use_desktop_routes() {
     assert_eq!(pick, StatusCode::FORBIDDEN);
     let (start_again, _) = post_json(&base, "/api/pair/start", &phone, &json!({})).await;
     assert_eq!(start_again, StatusCode::FORBIDDEN);
+    let (scan, _) = post_json(&base, "/api/tools/scan", &phone, &json!({})).await;
+    assert_eq!(scan, StatusCode::FORBIDDEN);
+    let (routing, _) = send_json(
+        &base,
+        (reqwest::Method::PUT, "/api/routing"),
+        &phone,
+        &json!({ "routing": {} }),
+    )
+    .await;
+    assert_eq!(routing, StatusCode::FORBIDDEN);
     let (bypass, _) = send_json(
         &base,
-        reqwest::Method::PUT,
-        "/api/permissions",
+        (reqwest::Method::PUT, "/api/permissions"),
         &phone,
         &json!({ "mode": "bypass" }),
     )
@@ -299,7 +310,8 @@ async fn an_unknown_page_gets_the_ui_index() {
     let response = reqwest::get(format!("{base}/nope")).await.unwrap();
     assert_eq!(response.status(), StatusCode::OK);
     let text = response.text().await.unwrap();
-    assert!(text.contains("has not been built"), "{text}");
+    // Either the placeholder or the real build: both are one HTML page.
+    assert!(text.to_lowercase().contains("<html"), "{text}");
 }
 
 #[test]
