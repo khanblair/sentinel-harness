@@ -135,9 +135,10 @@ fn watch_window(ui: Ui) {
     });
     let _ = window.add_event_listener_with_callback("resize", on_resize.as_ref().unchecked_ref());
     on_resize.forget();
-    let on_key = Closure::<dyn FnMut(web_sys::KeyboardEvent)>::new(
-        move |event: web_sys::KeyboardEvent| handle_key(ui, &event),
-    );
+    let on_key =
+        Closure::<dyn FnMut(web_sys::KeyboardEvent)>::new(move |event: web_sys::KeyboardEvent| {
+            handle_key(ui, &event);
+        });
     let _ = window.add_event_listener_with_callback("keydown", on_key.as_ref().unchecked_ref());
     on_key.forget();
 }

@@ -40,7 +40,8 @@ pub fn apply(prefs: &Prefs) {
 /// Re-applies the prefs when the device switches between light and dark. Only matters while the
 /// theme is set to System.
 pub fn follow_system(ui: Ui) {
-    let Some(list) = web_sys::window().and_then(|window| window.match_media(DARK_QUERY).ok().flatten())
+    let Some(list) =
+        web_sys::window().and_then(|window| window.match_media(DARK_QUERY).ok().flatten())
     else {
         return;
     };

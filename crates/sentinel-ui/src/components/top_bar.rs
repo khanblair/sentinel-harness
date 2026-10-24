@@ -126,7 +126,10 @@ fn CostChip() -> impl IntoView {
 fn RunControls() -> impl IntoView {
     let ui = use_ui();
     let live = move || ui.snapshot.with(is_live);
-    let paused = move || ui.snapshot.with(|snapshot| snapshot.harness == HarnessState::Paused);
+    let paused = move || {
+        ui.snapshot
+            .with(|snapshot| snapshot.harness == HarnessState::Paused)
+    };
     view! {
         <Show when=live fallback=|| ()>
             <button class="ibtn" aria-label=move || if paused() { "Resume" } else { "Pause" }

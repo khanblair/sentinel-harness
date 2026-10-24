@@ -104,7 +104,9 @@ fn clicked_inside(event: &web_sys::Event, anchor_id: &str) -> bool {
 
 /// The rectangle of an element, relative to the app root `#app`.
 fn rect_in_app(document: &web_sys::Document, id: &str) -> Option<Rect> {
-    let origin = document.get_element_by_id("app")?.get_bounding_client_rect();
+    let origin = document
+        .get_element_by_id("app")?
+        .get_bounding_client_rect();
     let target = document.get_element_by_id(id)?.get_bounding_client_rect();
     Some(Rect {
         left: target.left() - origin.left(),
@@ -118,7 +120,9 @@ fn rect_in_app(document: &web_sys::Document, id: &str) -> Option<Rect> {
 fn measure(popover: &Popover, element: &web_sys::HtmlElement) -> Option<Placement> {
     let document = web_sys::window()?.document()?;
     let anchor = rect_in_app(&document, &popover.anchor_id)?;
-    let app = document.get_element_by_id("app")?.get_bounding_client_rect();
+    let app = document
+        .get_element_by_id("app")?
+        .get_bounding_client_rect();
     let size = Size {
         width: f64::from(element.offset_width()),
         height: f64::from(element.offset_height()),

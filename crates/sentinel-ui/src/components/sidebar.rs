@@ -36,7 +36,10 @@ pub struct RunRow {
 
 /// True while the harness runs or is paused.
 pub fn is_live(snapshot: &Snapshot) -> bool {
-    matches!(snapshot.harness, HarnessState::Running | HarnessState::Paused)
+    matches!(
+        snapshot.harness,
+        HarnessState::Running | HarnessState::Paused
+    )
 }
 
 /// The backlog file name, without its folders.
@@ -125,7 +128,11 @@ fn live_status(snapshot: &Snapshot) -> RunStatus {
         RunStatus::Running
     } else if snapshot.harness == HarnessState::Paused {
         RunStatus::Paused
-    } else if snapshot.tasks.iter().any(|task| task.status == TaskStatus::Blocked) {
+    } else if snapshot
+        .tasks
+        .iter()
+        .any(|task| task.status == TaskStatus::Blocked)
+    {
         RunStatus::Blocked
     } else {
         RunStatus::Stopped
@@ -361,7 +368,7 @@ fn toggle_theme(ui: Ui) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sentinel_core::{RepoInfo, RunId, RunInfo, TaskId, Task};
+    use sentinel_core::{RepoInfo, RunId, RunInfo, Task, TaskId};
     use time::OffsetDateTime;
 
     fn record(id: i64, event: Event) -> EventRecord {
@@ -389,7 +396,13 @@ mod tests {
         let snapshot = Snapshot {
             events: vec![
                 record(1, started("r1", "docs/backlog.md")),
-                record(2, Event::RunFinished { verified: 2, total: 3 }),
+                record(
+                    2,
+                    Event::RunFinished {
+                        verified: 2,
+                        total: 3,
+                    },
+                ),
             ],
             ..Snapshot::empty()
         };
@@ -445,9 +458,18 @@ mod tests {
             count: String::new(),
             status: RunStatus::Stopped,
         };
-        let rows = vec![row("api", "fees.md"), row("web", "login.md"), row("api", "tax.md")];
+        let rows = vec![
+            row("api", "fees.md"),
+            row("web", "login.md"),
+            row("api", "tax.md"),
+        ];
         let all = grouped(&rows, "");
-        assert_eq!(all.iter().map(|(name, _)| name.as_str()).collect::<Vec<_>>(), ["api", "web"]);
+        assert_eq!(
+            all.iter()
+                .map(|(name, _)| name.as_str())
+                .collect::<Vec<_>>(),
+            ["api", "web"]
+        );
         assert_eq!(all[0].1.len(), 2);
         let filtered = grouped(&rows, "tax");
         assert_eq!(filtered.len(), 1);

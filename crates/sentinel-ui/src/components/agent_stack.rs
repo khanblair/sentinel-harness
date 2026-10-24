@@ -20,14 +20,22 @@ pub fn ready_agents(snapshot: &Snapshot) -> Vec<&ToolInfo> {
 /// `running` when the agent's latest output belongs to a task that is running, else `ready`.
 pub fn agent_state(snapshot: &Snapshot, agent: &ToolId) -> &'static str {
     let latest_task = snapshot.events.iter().rev().find_map(|record| {
-        if let Event::AgentOutput { task, agent: who, .. } = &record.event {
+        if let Event::AgentOutput {
+            task, agent: who, ..
+        } = &record.event
+        {
             (who == agent).then_some(task)
         } else {
             None
         }
     });
     let running = latest_task
-        .and_then(|task| snapshot.tasks.iter().find(|candidate| candidate.id == *task))
+        .and_then(|task| {
+            snapshot
+                .tasks
+                .iter()
+                .find(|candidate| candidate.id == *task)
+        })
         .is_some_and(|candidate| candidate.status == TaskStatus::Running);
     if running { "running" } else { "ready" }
 }

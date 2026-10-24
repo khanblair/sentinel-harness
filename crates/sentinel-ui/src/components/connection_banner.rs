@@ -10,9 +10,9 @@ use crate::state::{Connection, use_ui};
 /// nothing; a retry after a live session says "Reconnecting".
 pub fn banner_text(connection: &Connection, had_events: bool) -> Option<String> {
     match connection {
-        Connection::Offline { since } => Some(format!(
-            "Disconnected. Showing last state from {since}"
-        )),
+        Connection::Offline { since } => {
+            Some(format!("Disconnected. Showing last state from {since}"))
+        }
         Connection::Connecting => had_events.then(|| "Reconnecting".to_owned()),
         Connection::Live => None,
     }
@@ -23,7 +23,9 @@ pub fn ConnectionBanner() -> impl IntoView {
     let ui = use_ui();
     move || {
         let had_events = ui.snapshot.with(|snapshot| snapshot.last_event_id > 0);
-        let text = ui.connection.with(|connection| banner_text(connection, had_events));
+        let text = ui
+            .connection
+            .with(|connection| banner_text(connection, had_events));
         text.map(|text| {
             view! {
                 <div class="note warnc" role="status">

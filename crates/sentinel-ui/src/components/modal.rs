@@ -3,8 +3,8 @@
 
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use sentinel_core::api::PermissionsUpdate;
 use sentinel_core::PermissionMode;
+use sentinel_core::api::PermissionsUpdate;
 
 use crate::api;
 use crate::components::icon::Icon;

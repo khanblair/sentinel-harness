@@ -89,11 +89,8 @@ mod tests {
             Partial,
         ] {
             let look = look(status);
-            assert!(!look.label.is_empty());
-            assert!(
-                !shape_markup(look.shape, look.color).is_empty(),
-                "{status:?}"
-            );
+            assert_ne!(look.label, "", "{status:?}");
+            assert_ne!(shape_markup(look.shape, look.color), "", "{status:?}");
         }
     }
 

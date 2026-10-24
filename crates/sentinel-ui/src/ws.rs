@@ -4,13 +4,13 @@
 use std::cell::Cell;
 
 use futures::{SinkExt, StreamExt};
-use gloo_net::websocket::futures::WebSocket;
 use gloo_net::websocket::Message;
+use gloo_net::websocket::futures::WebSocket;
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use sentinel_core::api::{ClientFrame, ServerFrame};
 use sentinel_core::Event;
+use sentinel_core::api::{ClientFrame, ServerFrame};
 use time::{Duration, OffsetDateTime};
 
 use crate::api::{self, ApiFailure};
@@ -122,7 +122,9 @@ async fn session(ui: Ui, reconnecting: bool) -> bool {
     let auth = ClientFrame::Auth {
         token: api::token().unwrap_or_default(),
     };
-    let after = ui.snapshot.with_untracked(|snapshot| snapshot.last_event_id);
+    let after = ui
+        .snapshot
+        .with_untracked(|snapshot| snapshot.last_event_id);
     if send_frame(&mut socket, &auth).await.is_err()
         || send_frame(&mut socket, &ClientFrame::Subscribe { after })
             .await

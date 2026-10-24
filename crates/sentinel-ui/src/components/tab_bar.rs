@@ -59,7 +59,9 @@ pub fn swipe_target(current: &str, delta_x: f64) -> Option<&'static str> {
     if delta_x < 0.0 {
         SWIPE_TABS.get(index + 1).copied()
     } else {
-        index.checked_sub(1).and_then(|prev| SWIPE_TABS.get(prev).copied())
+        index
+            .checked_sub(1)
+            .and_then(|prev| SWIPE_TABS.get(prev).copied())
     }
 }
 
@@ -102,7 +104,10 @@ pub fn touch_ended(ui: Ui, start: RwSignal<Option<f64>>, event: &web_sys::Event)
     let Some(to) = touch_x(event, "changedTouches") else {
         return;
     };
-    let current = selected_tab(ui.panel_open.get_untracked(), ui.active_panel.get_untracked());
+    let current = selected_tab(
+        ui.panel_open.get_untracked(),
+        ui.active_panel.get_untracked(),
+    );
     if let Some(next) = swipe_target(current, to - from) {
         pick_tab(ui, next);
     }

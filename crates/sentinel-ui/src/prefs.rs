@@ -225,11 +225,15 @@ impl Prefs {
     }
 
     pub fn resolve(&self, system_is_dark: bool) -> Resolved {
-        match self.theme {
-            Theme::Light => Resolved::Light,
-            Theme::Dark => Resolved::Dark,
-            Theme::System if system_is_dark => Resolved::Dark,
-            Theme::System => Resolved::Light,
+        let dark = match self.theme {
+            Theme::Light => false,
+            Theme::Dark => true,
+            Theme::System => system_is_dark,
+        };
+        if dark {
+            Resolved::Dark
+        } else {
+            Resolved::Light
         }
     }
 }
