@@ -1,0 +1,172 @@
+# Progress Tracker
+
+The live status of the project. Update at the start and end of every work session.
+
+## How to Update
+
+1. Change a task's status when you start it and when you finish it.
+2. Add a line to the Session Log at the end of every session.
+3. Log every decision in the Decisions Log with the reason.
+4. Log every added, moved, or deleted file in the File Changes Log.
+5. Log every doc edit in the Doc Changes Log.
+6. Put unresolved questions in Open Questions. Do not guess.
+7. Keep this file short. Move old session entries into a summary line once there are more than 20.
+
+## Status Values
+
+| Value | Meaning |
+|---|---|
+| `todo` | Not started |
+| `doing` | In progress, one owner |
+| `blocked` | Waiting on a decision or another task. Say which |
+| `review` | Built, checks not yet green |
+| `done` | Done-when is true and `cargo xtask ci` passes |
+
+## Current Phase
+
+**Phase 0: Foundations.** Docs are drafted. No code yet.
+
+## Phase Status
+
+| Phase | Name | Status |
+|---|---|---|
+| P0 | Foundations | todo |
+| P1 | State and Reserved Files | todo |
+| P2 | Single-Tree Guard | todo |
+| P3 | Workers and Detection | todo |
+| P4 | Planner, Verifier, Report | todo |
+| P5 | Daemon, Log, Resume | todo |
+| P6 | Web UI Core | todo |
+| P7 | Phone over Tailscale | todo |
+| P8 | Onboarding | todo |
+| P9 | Guided Tour | todo |
+| P10 | Hardening | todo |
+| P11 | Brain | todo |
+| P12 | Brain Care | todo |
+| P13 | Telegram | todo |
+| P14 | Always-On Host | todo |
+| P15 | How-To Site | todo |
+
+Hackathon cut line: end of P7.
+
+## Tasks
+
+| ID | Task | Owner | Status |
+|---|---|---|---|
+| P0-01 | Workspace, toolchain, lint config | unassigned | todo |
+| P0-02 | `xtask` with `ci` command | unassigned | todo |
+| P0-03 | `slop-check` | unassigned | todo |
+| P0-04 | `smell-check`, `doc-check`, `ban-check` | unassigned | todo |
+| P0-05 | `deny.toml` | unassigned | todo |
+| P0-06 | Extended `smell-check` and `dup-check` | unassigned | todo |
+
+Add the rows for later phases when a phase starts. Copy IDs from [build-plan.md](build-plan.md).
+
+## Decisions Log
+
+| # | Decision | Reason |
+|---|---|---|
+| D1 | Language is Rust only, including the UI | Single language, shared types |
+| D2 | No git worktrees. One shared working tree with reserved files | Worktrees cost disk and hide what is happening |
+| D3 | Name is Sentinel | Chosen by the owner |
+| D4 | Phone shows the whole harness over Tailscale as a PWA | Full control away from the desk, no cloud |
+| D5 | Daemon auto-detects agent CLIs on the PC (claude, codex, opencode, gemini, agy, deepseek, mcode, others) | No hand-written setup |
+| D6 | Five-step onboarding and a guided tour are v1 features | First use must be easy |
+| D7 | The cap can only be lowered, never raised, including from the phone | Keeps the budget guard hard |
+| D8 | Only the verifier can mark a task VERIFIED | Honesty of "done" |
+| D9 | Shell out to `git` for plumbing, no libgit2 | Small build |
+| D10 | Docs follow the 13-file set in `README.md` | Owner request |
+| D11 | Sentinel is the outer loop. Worker CLIs run the inner reason-act-observe loop | Matches how the agent harness loop splits in practice |
+| D12 | The Brain is a vault of plain markdown notes in `.sentinel/brain/`. Lessons are typed notes in it. Lesson notes never hold task text. Trusted only after proof | Readable memory that stays safe. Avoids leaking the hidden backlog and entrenching bad habits |
+| D13 | The live run uses the Brain in `read-only` mode: agents read, nothing is written. In-run adaptation is not saved unless approved | Rule 9: hidden backlog must not be shared |
+| D14 | Smell and slop findings on agent code are warnings. They never change VERIFIED | Hidden tests are 40% of the score. Retries cost money |
+| D15 | Retry prompts use a capped failure summary. Each task has a cost ceiling | Controls tokens and runaway CLIs |
+| D16 | The phone can tighten the Brain mode but never loosen it. It cannot edit notes | Same pattern as the cap. Notes become agent prompts |
+| D17 | UI layout follows Claude Code: run sidebar, one stream, panels slide in, top-bar icons | Familiar to users of Claude Code, Codex, and Antigravity |
+| D18 | Visual direction is a neutral graphite base with one amber accent, Inter and JetBrains Mono. Chosen by the assistant after the owner said "choose best" | Quiet surface, color only for meaning |
+| D19 | Four permission modes (Plan only, Ask each wave, Auto inside reserved files, Bypass permissions). Reserved files stay the hard boundary in all of them | Same control model as the coding tools, with the collision guarantee |
+| D20 | Agent switching from the top-bar avatar stack and the send-to chip. Tier routing in Settings | Several agents must be steerable one by one |
+| D21 | Appearance settings are stored per device and applied as CSS variables | Phone and desktop can differ, no daemon state |
+| D22 | Breakpoints are phone under 620, tablet 620 to 1179, desktop 1180 and up. Phone uses bottom tabs Stream, Board, Reserved, Changes, More. Sidebar rule updated by D25 | Center column stays at least about 480 px on desktop |
+| D23 | Setup is an install check plus five onboarding steps. A guided tour has seven stops. An in-app guide has 13 steps | Owner request |
+| D24 | The interactive prototype lives in `design/sentinel-prototype.html` and is kept in sync with the UI docs | Owner request: artifact changes change the docs |
+| D25 | The sidebar is open by default on tablet and desktop and can be collapsed. It is a drawer on phone | Owner feedback: the sidebar was hidden at medium widths |
+| D26 | Folders are chosen with the computer's own folder dialog. Nobody types a path | Owner feedback |
+| D27 | The fourth permission mode is named Bypass permissions, with a confirm dialog | Owner feedback: matches the coding tools |
+| D28 | The setup agent list shows found or missing only, with no tier dropdown and no letter icons. Task routing lives in Settings and says easy, normal, hard | Owner feedback |
+| D29 | The pairing step checks Tailscale automatically and shows the matching steps, link, machine name, and code | Owner feedback |
+| D30 | The dry run explains what it does and uses a sample project, never the user's repository | Owner feedback |
+| D31 | Toasts use theme tokens and stay inside the app. The kind is shown by the icon color only (no side bar, see D35) | Owner feedback: toasts were hard to see |
+| D32 | Leases are renamed Reserved files everywhere. The panel is Reserved. The mode is Auto inside reserved files | Owner answer: "lease" was a hard word |
+| D33 | Brain scope: agent memory, run journal, lessons as notes, and a Brain panel with graph, search, and backlinks. Plus scheduled Brain care so memory evolves, with proposals for anything you wrote | Owner answer: all four, plus scheduled runs and evolving memory |
+| D34 | Telegram is built into the prototype and scoped as F20: outbound long polling, allowlist, four levels (Notify, Control, Code, Reports), default detail **Detail** with redaction and a never-sent list, status only in hackathon mode, coding = message one agent plus a diff summary (extended by D37) | Owner answers |
+| D35 | Toasts and notifications have no colored or dark left border. Kind is shown by the icon color | Owner feedback |
+| D36 | Telegram connects with two things: the bot token and the owner's Telegram user ID. Then `/start`. One allowlisted user, one private chat, no groups | Owner answers and request |
+| D37 | `/task` (add a task to backlog.md) and `/run` (start a run) are in v1, with confirm taps. A run from Telegram never uses Bypass permissions | Owner answer |
+| D38 | Telegram runs on an always-on host (server or spare computer). Sentinel gets a headless mode, a service install, a heartbeat, and a back-online message | Owner answer |
+| D39 | A how-to site on GitHub Pages, built with mdBook in `site/`, structure in `design/site-structure.html`. Built later in coding (Phases 15) | Owner request |
+| D40 | Settings is drawn as a cog and the theme switch as a sun or moon, so they never look alike. The accent row has round swatches plus labeled Custom and Reset to default | Owner feedback |
+
+## Open Questions
+
+| # | Question | Needed by |
+|---|---|---|
+| Q1 | Watcher backstop: restore immediately or hold for review? | P2-04 |
+| Q2 | Scope extension policy: always ask the scheduler, or allow small free-path edits? | P1-05 |
+| Q3 | Exact headless flags for `agy`, `mcode`, `deepseek` | P3-06 |
+| Q4 | HTTPS via `tailscale serve` by default? | P7-04 |
+| Q5 | Can the phone start a run, or only steer one? | P7-06 |
+| Q6 | Exact crate versions to pin | Each first use |
+| Q7 | Announced budget cap and hidden-backlog format | Kickoff material |
+| Q8 | Are notes and lessons from the practice backlog allowed to be read in the live run? Ask the organizers | Before P11-06 |
+| Q9 | Trust threshold: 2 helped uses for every lesson kind? | P11-03 |
+| Q10 | Token counting method for compaction | P3-10 |
+| Q11 | Duplicate detection: own tool or external | P0-06 |
+| Q12 | Smell checks on agent code when the target language is unknown | P4-07 |
+| Q13 | Add an Antigravity-style Agent Manager home across all runs? | After v1 |
+| Q14 | Which fonts to bundle, and license check | P6-02 |
+| Q15 | Phone opens on Stream or Board? | P7-03 |
+| Q16 | Obsidian-style Brain. Answered: all four uses plus scheduled care | Done |
+| Q17 | A plainer name for leases. Answered: Reserved files | Done |
+| Q18 | Telegram: which levels first? Answered: Notify, Control, Code, and Reports, all in v1 | Done |
+| Q19 | Telegram: default detail? Answered: Detail (short diffs and agent snippets). Redaction and a never-sent list apply | Done |
+| Q20 | Telegram: who talks to the bot? Answered: only you, one private chat | Done |
+| Q21 | Telegram: what should coding from chat do? Answered: message one agent directly, and show a short diff summary | Done |
+| Q22 | Telegram: must it work when the PC is asleep? Answered: yes, on an always-on machine | Done |
+| Q23 | Telegram: `/task` and `/run` in v1? Answered: yes, both | Done |
+| Q24 | How-to site: mdBook (Rust, proposed) or hand-written HTML and CSS? | Before P15-01 |
+| Q25 | Always-on host on Windows: a service, or Task Scheduler? Not needed for v1 | Later |
+
+## Session Log
+
+| Date | Summary |
+|---|---|
+| (add dates as sessions happen) | Docs set drafted: README, overview, scope, architecture, structure, plan, standards, development, libraries, three UI docs, mobile, tracker |
+
+## File Changes Log
+
+| Date | File | Change |
+|---|---|---|
+| (add) | `docs/*` | Created the 13 doc files, README included |
+
+## Doc Changes Log
+
+| Date | Doc | Change |
+|---|---|---|
+| (add) | all | First draft |
+| (add) | overview, scope, architecture, structure, plan, standards, development, libraries, ui-tokens, ui-rules, ui-registry, mobile, tracker | Added Lessons (F12), compaction and task ceiling (F13), agent loop mapping, extended smell rules, quality notes on agent diffs, Phase 11 |
+| (add) | scope, architecture, structure, plan, libraries, ui-tokens, ui-rules, ui-registry, mobile, tracker | Owner feedback round: folder picker, found or missing agent list, Bypass permissions, Tailscale pairing checks, richer dry run, sidebar defaults, themed toasts, responsive fixes |
+| (add) | README, scope, architecture, structure, plan, development, libraries, ui-rules, ui-registry, ui-tokens, mobile, tracker | Telegram: token plus user ID, one chat, `/task` and `/run`. Always-on host (F21). How-to site (F22) with Phases 14 and 15. Cog icon and swatch row fixes |
+| (add) | scope, architecture, structure, plan, standards, development, libraries, ui-rules, ui-registry, ui-tokens, mobile, tracker | Leases renamed Reserved files. Lessons folded into the Brain (F12) with scheduled care (F19). Telegram scoped (F20) with Phase 13 |
+| (add) | README, overview, scope, architecture, structure, plan, standards, development, libraries, ui-tokens (rewritten), ui-rules, ui-registry, mobile, tracker | Synced with the interactive prototype: stream-first workspace (F14), permissions (F15), agent switching (F16), appearance settings (F17), install and connections (F18), user flow, new tokens and breakpoints |
+
+## Notes for Later
+
+- Measure real disk and cost against a worktree baseline. These numbers are the strongest proof for the write-up.
+- Idea: a "replay" view that plays back a finished run from the log.
+- Idea: let the planner learn which files tend to be touched together to predict scope better.
+- Idea: share proven lessons across machines on a team tailnet. Typed data only.
+- Prototype: https://claude.ai/artifact/JjSCEQ47a586qrr554tzy4 (source file to be saved as `design/sentinel-prototype.html`).
+- Idea: after the Brain proves out, let care runs propose richer skills, with the same proof rule.
+- Idea: a shared team Brain over the tailnet, with typed lessons only.
+- Check how each CLI behaves when its edits are blocked. Some may loop. Add a retry limit per task.

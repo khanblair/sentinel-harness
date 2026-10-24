@@ -1,0 +1,5 @@
+target/
+.sentinel/
+dist/
+.DS_Store
+.build/

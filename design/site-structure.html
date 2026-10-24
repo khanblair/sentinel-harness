@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sentinel how-to site: structure</title>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#FAFAF9;--panel:#FFFFFF;--panel2:#EDECE9;--line:#D6D3CD;--text:#1D1D1B;--muted:#6B6A66;--accent:#B8620A;--accent-fg:#fff;--box:#E4E2DD;--boxline:#BDB9B0;color-scheme:light}
+:root[data-theme="dark"]{--bg:#191919;--panel:#212121;--panel2:#2B2B2B;--line:#3A3A3A;--text:#ECECEA;--muted:#A3A29E;--accent:#E8963A;--accent-fg:#1A1006;--box:#2E2E2E;--boxline:#4A4A4A;color-scheme:dark}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#191919;--panel:#212121;--panel2:#2B2B2B;--line:#3A3A3A;--text:#ECECEA;--muted:#A3A29E;--accent:#E8963A;--accent-fg:#1A1006;--box:#2E2E2E;--boxline:#4A4A4A;color-scheme:dark}}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.55 Inter,system-ui,-apple-system,"Segoe UI",sans-serif}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.top{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:14px 18px;border-bottom:1px solid var(--line)}
+.top h1{font-size:17px;margin:0;font-weight:600;flex:1;min-width:12em}
+.tabs{display:inline-flex;border:1px solid var(--line);border-radius:10px;padding:2px;background:var(--panel)}
+.tabs button{padding:6px 12px;border-radius:8px;color:var(--muted)}
+.tabs button[aria-selected="true"]{background:var(--panel2);color:var(--text)}
+.theme{border:1px solid var(--line);border-radius:10px;padding:6px 12px;background:var(--panel)}
+main{max-width:1180px;margin:0 auto;padding:18px}
+.note{color:var(--muted);margin:0 0 14px;max-width:62em}
+section[hidden]{display:none}
+/* site map */
+.map{display:grid;grid-template-columns:repeat(auto-fit,minmax(15em,1fr));gap:14px}
+.mc{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px}
+.mc h3{margin:0 0 8px;font-size:15px}
+.mc ul{margin:0;padding-left:1.1em;color:var(--muted)}
+.mc li{margin:3px 0}.mc li b{color:var(--text);font-weight:500}
+/* wireframe */
+.wf{border:1px solid var(--line);border-radius:12px;background:var(--panel);overflow:hidden}
+.wf .bar{display:flex;gap:10px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.blk{background:var(--box);border:1px dashed var(--boxline);border-radius:8px;color:var(--muted);display:flex;align-items:center;justify-content:center;text-align:center;padding:10px;font-size:13px}
+.logo{width:90px;height:26px}.srch{flex:1;min-width:8em;height:30px}.nv{height:26px;min-width:5.5em}
+.btn{background:var(--accent);color:var(--accent-fg);border-radius:8px;padding:8px 14px;font-weight:500;display:inline-block}
+.btn.o{background:none;color:var(--text);border:1px solid var(--boxline)}
+.hero{padding:34px 22px;display:grid;gap:12px;justify-items:start;border-bottom:1px solid var(--line)}
+.hero .h{width:min(30em,100%);height:56px}.hero .p{width:min(38em,100%);height:44px}
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(13em,1fr));gap:12px;padding:22px}
+.grid3 .blk{height:110px;flex-direction:column;gap:4px}
+.steps4{display:grid;grid-template-columns:repeat(auto-fit,minmax(10em,1fr));gap:10px;padding:0 22px 22px}
+.steps4 .blk{height:60px}
+.shot{height:210px;margin:0 22px 22px}
+.two{display:grid;grid-template-columns:repeat(auto-fit,minmax(16em,1fr));gap:12px;padding:0 22px 22px}.two .blk{height:120px}
+.ft{padding:14px 22px;border-top:1px solid var(--line);display:flex;gap:10px;flex-wrap:wrap;color:var(--muted);font-size:13px}
+.page{display:grid;grid-template-columns:200px minmax(0,1fr) 170px;gap:0}
+.page>aside{padding:14px;border-right:1px solid var(--line);display:grid;gap:6px;align-content:start}
+.page>aside.r{border-right:0;border-left:1px solid var(--line)}
+.page>article{padding:18px 22px;display:grid;gap:12px;align-content:start}
+.page .bc{width:12em;height:18px}.page .t{width:min(22em,100%);height:38px}.page .lead{height:44px}
+.page .step{height:46px;justify-content:flex-start;gap:10px}.page .tip{height:54px;border-style:solid}.page .pn{display:flex;gap:10px}.page .pn .blk{flex:1;height:44px}
+.page .shot{margin:0;height:170px}
+.lbl{font-size:12px;color:var(--muted);margin:0 0 4px}
+.call{display:grid;grid-template-columns:repeat(auto-fit,minmax(15em,1fr));gap:10px;margin-top:14px}
+.call div{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:var(--muted);font-size:13.5px}
+.call b{color:var(--text);font-weight:600}
+@media (max-width:760px){.page{grid-template-columns:1fr}.page>aside{border:0;border-bottom:1px solid var(--line)}.page>aside.r{display:none}}
+</style>
+</head>
+<body>
+<header class="top">
+  <h1>Sentinel how-to site: structure</h1>
+  <div class="tabs" role="tablist" aria-label="View">
+    <button role="tab" id="t-map" aria-selected="true" aria-controls="v-map">Site map</button>
+    <button role="tab" id="t-home" aria-selected="false" aria-controls="v-home">Home page</button>
+    <button role="tab" id="t-page" aria-selected="false" aria-controls="v-page">Content page</button>
+  </div>
+  <button class="theme" id="theme" aria-label="Switch theme">Theme</button>
+</header>
+<main>
+<section id="v-map" aria-labelledby="t-map">
+  <p class="note">A simple static site on GitHub Pages. It explains how to install, set up, and use Sentinel, one feature per page, with the interactive prototype embedded. The site is built in the coding phase. This page only shows the structure.</p>
+  <div class="map">
+    <div class="mc"><h3>Home</h3><ul><li><b>What Sentinel is</b>, in one line</li><li>Three things that set it apart</li><li>How a run works, in four steps</li><li>Install button and prototype link</li></ul></div>
+    <div class="mc"><h3>Get started</h3><ul><li><b>Install</b> (macOS, Linux, Windows)</li><li><b>Set up</b> (repository, agents, budget, phone, dry run)</li><li><b>Your first run</b></li><li>Always-on machine</li></ul></div>
+    <div class="mc"><h3>Using Sentinel</h3><ul><li><b>The stream</b> and slash commands</li><li><b>Reserved files</b> and waves</li><li><b>Permissions</b> and approvals</li><li><b>Agents</b>: switching and routing</li><li><b>Panels</b>: Board, Terminal, Changes, Reserved, Remote, Files, Cost, Report</li><li>Budget and the 70% and 95% rules</li></ul></div>
+    <div class="mc"><h3>Brain</h3><ul><li><b>Notes</b>, links, and the graph</li><li>Agent memory and the run journal</li><li>Lessons and how they are proven</li><li><b>Brain care</b> and proposals</li><li>Using the vault in Obsidian</li></ul></div>
+    <div class="mc"><h3>Remote</h3><ul><li><b>Phone over Tailscale</b></li><li><b>Telegram</b>: bot token, user ID, levels, commands</li><li>What each remote may and may not do</li></ul></div>
+    <div class="mc"><h3>Reference</h3><ul><li><b>Settings</b>, page by page</li><li>Appearance: themes, fonts, colors</li><li>Shortcuts and commands</li><li>Status words and what they mean</li></ul></div>
+    <div class="mc"><h3>Guides</h3><ul><li>Run a backlog safely</li><li>Handle a blocked task</li><li>Hackathon mode</li><li>Control a run from Telegram</li></ul></div>
+    <div class="mc"><h3>Try it</h3><ul><li><b>Interactive prototype</b>, embedded</li><li>Guided tour</li></ul></div>
+    <div class="mc"><h3>Help</h3><ul><li>Troubleshooting</li><li>FAQ</li><li>Changelog</li></ul></div>
+  </div>
+  <div class="call">
+    <div><b>Built with mdBook.</b> It is written in Rust, gives a left menu, search, and light and dark themes. The theme uses the same colors and fonts as the app.</div>
+    <div><b>Source in the repo.</b> A <code>site/</code> folder with one markdown file per page. A GitHub Actions workflow builds and publishes it.</div>
+    <div><b>Same writing rules.</b> Plain words, short sentences, and the slop check runs on the site text too.</div>
+  </div>
+</section>
+
+<section id="v-home" hidden aria-labelledby="t-home">
+  <p class="note">Home page. Grey boxes are placeholders for text and images.</p>
+  <div class="wf">
+    <div class="bar"><div class="blk logo">Logo</div><div class="blk srch">Search</div><div class="blk nv">Get started</div><div class="blk nv">Using</div><div class="blk nv">Brain</div><div class="blk nv">Remote</div><div class="blk nv">Try it</div><div class="blk nv">GitHub</div></div>
+    <div class="hero"><div class="blk h">Headline: what Sentinel does, in one line</div><div class="blk p">Two or three plain sentences: many coding agents, one working tree, no collisions, and an honest report.</div><div><span class="btn">Get started</span> <span class="btn o">Try the prototype</span></div></div>
+    <div class="grid3"><div class="blk"><b>Reserved files</b>Agents never edit the same file</div><div class="blk"><b>One stream</b>Approve, steer, and watch</div><div class="blk"><b>Brain</b>Notes that agents and you share</div></div>
+    <div class="steps4"><div class="blk">1. Plan</div><div class="blk">2. Reserve files</div><div class="blk">3. Agents work</div><div class="blk">4. Tests decide</div></div>
+    <div class="blk shot">Screenshot of the stream, with the panel open</div>
+    <div class="two"><div class="blk">Control it from your phone over Tailscale</div><div class="blk">Get alerts and answer approvals in Telegram</div></div>
+    <div class="grid3" style="padding-top:0"><div class="blk" style="height:70px">Install in one command</div><div class="blk" style="height:70px">Works with the agent CLIs you already have</div><div class="blk" style="height:70px">Your repository stays yours</div></div>
+    <div class="ft"><span>Docs</span><span>Changelog</span><span>GitHub</span><span>License</span></div>
+  </div>
+  <div class="call"><div><b>Header.</b> Stays on top. Search, section links, theme switch. On a phone it becomes a menu button.</div><div><b>Hero.</b> One line, one short paragraph, two buttons. No stock art.</div><div><b>Screenshot.</b> Taken from the real app, in both themes.</div></div>
+</section>
+
+<section id="v-page" hidden aria-labelledby="t-page">
+  <p class="note">Every content page uses this layout. Left: the page tree. Middle: the page. Right: the headings on this page.</p>
+  <div class="wf">
+    <div class="bar"><div class="blk logo">Logo</div><div class="blk srch">Search</div><div class="blk nv">Theme</div><div class="blk nv">GitHub</div></div>
+    <div class="page">
+      <aside><div class="lbl">Page tree</div><div class="blk nv" style="width:100%">Get started</div><div class="blk nv" style="width:100%">Using Sentinel</div><div class="blk nv" style="width:100%;border-style:solid">Permissions</div><div class="blk nv" style="width:100%">Brain</div><div class="blk nv" style="width:100%">Remote</div><div class="blk nv" style="width:100%">Reference</div></aside>
+      <article>
+        <div class="blk bc">Using Sentinel / Permissions</div>
+        <div class="blk t">Page title</div>
+        <div class="blk lead">Lead: what this is and why it matters, in two sentences.</div>
+        <div class="lbl">How to use it</div>
+        <div class="blk step">1. First step, one action per step</div><div class="blk step">2. Second step</div><div class="blk step">3. Third step</div>
+        <div class="blk shot">Screenshot or short demo of this feature</div>
+        <div class="blk tip">Tip or warning, in a plain box with an icon</div>
+        <div class="lbl">Related</div><div class="pn"><div class="blk">Previous page</div><div class="blk">Next page</div></div>
+      </article>
+      <aside class="r"><div class="lbl">On this page</div><div class="blk nv" style="width:100%">How to use it</div><div class="blk nv" style="width:100%">Tips</div><div class="blk nv" style="width:100%">Related</div></aside>
+    </div>
+    <div class="ft"><span>Edit this page on GitHub</span><span>Changelog</span></div>
+  </div>
+  <div class="call"><div><b>Each page has the same parts:</b> what it is, numbered steps, a screenshot, a tip, and related pages.</div><div><b>Telegram and phone pages</b> add a small table: what it may do, and what it may not.</div><div><b>On a phone</b> the page tree becomes a menu and the right column is hidden.</div></div>
+</section>
+</main>
+<script>
+(function(){
+  var tabs=[].slice.call(document.querySelectorAll('[role="tab"]')),views={map:'v-map',home:'v-home',page:'v-page'};
+  function show(k){tabs.forEach(function(t){var on=t.id==='t-'+k;t.setAttribute('aria-selected',String(on));});Object.keys(views).forEach(function(v){document.getElementById(views[v]).hidden=v!==k;});}
+  tabs.forEach(function(t){t.addEventListener('click',function(){show(t.id.slice(2));});});
+  var root=document.documentElement,btn=document.getElementById('theme');
+  btn.addEventListener('click',function(){var cur=root.getAttribute('data-theme')||(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');root.setAttribute('data-theme',cur==='dark'?'light':'dark');});
+})();
+</script>
+</body>
+</html>
