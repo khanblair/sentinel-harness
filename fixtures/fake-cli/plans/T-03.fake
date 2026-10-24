@@ -1,0 +1,4 @@
+say starting T-03
+write src/fees.rs::/// The fee in cents: 1 percent, rounded half up.\npub fn fee_cents(amount_cents: i64) -> i64 {\n    (amount_cents + 50) / 100\n}
+write tests/rounding.rs::use fee_ledger::fees::fee_cents;\n\n#[test]\nfn half_cent_rounds_up() {\n    assert_eq!(fee_cents(250), 3);\n}
+cost 0.02

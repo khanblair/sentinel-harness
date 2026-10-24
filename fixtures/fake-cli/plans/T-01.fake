@@ -1,0 +1,5 @@
+say starting T-01
+write src/health.rs::pub fn health() -> &'static str {\n    "ok"\n}
+write tests/health.rs::use fee_ledger::health::health;\n\n#[test]\nfn health_says_ok() {\n    assert_eq!(health(), "ok");\n}
+append src/lib.rs::pub mod health;
+cost 0.01

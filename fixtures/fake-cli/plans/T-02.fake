@@ -1,0 +1,4 @@
+say starting T-02
+write src/ledger.rs::/// Entries in one ledger.\n#[derive(Debug, Default)]\npub struct Ledger {\n    entries: Vec<(String, i64)>,\n}\n\nimpl Ledger {\n    pub fn new() -> Self {\n        Self::default()\n    }\n\n    /// Adds an entry. A negative amount is refused.\n    pub fn post(&mut self, account: &str, amount_cents: i64) -> Result<(), String> {\n        if amount_cents < 0 {\n            return Err(format!("negative amount: {amount_cents}"));\n        }\n        self.entries.push((account.to_owned(), amount_cents));\n        Ok(())\n    }\n\n    pub fn balance(&self, account: &str) -> i64 {\n        self.entries.iter().filter(|(name, _)| name == account).map(|(_, cents)| cents).sum()\n    }\n}
+write tests/negative.rs::use fee_ledger::ledger::Ledger;\n\n#[test]\nfn negative_amount_is_refused() {\n    let mut ledger = Ledger::new();\n    assert!(ledger.post("a", -5).is_err());\n    assert_eq!(ledger.balance("a"), 0);\n}
+cost 0.02

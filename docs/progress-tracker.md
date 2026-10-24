@@ -147,6 +147,7 @@ Paths listed in [project-structure.md](project-structure.md) that do not exist y
 | D58 | (autopilot, review) `rust-toolchain.toml` is removed during the build. Parallel `rustup` installs started by workers corrupted the toolchain. Pin to the installed stable (1.99.1) at the end | Incident 2026-10-24 |
 | D59 | (autopilot, review) Workers may not run `rustup`, `cargo install`, `brew`, `npm`, or `pip` | Same incident |
 | D60 | (autopilot, review) The repo is public, so it carries an MIT `LICENSE` (owner: Khan Blair, from git config). Remove or change it if you want other terms | An open repo without a license has unclear terms. The hackathon wants an open repo |
+| D61 | (autopilot, review) Approved `sha2` and `hex` (device token hashes) and `console_error_panic_hook` (UI debugging). `reqwest` uses its default rustls build, so `deny.toml` allows the `OpenSSL` license text that `aws-lc-sys` carries | Needed by pairing and the UI. No other way to hash a token safely |
 
 ## Open Questions
 

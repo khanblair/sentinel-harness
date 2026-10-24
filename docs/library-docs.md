@@ -37,7 +37,8 @@
 
 | Crate | Version | Use | Reason |
 |---|---|---|---|
-| `reqwest` (feature `rustls-tls`) | 0.13.5 | OpenRouter and model APIs | No OpenSSL |
+| `reqwest` (default rustls build, feature `json`) | 0.13.5 | OpenRouter and model APIs | No OpenSSL |
+| `sha2`, `hex` | 0.11.1, 0.4.3 | Hash device tokens (SHA-256) and write hex | Small RustCrypto crate. Added by autopilot decision D61 |
 | `which` | 8.0.6 | Find CLIs on `PATH` | Cross-platform detection |
 | `notify` | 8.2.0 | Filesystem watcher | Write guard backstop |
 | `keyring` | 4.2.0 | OS keychain for API keys | Keeps secrets off disk |

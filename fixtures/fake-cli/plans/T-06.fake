@@ -1,0 +1,3 @@
+say T-06 found the package metadata already in Cargo.toml
+say no change needed
+cost 0.01

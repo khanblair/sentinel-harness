@@ -1,0 +1,4 @@
+say starting T-07 (this agent edits an existing test)
+append tests/ledger.rs::// edited by an agent
+write src/rounding_down.rs::pub fn round_down(amount_cents: i64) -> i64 {\n    amount_cents / 100\n}
+cost 0.02

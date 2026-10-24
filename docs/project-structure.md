@@ -151,6 +151,8 @@ crates/sentinel-reserve/
   Cargo.toml              manifest
   src/lib.rs              exports
   src/table.rs            in-memory reservation table backed by the store
+  src/claims.rs           claim and conflict helpers for the table
+  src/holdings.rs         read-only queries on held reservations
   src/waves.rs            builds waves of disjoint-scope tasks
   src/scheduler.rs        picks ready tasks, reserves files, handles requests for more files
   src/barrier.rs          barrier state and rules

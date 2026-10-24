@@ -1,0 +1,5 @@
+say starting T-04
+write src/limits.rs::pub const DAILY_LIMIT_CENTS: i64 = 100_000;\n\n/// True when adding `amount_cents` keeps the day total within the limit.\npub fn within_daily_limit(spent_today_cents: i64, amount_cents: i64) -> bool {\n    spent_today_cents + amount_cents <= DAILY_LIMIT_CENTS\n}
+write tests/daily_limit.rs::use fee_ledger::limits::within_daily_limit;\n\n#[test]\nfn limit_is_enforced() {\n    assert!(within_daily_limit(0, 100_000));\n    assert!(!within_daily_limit(1, 100_000));\n}
+append src/lib.rs::pub mod limits;
+cost 0.02
