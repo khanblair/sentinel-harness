@@ -23,7 +23,7 @@ fn tagged(mut note: Note, tags: &[&str]) -> Note {
     note
 }
 
-fn sample_notes() -> Vec<Note> {
+fn pinned_rule() -> Note {
     let mut pinned = note(
         "pinned-rule",
         NoteType::Convention,
@@ -31,11 +31,19 @@ fn sample_notes() -> Vec<Note> {
         "Always pin.",
     );
     pinned.pinned = true;
+    pinned
+}
+
+fn main_file() -> Note {
     let mut file = tagged(
         note("src-main", NoteType::File, "Main file", "Entry point."),
         &["code"],
     );
     file.extra = vec![("files".to_string(), "src/main.rs, src/lib.rs".to_string())];
+    file
+}
+
+fn sample_notes() -> Vec<Note> {
     vec![
         tagged(
             note(
@@ -55,14 +63,14 @@ fn sample_notes() -> Vec<Note> {
             ),
             &["errors"],
         ),
-        file,
+        main_file(),
         note(
             "task-42",
             NoteType::Task,
             "Task 42",
             "Touched [[src-main]] and [[error-handling]].",
         ),
-        pinned,
+        pinned_rule(),
     ]
 }
 
