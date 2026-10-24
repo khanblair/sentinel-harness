@@ -8,7 +8,7 @@ Get started covers the install, the five setup steps, your first run, and the op
 
 1. [Install](install.md) Sentinel and its tools.
 2. [Set up](set-up.md) the repository, agents, limits, phone, and dry run.
-3. Follow [Your first run](first-run.md) on a backlog.
+3. Follow [Your first run](first-run.md) in a new chat. [Chats](../using/chats/index.md) explains how a chat works.
 4. Optional: move Sentinel to an [always-on machine](always-on-machine.md).
 
 ## Screenshot

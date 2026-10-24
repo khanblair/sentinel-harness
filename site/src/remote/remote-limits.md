@@ -13,7 +13,7 @@ This page lists what the phone app and Telegram may do, and which actions need t
 
 | Remote | May do | May not do |
 |---|---|---|
-| Phone app | Pause, resume, stop, kill an agent. Answer decisions and approvals. Lower the cap. Start a run. Send a message to an agent. Browse folders inside the home folder. Choose the repository, but not while a run is live. Review lessons. Accept or dismiss Brain proposals. Tighten the Brain mode. Read notes and the graph. | Raise the cap. Loosen the Brain mode. Edit or delete notes. Edit tests. Run shell commands. Edit files. |
+| Phone app | Pause, resume, stop, kill an agent. Answer decisions and approvals. Lower the cap. Create a chat, send a message, rename, pin, and archive a chat. Start a run. Send a message to an agent. Browse folders inside the home folder. Choose the repository, but not while a run is live. Review lessons. Accept or dismiss Brain proposals. Tighten the Brain mode. Read notes and the graph. | Delete a chat. Raise the cap. Loosen the Brain mode. Edit or delete notes. Edit tests. Run shell commands. Edit files. |
 | Telegram | Notify. Approve or deny. Answer decisions. Pause, resume, stop, kill an agent. Lower the cap. Message one agent. Ask for a diff summary. Add a task to `backlog.md`. Start a run. | Switch to Bypass permissions. Raise the cap. Edit notes or tests. Run shell commands. |
 
 ## Screenshot

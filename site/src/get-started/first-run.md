@@ -2,11 +2,12 @@
 
 ## What it is
 
-A first run takes one backlog from plan to verified tasks, and you answer each decision on the way.
+A first run takes one chat from its first message to verified tasks, and you answer each decision on the way.
 
 ## Steps
 
-1. Write a `backlog.md` in the repository. Use one heading per task, and say what done means. Do not list files. Sentinel finds the scope.
+1. Open a new chat in your repository. See [Start a chat](../using/chats/start-a-chat.md).
+2. Describe the work in a message, and say what done means. Or attach a `backlog.md` with the plus button. Use one heading per task. Do not list files. Sentinel finds the scope.
 2. Start with Plan only. Read the plan. Check the scopes, hidden dependencies, contradictions, and any task that claims to be done.
 3. Answer each decision card. Pick one of two contradicting tasks, or skip both. No answer skips both and records a Contradiction.
 4. Choose the permission mode. Keep the Brain on read-only for live runs.
@@ -24,6 +25,8 @@ Use Plan only until the plan can be trusted.
 
 ## Related
 
+- [Chats](../using/chats/index.md)
+- [One run at a time](../using/chats/one-run-at-a-time.md)
 - [The stream](../using/stream.md)
 - [Permissions and approvals](../using/permissions.md)
 - [Run a backlog safely](../guides/backlog-safely.md)

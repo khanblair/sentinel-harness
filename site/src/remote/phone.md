@@ -11,6 +11,7 @@ The phone app is the same web interface as the PC, installed on your phone and r
 3. Scan the QR code with the phone, or open the link on the phone. The PC shows the machine name and a one-time code.
 4. Enter the one-time code on the phone. Approve the device on the PC. The phone then receives a device token.
 5. Add the app to the home screen. Use the bottom tabs to move between Stream, Board, Reserved, Changes, and More.
+6. Use chats on the phone. You can create a chat, send messages, rename, pin, and archive a chat. You cannot delete a chat. Delete it on the PC. See [What each remote may do](remote-limits.md).
 
 ## Screenshot
 
