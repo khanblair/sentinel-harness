@@ -28,7 +28,7 @@ pub fn ConnectionBanner() -> impl IntoView {
             .with(|connection| banner_text(connection, had_events));
         text.map(|text| {
             view! {
-                <div class="note warnc" role="status">
+                <div class="card note warnc" role="status" style="margin:.5em 1em;padding:.5em .8em">
                     <Icon name="alert" size=15 />
                     <span>{text}</span>
                 </div>

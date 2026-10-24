@@ -9,8 +9,20 @@
     <link data-trunk rel="css" href="src/theme.css" />
     <link data-trunk rel="copy-file" href="manifest.webmanifest" />
     <link data-trunk rel="copy-dir" href="assets/fonts" />
+    <link data-trunk rel="copy-dir" href="assets/icons" />
+    <link data-trunk rel="copy-file" href="assets/sw.js" />
     <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
     <link data-trunk rel="rust" href="Cargo.toml" data-bin="sentinel-ui" data-wasm-opt="z" />
   </head>
-  <body></body>
+  <body>
+    <script>
+      // A service worker needs a secure context: localhost, or HTTPS. Over plain tailnet HTTP the
+      // page works without the offline shell (docs/mobile.md, HTTPS).
+      if ("serviceWorker" in navigator && window.isSecureContext) {
+        navigator.serviceWorker.register("/sw.js").catch(() => {});
+      }
+    </script>
+  </body>
 </html>

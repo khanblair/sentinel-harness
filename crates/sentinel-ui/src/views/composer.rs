@@ -20,7 +20,7 @@ use crate::components::target_chip::TargetChip;
 use crate::components::top_bar::{post_action, settle};
 use crate::layout::{Layout, PanelId};
 use crate::slash::{self, SlashCommand, SlashEntry};
-use crate::state::{Align, PopoverKind, Target, ToastKind, Ui, use_ui};
+use crate::state::{Align, Connection, PopoverKind, Target, ToastKind, Ui, use_ui};
 
 /// The text box stops growing at this height in pixels.
 const TEXTAREA_MAX_PX: i32 = 150;
@@ -141,7 +141,9 @@ fn ComposerRow(draft: Draft) -> impl IntoView {
                 data-tip="Voice input is not available yet" title="Voice input is not available yet">
                 <Icon name="mic" size=18 />
             </button>
-            <button class="ibtn send" aria-label="Send" on:click=move |_| submit(ui, draft)>
+            <button class="ibtn send" aria-label="Send"
+                prop:disabled=move || matches!(ui.connection.get(), Connection::Offline { .. })
+                on:click=move |_| submit(ui, draft)>
                 <Icon name="send" size=16 />
             </button>
         </div>
@@ -203,6 +205,14 @@ fn handle_key(ui: Ui, draft: Draft, event: &KeyboardEvent) {
 fn submit(ui: Ui, draft: Draft) {
     let message = draft.text.get_untracked().trim().to_owned();
     if message.is_empty() {
+        return;
+    }
+    if matches!(ui.connection.get_untracked(), Connection::Offline { .. }) {
+        // The page is read-only while it shows the last state. The draft stays.
+        ui.show_toast(
+            "You are offline. Send it when the page reconnects.",
+            ToastKind::Warn,
+        );
         return;
     }
     draft.text.set(String::new());
