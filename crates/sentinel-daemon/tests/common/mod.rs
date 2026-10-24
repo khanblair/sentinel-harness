@@ -15,10 +15,11 @@ use std::time::{Duration, Instant};
 use sentinel_core::HarnessState;
 use std::sync::Arc;
 
-use futures::future::BoxFuture;
 use sentinel_daemon::cmd::{CmdOutput, CommandRunner, SystemRunner};
 use sentinel_daemon::engine::{Engine, EngineOptions, FakeAgents};
 use sentinel_daemon::secrets::MemoryStore;
+use std::future::Future;
+use std::pin::Pin;
 
 pub const RUNNING_STATUS: &str =
     r#"{"BackendState":"Running","Self":{"TailscaleIPs":["100.64.0.5"],"HostName":"test-pc"}}"#;
@@ -27,7 +28,11 @@ pub const RUNNING_STATUS: &str =
 pub struct TailnetRunner;
 
 impl CommandRunner for TailnetRunner {
-    fn run<'a>(&'a self, program: &'a str, args: &'a [&'a str]) -> BoxFuture<'a, CmdOutput> {
+    fn run<'a>(
+        &'a self,
+        program: &'a str,
+        args: &'a [&'a str],
+    ) -> Pin<Box<dyn Future<Output = CmdOutput> + Send + 'a>> {
         Box::pin(async move {
             if program == "tailscale" {
                 CmdOutput::ok(RUNNING_STATUS)
