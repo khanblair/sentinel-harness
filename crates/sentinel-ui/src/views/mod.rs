@@ -1,38 +1,30 @@
 //! Views that hang off the shell. Panels and modal bodies land here one at a time; until a
 //! panel is built, its module re-exports a stub from `panel_stubs`.
 
-pub mod composer;
-pub mod modal_stubs;
-pub mod pair_page;
-pub mod panel_stubs;
-pub mod stream;
-pub mod stream_model;
-pub mod stream_slot;
-
 pub mod agents;
-
+pub mod appearance;
 pub mod board;
-
 pub mod brain {
     pub use super::panel_stubs::BrainPanel;
 }
-
 pub mod changes;
-
+pub mod composer;
 pub mod cost;
-
 pub mod files;
-
+pub mod modal_stubs;
+pub mod pair_page;
+pub mod panel_stubs;
 pub mod permissions;
-
 pub mod remote;
-
 pub mod report;
-
 pub mod reserved;
-
+pub mod settings;
+pub mod settings_pages;
+pub mod stream;
+pub mod stream_model;
+pub mod stream_slot;
 pub mod telegram {
     pub use super::panel_stubs::TelegramPanel;
 }
-
+pub mod telegram_slot;
 pub mod terminal;
