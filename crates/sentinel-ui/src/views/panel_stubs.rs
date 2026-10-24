@@ -13,11 +13,6 @@ pub fn BoardPanel() -> impl IntoView {
 }
 
 #[component]
-pub fn BrainPanel() -> impl IntoView {
-    view! { <div class="note">"Not built yet."</div> }
-}
-
-#[component]
 pub fn ChangesPanel() -> impl IntoView {
     view! { <div class="note">"Not built yet."</div> }
 }
