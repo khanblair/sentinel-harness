@@ -15,6 +15,7 @@ pub mod scope;
 pub mod snapshot;
 pub mod state;
 pub mod task;
+pub mod telegram_api;
 pub mod tool;
 
 pub use chat::{Attachment, AttachmentKind, AttachmentRef, ChatChange, ChatInfo, ChatRunState};

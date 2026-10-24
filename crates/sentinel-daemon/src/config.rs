@@ -29,7 +29,8 @@ const TOP_LEVEL_KEYS: &[&str] = &[
     "telegram",
 ];
 const ROUTING_KEYS: &[&str] = &["cheap", "mid", "smart"];
-const TELEGRAM_KEYS: &[&str] = &["enabled", "detail"];
+const TELEGRAM_KEYS: &[&str] = &["enabled", "detail", "base_url"];
+const TELEGRAM_API_URL: &str = "https://api.telegram.org";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
@@ -58,11 +59,23 @@ pub struct Config {
     pub telegram: TelegramConfig,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct TelegramConfig {
     pub enabled: bool,
     pub detail: String,
+    /// The Bot API root. Tests point it at a local mock server.
+    pub base_url: String,
+}
+
+impl Default for TelegramConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            detail: String::new(),
+            base_url: TELEGRAM_API_URL.to_owned(),
+        }
+    }
 }
 
 impl Config {
@@ -246,6 +259,7 @@ mod tests {
             telegram: TelegramConfig {
                 enabled: true,
                 detail: "Status".to_owned(),
+                base_url: TELEGRAM_API_URL.to_owned(),
             },
         };
         save(&path, &config).unwrap();
