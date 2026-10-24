@@ -2867,6 +2867,366 @@ Object.assign(FIGS, {
   }
 });
 
+/* figures, group 1: settings, panels, menus, the chat list */
+Object.assign(FIGS, {
+  'settings-sections': {
+    setup() { openSettings('general'); },
+    crop: '.modal', dim: true,
+    marks: [
+      { sel: '#setNav [data-arg="agents"]', label: 'Agents and tools: turn each agent on or off.', side: 'right' },
+      { sel: '#setNav [data-arg="integrations"]', label: 'Integrations: Telegram and the always-on machine.', side: 'right' },
+      { sel: '#setNav [data-arg="devices"]', label: 'Devices: phones and tablets paired over Tailscale.', side: 'right' }
+    ]
+  },
+  'appearance-panel': {
+    setup() { openSettings('appearance'); },
+    crop: '.modal', dim: true,
+    marks: [
+      { sel: '#setBody .seg', label: 'Light, dark, or system. The change applies at once.', side: 'left' },
+      { sel: '#setBody .sw', label: 'The accent color for buttons and focus.', side: 'left' },
+      { sel: '#setBody [data-range="fs"]', label: 'Text size, from 12 to 18 pixels.', side: 'left' }
+    ]
+  },
+  'shortcuts-palette': {
+    setup() { openPalette(); },
+    crop: ['#palIn', '#palList'], pad: 24, dim: true, maxZoom: 1.6,
+    marks: [
+      { sel: '#palIn', label: 'Type part of a command. The list narrows as you type.', side: 'top' },
+      { sel: '#palList .mi:first-child', label: 'Press Enter, or click, to run it.', side: 'right' }
+    ]
+  },
+  'permissions-panel': {
+    setup() { openPanel('perms'); },
+    crop: '#rp', pad: 240, dim: true, maxZoom: 1.4,
+    marks: [
+      { sel: '#rpBody .radios', label: 'Pick a mode. Auto writes only to files a task reserved.', side: 'left' },
+      { sel: '#rpBody table.dl', label: 'One row per agent. Turn a capability on or off.', side: 'left' },
+      { sel: '#rpBody .note', label: 'No mode turns off the file locks.', side: 'left' }
+    ]
+  },
+  'cost-panel': {
+    setup() {
+      S.cost = { total: 0.84, by: { claude: 0.52, codex: 0.32 }, hist: [0, 0.12, 0.3, 0.55, 0.84] };
+      openPanel('cost');
+    },
+    crop: '#rp', pad: 240, dim: true, maxZoom: 1.4,
+    marks: [
+      { sel: '#rpBody .meter', label: 'Amber at 70%: no new tasks start. Red at 95%: workers stop.', side: 'left' },
+      { sel: '#rpBody [data-act="lowerCap"]', label: 'Lower the cap. It can only go down during a run.', side: 'left' }
+    ]
+  },
+  'agent-stack': {
+    setup() { menuAgents($('#agentStack')); },
+    crop: ['#hd', '#pop'], pad: 16, dim: true, maxZoom: 1.4,
+    marks: [
+      { sel: '#agentStack', label: 'One letter for each agent ready in this run.', side: 'left' },
+      { sel: '#pop [data-tip="Focus stream"]', label: 'Focus: show only this agent in the stream.', side: 'left' },
+      { sel: '#pop [data-tip="Kill"]', label: 'Kill stops this agent now.', side: 'right' }
+    ]
+  },
+  'chat-menu': {
+    setup() { openRun('r2'); menuChat('r2', $('[data-chat="r2"] .more')); },
+    crop: ['#sbList', '#pop'], pad: 16, dim: true, maxZoom: 1.6,
+    marks: [
+      { sel: '#pop [data-act="renameChat"]', label: 'Rename the chat.', side: 'right' },
+      { sel: '#pop [data-act="togglePin"]', label: 'Pin to the top of the project.', side: 'right' },
+      { sel: '#pop [data-act="archiveChat"]', label: 'Archive: move to Archived.', side: 'right' },
+      { sel: '#pop [data-act="confirmDelete"]', label: 'Delete. Sentinel asks first.', side: 'right' }
+    ]
+  },
+  'chats-overview': {
+    setup() { openRun('r1'); },
+    crop: '#sb', pad: 12, maxZoom: 1.6,
+    marks: [
+      { sel: '#sb .sb-new', label: 'New chat, same project.', side: 'left' },
+      { sel: '#sbList .grp', label: 'Chats are grouped by project.', side: 'left' },
+      { sel: '#sbList [data-chat="r2"]', label: 'A chat. Icons show a run or a result.', side: 'left' },
+      { sel: '#sbFt [data-act="settings"]', label: 'Settings is at the bottom.', side: 'left' }
+    ]
+  }
+});
+
+/* figures, group 2: views of a live run, built at once from events (no timers) */
+function figPlay(events) {
+  getRun('r1').status = 'running'; S.cur = 'r1';
+  events.forEach(ev => add('r1', ev));
+  renderAll();
+}
+Object.assign(FIGS, {
+  'start-a-chat': {
+    setup() { newChat('fee-ledger-api'); },
+    crop: '#main', pad: 14, dim: true, maxZoom: 1.4,
+    marks: [
+      { sel: '.empty .sugg button:nth-child(1)', label: 'Use backlog.md runs the tasks in the file.', side: 'left' },
+      { sel: '.empty .sugg button:nth-child(2)', label: 'Plan only first. Nothing is written until you approve.', side: 'left' },
+      { sel: '#compWrap .comp', label: 'Type your goal here, then press Send.', side: 'bottom' }
+    ]
+  },
+  'busy-chat-note': {
+    setup() {
+      getRun('r1').status = 'running'; renderAll();
+      newChat('fee-ledger-api'); busyNote(curRun());
+    },
+    marks: [
+      { sel: '#streamIn .note', label: 'Another chat holds the run in this project.', side: 'bottom' },
+      { sel: '#streamIn [data-act="openRun"]', label: 'Open the live chat from here.', side: 'right' }
+    ]
+  },
+  'panel-icons-topbar': {
+    setup() { menuMore($('[data-act="moreMenu"]')); },
+    crop: ['#hd', '#pop'], pad: 16, dim: true, maxZoom: 1.4,
+    marks: [
+      { sel: '#hdIcons [data-tip="Tasks board"]', label: 'Each icon opens one panel on the right.', side: 'left' },
+      { sel: '#hdIcons [data-act="moreMenu"]', label: 'More holds the panels that have no icon.', side: 'left' },
+      { sel: '#pop', label: 'Cost, Report, Telegram, Files, Agents, Permissions.', side: 'left' }
+    ]
+  },
+  'stream-composer': {
+    setup() { openRun('r2'); $('#cin').value = '/'; showSlash('/'); },
+    crop: '#main', pad: 14, dim: true, maxZoom: 1.2,
+    marks: [
+      { sel: '#streamIn .ev:nth-child(2)', label: 'The stream: the plan and the results, in order.', side: 'left' },
+      { sel: '#slash', label: 'Type / to see the commands.', side: 'left' },
+      { sel: '#cin', label: 'Enter sends. Shift+Enter starts a new line.', side: 'bottom' }
+    ]
+  },
+  'first-run-stream': {
+    setup() {
+      figPlay([
+        { k: 'user', text: 'Add a health check endpoint.' },
+        { k: 'plan', summary: 'One task. It writes one file.', flags: ['The file is reserved before the agent starts.'], tasks: [{ id: 'S-1', title: 'Add a health check endpoint', tier: 'easy', scope: ['src/api/health.ts'] }] },
+        { k: 'wave', n: 1, rows: [{ id: 'S-1', agent: 'opencode', title: 'Add a health check endpoint', scope: ['src/api/health.ts'] }] },
+        { k: 'agent', agent: 'opencode', task: 'S-1', title: 'Add a health check endpoint', attempt: 1, state: 'running', steps: [{ kind: 'read', text: 'src/api/mod.rs' }, { kind: 'edit', text: 'src/api/health.ts' }] }
+      ]);
+    },
+    crop: '#main', pad: 14, dim: true, maxZoom: 1.2,
+    marks: [
+      { sel: '#streamIn .ev:nth-child(2)', label: 'The plan. It lists the files each task reserves.', side: 'left' },
+      { sel: '#streamIn .ev:nth-child(3)', label: 'A wave: tasks that run together.', side: 'left' },
+      { sel: '#streamIn .ev:nth-child(4)', label: 'The agent: each step, as it happens.', side: 'left' }
+    ]
+  },
+  'set-up-wizard': {
+    setup() { S.setup.stage = 'repo'; renderWizard(); },
+    crop: ['#wSteps', '#wBody'], pad: 20, dim: true, maxZoom: 1.2,
+    marks: [
+      { sel: '#wSteps', label: 'Six steps. A tick marks each one that is done.', side: 'bottom' },
+      { sel: '[data-act="pickFolder"]', label: 'Choose the project folder. Sentinel uses it as is.', side: 'left' },
+      { sel: '#wBody .card', label: 'Checks: Git, backlog.md, and a clean tree.', side: 'left' }
+    ]
+  },
+  'install-check': {
+    setup() { S.setup.stage = 'install'; renderWizard(); },
+    crop: ['#wSteps', '#wBody'], pad: 20, dim: true, maxZoom: 1.2,
+    marks: [
+      { sel: '#wBody .os', label: 'Pick your system. The commands change.', side: 'left' },
+      { sel: '#wBody .chk:nth-child(5)', label: 'A missing item says so. Install fills it in.', side: 'left' },
+      { sel: '#wBody [data-act="install"]', label: 'Install what is missing. Each step is logged.', side: 'left' }
+    ]
+  },
+  'always-on-host-settings': {
+    setup() { openSettings('integrations'); },
+    crop: '.modal', dim: true,
+    marks: [
+      { sel: '#setBody .seg', label: 'Choose where Sentinel runs.', side: 'left' },
+      { sel: '#setBody .card:first-child .chk', label: 'Each check: the service, Tailscale, the agents, the repository.', side: 'left' },
+      { sel: '#setBody [data-act="tgCheckHost"]', label: 'Check the host now.', side: 'left' }
+    ]
+  },
+  'telegram-control': {
+    setup() { figTelegram(); openPanel('telegram'); tgCommand('/stop'); },
+    crop: '.tgchat', pad: 200, dim: true, maxZoom: 1.6,
+    marks: [
+      { sel: '.tgm.you', label: 'The command, as you sent it.', side: 'left' },
+      { sel: '.tgm.bot:last-of-type', label: 'The bot asks first. It stops nothing until you tap.', side: 'left' },
+      { sel: '.tgm.bot:last-of-type .tgbtn', label: 'A button does the same as the typed command.', side: 'bottom' }
+    ]
+  },
+  'hackathon-checklist': {
+    setup() {
+      figTelegram(); S.tg.hackathon = true;
+      openSettings('integrations');
+      $('#setBody [data-act="tgHack"]').scrollIntoView({ block: 'center' });
+    },
+    crop: '.modal', dim: true,
+    marks: [
+      { sel: '#setBody .fld:has([data-act="tgHack"])', label: 'Hackathon mode: only status goes to Telegram.', side: 'left' },
+      { sel: '#setBody select[data-sel="tgDetail"]', label: 'Detail is locked to status while the mode is on.', side: 'left' }
+    ]
+  },
+  'telegram-setup': {
+    setup() { openSettings('integrations'); $('#tgToken').scrollIntoView({ block: 'center' }); },
+    crop: ['#tgToken', '#tgUid', '[data-act="tgSaveToken"]'], pad: 120, dim: true, maxZoom: 1.6,
+    marks: [
+      { sel: '#tgToken', label: 'Paste the bot token from BotFather.', side: 'left' },
+      { sel: '#tgUid', label: 'Your numeric user ID, not your @username.', side: 'left' },
+      { sel: '[data-act="tgSaveToken"]', label: 'Save checks both values.', side: 'bottom' }
+    ]
+  },
+  'remote-pairing': {
+    setup() { openPanel('remote'); },
+    crop: '#rp', pad: 240, dim: true, maxZoom: 1.4,
+    marks: [
+      { sel: '#rpBody .card:first-child', label: 'Part 1: Tailscale on this computer. Each row must be OK.', side: 'left' },
+      { sel: '#rpBody ol.ol', label: 'Part 2: install Tailscale on the phone and sign in.', side: 'left' },
+      { sel: '#rpBody [style*="letter-spacing"]', label: 'The one-time code. It expires in 5 minutes.', side: 'left' }
+    ]
+  },
+  'reserved-panel': {
+    setup() {
+      figPlay([]);
+      S.reserved = {
+        'src/fees/round.ts': { state: 'held', task: 'T-01', agent: 'opencode', waiting: ['T-03'] },
+        'src/fees/rules.ts': { state: 'held', task: 'T-02', agent: 'codex', waiting: [] }
+      };
+      openPanel('reserved');
+    },
+    crop: '#rp', pad: 240, dim: true, maxZoom: 1.4,
+    marks: [
+      { sel: '#rpBody .tr.held', label: 'A held file: one task and one agent own it.', side: 'left' },
+      { sel: '#rpBody .tr .chip', label: 'Waiting: T-03 starts when the lock is free.', side: 'left' },
+      { sel: '#rpBody .note', label: 'Anything else is blocked and reverted.', side: 'left' }
+    ]
+  },
+  'attachment-chips': {
+    setup() {
+      S.attach = [
+        { kind: 'file', name: 'src/fees/round.ts' },
+        { kind: 'folder', name: 'tests' },
+        { kind: 'note', text: 'Keep fees in whole units, never floats.' }
+      ];
+      renderFoot();
+      menuAttach($('[data-act="attachMenu"]'));
+    },
+    crop: ['#attachChips', '#pop', '#compWrap'], pad: 24, dim: true, maxZoom: 1.4,
+    marks: [
+      { sel: '#attachChips', label: 'A file, a folder, a note. The x removes one.', side: 'top' },
+      { sel: '[data-act="attachMenu"]', label: 'The plus: files, a folder, a backlog, a skill, or a note.', side: 'right' }
+    ]
+  },
+  'backlog-run': {
+    setup() {
+      figPlay([
+        { k: 'user', text: 'Run the backlog.' },
+        { k: 'plan', summary: 'Three tasks in two waves.', flags: ['Tasks that touch the same file never share a wave.'], tasks: [{ id: 'T-01', title: 'Round fees half-up', tier: 'easy', scope: ['src/fees/round.ts'] }, { id: 'T-02', title: 'Add tiered fee bands', tier: 'normal', scope: ['src/fees/rules.ts', 'src/fees/bands.ts'] }, { id: 'T-03', title: 'Fix ledger double-post on retry', tier: 'hard', scope: ['src/ledger/post.ts'] }] },
+        { k: 'wave', n: 1, rows: [{ id: 'T-01', agent: 'opencode', title: 'Round fees half-up', scope: ['src/fees/round.ts'] }, { id: 'T-02', agent: 'codex', title: 'Add tiered fee bands', scope: ['src/fees/rules.ts', 'src/fees/bands.ts'] }] },
+        { k: 'barrier', n: 1, state: 'pass', passed: 24, total: 24 }
+      ]);
+    },
+    crop: '#main', pad: 14, dim: true, maxZoom: 1.2,
+    marks: [
+      { sel: '#streamIn .ev:nth-child(2)', label: 'The plan: three tasks, two waves.', side: 'left' },
+      { sel: '#streamIn .ev:nth-child(3)', label: 'A wave: tasks that touch different files run together.', side: 'left' },
+      { sel: '#streamIn .ev:nth-child(4)', label: 'After each wave, the full test suite runs.', side: 'left' }
+    ]
+  },
+  'blocked-task-card': {
+    setup() {
+      figPlay([
+        { k: 'user', text: 'Fix the broken links across the guides.' },
+        { k: 'agent', agent: 'codex', task: 'T-09', title: 'Check links in the guides', attempt: 3, state: 'failed', steps: [{ kind: 'test', text: 'link checker', bad: true }] },
+        { k: 'verdict', task: 'T-09', title: 'Check links in the guides', status: 'blocked', checks: [{ l: 'suite passes', ok: false }], reason: 'The link checker needs a network call. The sandbox forbids it.' }
+      ]);
+    },
+    crop: '#main', pad: 14, dim: true, maxZoom: 1.2,
+    marks: [
+      { sel: '#streamIn .ev:nth-child(3)', label: 'Blocked, not done. Nothing is marked done that was not.', side: 'top' },
+      { sel: '#streamIn .ev:nth-child(3) .chip', label: 'The check that failed.', side: 'bottom' }
+    ]
+  },
+  'home-stream': {
+    setup() { openRun('r2'); },
+    marks: [
+      { sel: '#sbList [data-chat="r2"]', label: 'The chat list. The open chat is highlighted.', side: 'bottom' },
+      { sel: '#streamIn .ev:nth-child(2)', label: 'The stream: each plan, step, and result, in order.', side: 'bottom' },
+      { sel: '#rpHd .ptabs', label: 'Panels open as tabs on the right.', side: 'bottom' }
+    ]
+  },
+  'tour-stop': {
+    setup() { startTour(); },
+    marks: [
+      { sel: '.tour-hl', label: 'The part this step is about.', side: 'right' },
+      { sel: '#tip [data-act="tourNext"]', label: 'Next goes to the next part. Skip ends the tour.', side: 'right' }
+    ]
+  },
+  'brain-overview': {
+    setup() { openPanel('brain'); },
+    crop: '#rp', pad: 240, dim: true, maxZoom: 1.4,
+    marks: [
+      { sel: '#rpBody .card:first-child', label: 'The mode, the note count, and the vault folder.', side: 'left' },
+      { sel: '#rpBody .seg', label: 'Notes, Graph, or Proposals.', side: 'left' },
+      { sel: '#brainQ', label: 'Search by title, text, or tag.', side: 'left' }
+    ]
+  },
+  'brain-notes-list': {
+    setup() { openPanel('brain'); },
+    crop: '#rp', pad: 240, dim: true, maxZoom: 1.4,
+    marks: [
+      { sel: '#brainQ', label: 'Search by title, text, or tag.', side: 'left' },
+      { sel: '#rpBody select[data-sel="brainType"]', label: 'Show one type of note, such as Lesson.', side: 'top' },
+      { sel: '#brainList .nrow:first-child', label: 'Each note: its type, its name, and a strength bar.', side: 'left' }
+    ]
+  },
+  'brain-memory-stream': {
+    setup() {
+      openRun('r1'); menuBrain($('[data-act="brainPop"]'));
+    },
+    crop: ['#compWrap', '#pop'], pad: 30, dim: true, maxZoom: 1.4,
+    marks: [
+      { sel: '[data-act="brainPop"]', label: 'The Brain mode for the next message.', side: 'left' },
+      { sel: '#pop [data-act="brainMode"][data-arg="read-only"]', label: 'Read only: agents read notes, nothing is written.', side: 'left' },
+      { sel: '#pop [data-act="brainMode"][data-arg="learn"]', label: 'Learn: each run writes a journal and lesson candidates.', side: 'left' }
+    ]
+  },
+  'brain-lessons': {
+    setup() { openPanel('brain'); S.brain.ui.type = 'lesson'; renderPanelBody(); },
+    crop: '#rp', pad: 240, dim: true, maxZoom: 1.4,
+    marks: [
+      { sel: '#rpBody select[data-sel="brainType"]', label: 'Filter to lessons.', side: 'left' },
+      { sel: '#brainList .nrow:first-child', label: 'A lesson, with its state.', side: 'left' },
+      { sel: '#brainList .nrow:last-child', label: 'Open a lesson to approve, reject, or retire it.', side: 'left' }
+    ]
+  },
+  'brain-care-proposals': {
+    setup() {
+      S.brain.proposals = PROPS.map(p => Object.assign({}, p));
+      S.brain.ui.view = 'proposals';
+      openPanel('brain');
+    },
+    crop: '#rp', pad: 240, dim: true, maxZoom: 1.4,
+    marks: [
+      { sel: '#rpBody .seg', label: 'Proposals wait here. Nothing changes until you accept.', side: 'left' },
+      { sel: '#rpBody .tcard', label: 'Each proposal says what changes and why.', side: 'left' },
+      { sel: '#rpBody [data-act="propAccept"]', label: 'Accept applies it. Dismiss drops it.', side: 'bottom' }
+    ]
+  },
+  'brain-obsidian-vault': {
+    setup() { openSettings('brain'); },
+    crop: '.modal', dim: true,
+    marks: [
+      { sel: '#setBody .fld:has([data-arg^="Opening"])', label: 'Vault folder: plain markdown files that Obsidian can open.', side: 'left' },
+      { sel: '#setBody .fld:has([data-arg^="Opening"]) .k', label: 'The folder path. Edits in Obsidian show up here.', side: 'left' }
+    ]
+  }
+});
+
+/* figures, group 3: the Board with one task in each status */
+Object.assign(FIGS, {
+  'status-words': {
+    setup() {
+      const words = ['running', 'waiting', 'verifying', 'verified', 'blocked', 'contradiction'];
+      S.tasks = TASKS0.slice(0, words.length).map((t, i) => Object.assign({}, t, { status: words[i], agent: 'claude' }));
+      openPanel('board');
+    },
+    crop: '#rp', pad: 240, dim: true, maxZoom: 1.4,
+    marks: [
+      { sel: '#rpBody .psec:first-child h5', label: 'A group heading: the status word and the count.', side: 'left' },
+      { sel: '#rpBody .stb', label: 'Each badge has a shape and a word.', side: 'left' },
+      { sel: '#rpBody .psec:nth-child(5) .stb', label: 'Blocked: an octagon. The task is not done.', side: 'left' }
+    ]
+  }
+});
+
 /* ---------- init ---------- */
 function init() {
   if (FIG_ID) { figInit(); return; }
