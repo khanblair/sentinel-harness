@@ -167,6 +167,7 @@ crates/sentinel-store/
   src/routines.rs                      Routines: jobs that run at a set time, such as the Morning brief (`docs/product-scope.md`, F25)
   src/runs.rs                          run and cost queries
   src/settings.rs                      settings queries
+  src/skills.rs                        Skills: folders with a `SKILL.md` that teach agents one thing (`docs/product-scope.md`, F24)
   src/tasks.rs                         task queries
   src/telegram.rs                      The Telegram chat row. Sentinel keeps one private chat. The four level switches are four integer
   src/tools.rs                         Detected worker CLIs. A rescan rewrites what it found but never changes the
@@ -374,6 +375,7 @@ crates/sentinel-daemon/
   src/routes/routines.rs               Routines and briefs. The computer makes and deletes routines. A phone may turn one off and press
   src/routes/run.rs                    Routes that start, steer, and answer a run
   src/routes/setup.rs                  Repository choice, the first-run steps, and the settings only the computer may change
+  src/routes/skills.rs                 The Skills routes under `/api/skills`. A phone may list and read skills, see the found ones,
   src/routes/state.rs                  Read routes and the settings that change what the daemon is allowed to use
   src/routes/telegram.rs               The Telegram routes under `/api/telegram`. A phone may read the state. Saving the token, the
   src/routines.rs                      Routines: jobs that run at a set time, such as the Morning brief (`docs/product-scope.md`, F25)
@@ -384,6 +386,9 @@ crates/sentinel-daemon/
   src/secrets.rs                       Secrets for the daemon. Values live in the OS keychain, never on disk and never in logs
   src/server.rs                        Binds the daemon to the tailnet address and serves the API, the WebSocket, and the UI
   src/settings.rs                      settings queries
+  src/skills.rs                        Skills: folders with a `SKILL.md` that teach agents one thing (`docs/product-scope.md`, F24)
+  src/skills_found.rs                  Skills that other tools keep in their own folders, offered for import (`docs/product-scope.md`,
+  src/skills_pick.rs                   Which skills a task gets, and the text they add to its prompt. Always skills come first, then
   src/tailscale.rs                     address lookup, bind rules, serve helper
   src/telegram.rs                      Telegram inside the daemon. The `sentinel-telegram` crate holds the Bot API client, the parser,
   src/telegram_code.rs                 The phone commands that read or write the repository: `/task` adds a section to `backlog.md`,
@@ -410,6 +415,7 @@ crates/sentinel-daemon/
   tests/security/coverage.rs           Reads the route source at test time. A `.route(` call with no row in `ROUTES` fails the build,
   tests/security/harness.rs            Starts the daemon for one test and sends it requests. A test gets its own engine, so a row
   tests/security/table.rs              Every route of the daemon and who may call it. Add a row for each new `.route(` line; the
+  tests/skills.rs                      Skills on disk, end to end through the engine: create, list, read, switches, and the phone
   tests/telegram.rs                    Telegram inside the daemon, against a `wiremock` Bot API. The tests drive the real routes with a
   tests/telegram_code.rs               The phone commands `/task`, `/diff`, and `/daily`, against a `wiremock` Bot API. The rig is a
 ```
@@ -527,6 +533,10 @@ crates/sentinel-ui/
   src/components/routine_editor.rs     `RoutineEditor`: the dialog body that adds a reminder or edits one (`docs/product-scope.md`,
   src/components/routine_row.rs        `RoutineRow`: one routine on the Routines page (`docs/product-scope.md`, F25). On a phone a
   src/components/sidebar.rs            `Sidebar`: the run list grouped by repository, the New run button, search, and the footer
+  src/components/skill_editor.rs       `SkillEditor`: the New skill and Edit form (`docs/ui-registry.md`, `SkillEditor`). It sits on the
+  src/components/skill_import_list.rs  `SkillImportList`: the skills found in other tools' folders that Sentinel does not have yet
+  src/components/skill_picker.rs       `SkillPicker`: the Use a skill dialog from the plus menu. It lists the skills Sentinel has, takes
+  src/components/skill_row.rs          `SkillRow`: one skill on the Skills page (`docs/ui-registry.md`, `SkillRow`). Its name opens the
   src/components/slash_menu.rs         The command list under the composer. The arrow keys and Tab are handled by the composer, which
   src/components/status_badge.rs       `StatusBadge`: a shape, a color, and a label together, so state is never color alone
   src/components/strength_bar.rs       `StrengthBar`: how strong a note is, as a thin bar with the prototype's `sbar` classes
@@ -555,6 +565,7 @@ crates/sentinel-ui/
   src/palette.rs                       Command palette items and the search over them. The overlay is `components/command_palette.rs`
   src/prefs.rs                         appearance preferences and token overrides, stored per device
   src/routines.rs                      Routines: jobs that run at a set time, such as the Morning brief (`docs/product-scope.md`, F25)
+  src/skills.rs                        Skills: folders with a `SKILL.md` that teach agents one thing (`docs/product-scope.md`, F24)
   src/slash.rs                         Slash commands. One parser and one list. Each command maps to one API route in `composer.rs`,
   src/state.rs                         client state from snapshot and events
   src/telegram.rs                      Telegram settings and activity: the pure rules the card and the panel share, and the calls to
@@ -593,6 +604,7 @@ crates/sentinel-ui/
   src/views/routines_page.rs           The Routines page of Settings (`docs/product-scope.md`, F25): the routines, the add button, the
   src/views/settings.rs                The Settings modal (`docs/ui-rules.md`, Views: Settings). The overlay frame is
   src/views/settings_pages.rs          Settings pages: General (repository and wake lock) and Brain. The other pages live in
+  src/views/skills_page.rs             `SkillsPage`: the Skills page of Settings (`docs/ui-rules.md`, Settings; `docs/ui-registry.md`,
   src/views/stream.rs                  The stream: the run's items in order, built from the snapshot. The view follows the newest
   src/views/stream_model.rs            Turns the daemon's events into stream items. Pure: no signals, no DOM, so every mapping has a
   src/views/telegram_panel.rs          The Telegram panel. Once the chat is paired it shows the bot, the detail, the levels that are
@@ -622,6 +634,7 @@ crates/sentinel-mcp/
   src/lib.rs                           module exports
   src/protocol.rs                      The JSON-RPC 2.0 messages MCP needs, and the tool list. Replies are built as `serde_json`
   src/server.rs                        Binds the daemon to the tailnet address and serves the API, the WebSocket, and the UI
+  src/skill_tools.rs                   The skill tools. Agents list the skills of the project and of the home folder, and read one
   tests/mcp/brain.rs                   file
   tests/mcp/files.rs                   file
   tests/mcp/main.rs                    Integration tests for the MCP server: the protocol, the file tools, and the Brain tools
