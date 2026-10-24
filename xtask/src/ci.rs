@@ -97,12 +97,12 @@ pub fn run(root: &Path) -> Result<ExitCode> {
         }
     }
     failed.extend(failed_checks(root)?);
-    summarize(&failed)
+    Ok(summarize(&failed))
 }
 
 /// `cargo xtask checks`: only the file checks. Fast, no cargo build.
 pub fn run_checks(root: &Path) -> Result<ExitCode> {
-    summarize(&failed_checks(root)?)
+    Ok(summarize(&failed_checks(root)?))
 }
 
 /// `cargo xtask <name>`: one file check.
@@ -117,11 +117,12 @@ pub fn run_one(name: &str, root: &Path) -> Result<ExitCode> {
     for f in &findings {
         println!("{f}");
     }
-    summarize(&if findings.is_empty() {
+    let failed = if findings.is_empty() {
         vec![]
     } else {
         vec![name]
-    })
+    };
+    Ok(summarize(&failed))
 }
 
 fn names() -> String {
@@ -164,12 +165,12 @@ fn run_cargo(step: &CargoStep, root: &Path) -> Result<bool> {
     Ok(ok)
 }
 
-fn summarize(failed: &[&str]) -> Result<ExitCode> {
+fn summarize(failed: &[&str]) -> ExitCode {
     if failed.is_empty() {
         println!("all checks passed");
-        Ok(ExitCode::SUCCESS)
+        ExitCode::SUCCESS
     } else {
         println!("failed: {}", failed.join(", "));
-        Ok(ExitCode::FAILURE)
+        ExitCode::FAILURE
     }
 }

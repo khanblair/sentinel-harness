@@ -9,6 +9,9 @@ publish.workspace = true
 sentinel-core = { path = "../sentinel-core" }
 thiserror = { workspace = true }
 time = { workspace = true }
+notify = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

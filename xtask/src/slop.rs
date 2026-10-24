@@ -310,42 +310,54 @@ mod tests {
         let hits = scan_files(&[("docs/a.md", "Unlock the door.\n")]);
         assert_eq!(hits.len(), 1);
         assert!(hits[0].message.contains("unlock"));
-        assert!(scan_files(&[("docs/a.md", "The door unlocked.\n")]).is_empty());
+        assert_eq!(
+            scan_files(&[("docs/a.md", "The door unlocked.\n")]),
+            Vec::new()
+        );
     }
     #[test]
     fn slop_banned_phrase_matches_substring_only() {
         let hits = scan_files(&[("docs/a.md", "It's worth noting that.\n")]);
         assert_eq!(hits.len(), 1);
         assert!(hits[0].message.contains("worth noting"));
-        assert!(scan_files(&[("docs/a.md", "It is worth noting that.\n")]).is_empty());
+        assert_eq!(
+            scan_files(&[("docs/a.md", "It is worth noting that.\n")]),
+            Vec::new()
+        );
     }
     #[test]
     fn slop_not_just_but_pattern_is_flagged() {
         let hits = scan_files(&[("docs/a.md", "This is not just fast, but cheap.\n")]);
         assert_eq!(hits.len(), 1);
         assert!(hits[0].message.contains("not just"));
-        assert!(scan_files(&[("docs/a.md", "This is fast and cheap.\n")]).is_empty());
+        assert_eq!(
+            scan_files(&[("docs/a.md", "This is fast and cheap.\n")]),
+            Vec::new()
+        );
     }
     #[test]
     fn slop_em_dash_is_flagged() {
         let hits = scan_files(&[("docs/a.md", "A line \u{2014} here.\n")]);
         assert_eq!(hits.len(), 1);
         assert!(hits[0].message.contains("em dash"));
-        assert!(scan_files(&[("docs/a.md", "A line - here.\n")]).is_empty());
+        assert_eq!(scan_files(&[("docs/a.md", "A line - here.\n")]), Vec::new());
     }
     #[test]
     fn slop_emoji_in_heading_is_flagged() {
         let hits = scan_files(&[("docs/a.md", "# Launch \u{1F680}\n")]);
         assert_eq!(hits.len(), 1);
         assert!(hits[0].message.contains("emoji"));
-        assert!(scan_files(&[("docs/a.md", "# Launch\n\nGo \u{1F680}.\n")]).is_empty());
+        assert_eq!(
+            scan_files(&[("docs/a.md", "# Launch\n\nGo \u{1F680}.\n")]),
+            Vec::new()
+        );
     }
     #[test]
     fn slop_rust_scans_comments_not_code() {
         let hits = scan_files(&[("src/a.rs", "let unlock = 1; // leverage here\n")]);
         assert_eq!(hits.len(), 1);
         assert!(hits[0].message.contains("leverage"));
-        assert!(scan_files(&[("src/a.rs", "let unlock = 1;\n")]).is_empty());
+        assert_eq!(scan_files(&[("src/a.rs", "let unlock = 1;\n")]), Vec::new());
     }
     #[test]
     fn slop_rust_comment_after_a_string_still_counts() {
@@ -361,19 +373,23 @@ mod tests {
         )]);
         assert_eq!(hits.len(), 1);
         assert!(hits[0].message.contains("unlock"));
-        assert!(
-            scan_files(&[("crates/core/src/lib.rs", "let label = \"Unlock now\";\n")]).is_empty()
+        assert_eq!(
+            scan_files(&[("crates/core/src/lib.rs", "let label = \"Unlock now\";\n")]),
+            Vec::new()
         );
     }
     #[test]
     fn slop_banned_words_file_is_never_scanned() {
-        assert!(scan_files(&[]).is_empty());
+        assert_eq!(scan_files(&[]), Vec::new());
     }
     #[test]
     fn slop_writing_style_section_is_exempt() {
         let body =
             "Intro.\n\n## Writing Style Rules\n\nUse leverage and unlock.\n\n## Next\n\nPlain.\n";
-        assert!(scan_files(&[("docs/project-overview.md", body)]).is_empty());
+        assert_eq!(
+            scan_files(&[("docs/project-overview.md", body)]),
+            Vec::new()
+        );
     }
     #[test]
     fn slop_text_outside_writing_style_section_is_scanned() {
@@ -384,7 +400,10 @@ mod tests {
     }
     #[test]
     fn slop_fenced_code_is_skipped() {
-        assert!(scan_files(&[("docs/a.md", "```\nleverage\n```\n")]).is_empty());
+        assert_eq!(
+            scan_files(&[("docs/a.md", "```\nleverage\n```\n")]),
+            Vec::new()
+        );
         let hits = scan_files(&[("docs/a.md", "```\ncode\n```\nleverage\n")]);
         assert_eq!(hits.len(), 1);
         assert_eq!(hits[0].line, 4);

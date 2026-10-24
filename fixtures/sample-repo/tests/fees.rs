@@ -1,5 +1,3 @@
-// tests/fees.rs
-
 use fee_ledger::fees::fee_cents;
 
 #[test]
@@ -8,6 +6,6 @@ fn fee_is_one_percent() {
 }
 
 #[test]
-fn fee_rounds_down() {
-    assert_eq!(fee_cents(250), 2);
+fn fee_of_zero_is_zero() {
+    assert_eq!(fee_cents(0), 0);
 }

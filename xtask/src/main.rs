@@ -7,6 +7,7 @@ mod docs;
 mod dup;
 mod files;
 mod finding;
+mod rust_scan;
 mod slop;
 mod smell;
 

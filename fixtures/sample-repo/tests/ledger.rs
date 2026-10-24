@@ -4,8 +4,8 @@ use fee_ledger::ledger::Ledger;
 fn post_then_balance_adds_up() {
     let mut ledger = Ledger::new();
 
-    ledger.post("a", 500);
-    ledger.post("a", 250);
+    ledger.post("a", 500).unwrap();
+    ledger.post("a", 250).unwrap();
 
     assert_eq!(ledger.balance("a"), 750);
 }
@@ -14,8 +14,8 @@ fn post_then_balance_adds_up() {
 fn accounts_stay_separate() {
     let mut ledger = Ledger::new();
 
-    ledger.post("a", 100);
-    ledger.post("b", 40);
+    ledger.post("a", 100).unwrap();
+    ledger.post("b", 40).unwrap();
 
     assert_eq!(ledger.balance("a"), 100);
     assert_eq!(ledger.balance("b"), 40);

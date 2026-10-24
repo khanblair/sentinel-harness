@@ -26,11 +26,3 @@ impl Ledger {
             .fold(0i64, |acc, (_, amount)| acc + amount)
     }
 }
-
-impl Default for Ledger {
-    fn default() -> Self {
-        Self {
-            entries: Vec::new(),
-        }
-    }
-}
