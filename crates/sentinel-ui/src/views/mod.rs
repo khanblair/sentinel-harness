@@ -9,17 +9,13 @@ pub mod agents {
     pub use super::panel_stubs::AgentsPanel;
 }
 
-pub mod board {
-    pub use super::panel_stubs::BoardPanel;
-}
+pub mod board;
 
 pub mod brain {
     pub use super::panel_stubs::BrainPanel;
 }
 
-pub mod changes {
-    pub use super::panel_stubs::ChangesPanel;
-}
+pub mod changes;
 
 pub mod cost {
     pub use super::panel_stubs::CostPanel;
@@ -41,9 +37,7 @@ pub mod report {
     pub use super::panel_stubs::ReportPanel;
 }
 
-pub mod reserved {
-    pub use super::panel_stubs::ReservedPanel;
-}
+pub mod reserved;
 
 pub mod telegram {
     pub use super::panel_stubs::TelegramPanel;
