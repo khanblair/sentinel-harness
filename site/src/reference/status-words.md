@@ -31,9 +31,12 @@ Status words name the state of a task, a lesson, or a note. Each one has a label
 | Retired | Dashed ring | Retired |
 | Quality note | Hexagon | Note |
 
-## Screenshot
+## See it
 
-![Screenshot of status-words](../images/status-words.png)
+<figure class="fig" data-fig="status-words" data-ratio="16 / 10" data-title="The Board, with one task in each status.">
+<figcaption>The Board, with one task in each status.<ol><li>A group heading: the status word and the count.</li><li>Each badge has a shape and a word.</li><li>Blocked: an octagon. The task is not done.</li></ol></figcaption>
+<noscript><p>This view needs JavaScript. Open the <a href="../prototype/sentinel-prototype.html">prototype</a> instead.</p></noscript>
+</figure>
 
 ## Tip
 

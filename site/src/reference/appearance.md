@@ -13,9 +13,12 @@ Appearance sets the theme, colors, and type for this device only. The phone can 
 5. Choose the fonts. The interface font has six choices. The code font has five. Set the text size from 12 to 18 px, the stream width from 560 to 980 px, the density (compact, default, or spacious), and the corner radius from 2 to 16 px.
 6. Read the live contrast readout. Each text and surface pair shows pass or fail. Choose Reset to restore the defaults, or Copy as CSS to copy the current values.
 
-## Screenshot
+## See it
 
-![Screenshot of appearance-panel](../images/appearance-panel.png)
+<figure class="fig" data-fig="appearance-panel" data-ratio="16 / 10" data-title="Settings, Appearance.">
+<figcaption>Settings, Appearance.<ol><li>Light, dark, or system. The change applies at once.</li><li>The accent color for buttons and focus.</li><li>Text size, from 12 to 18 pixels.</li></ol></figcaption>
+<noscript><p>This view needs JavaScript. Open the <a href="../prototype/sentinel-prototype.html">prototype</a> instead.</p></noscript>
+</figure>
 
 ## Tip
 

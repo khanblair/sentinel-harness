@@ -15,10 +15,6 @@ Try it runs the interactive prototype of Sentinel in your browser. The prototype
 
 <p><a class="sentinel-button" href="../prototype/sentinel-prototype.html" target="_blank" rel="noopener">Open it full screen</a></p>
 
-## Screenshot
-
-![Screenshot of try-it-prototype](../images/try-it-prototype.png)
-
 ## Tip
 
 All data in the prototype is simulated. Nothing talks to a daemon.

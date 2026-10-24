@@ -12,9 +12,12 @@ A blocked task has stopped. This guide finds the cause and gets the task running
 4. Raise the tier in the routing settings, narrow the scope in `backlog.md`, or fix the cause in the code.
 5. Run the task again.
 
-## Screenshot
+## See it
 
-![Screenshot of blocked-task-card](../images/blocked-task-card.png)
+<figure class="fig" data-fig="blocked-task-card" data-ratio="16 / 10" data-title="A blocked task in the stream.">
+<figcaption>A blocked task in the stream.<ol><li>Blocked, not done. Nothing is marked done that was not.</li><li>The check that failed.</li></ol></figcaption>
+<noscript><p>This view needs JavaScript. Open the <a href="../prototype/sentinel-prototype.html">prototype</a> instead.</p></noscript>
+</figure>
 
 ## Tip
 

@@ -11,10 +11,6 @@ Guides walk through common tasks from start to finish.
 3. Read [Hackathon mode](hackathon.md) before a live demo.
 4. Read [Control a run from Telegram](telegram-control.md) to steer a run away from the desk.
 
-## Screenshot
-
-![Screenshot of guides-overview](../images/guides-overview.png)
-
 ## Tip
 
 Use Plan only for a run you have not seen before.

@@ -14,9 +14,12 @@ Hackathon mode and the run checklist keep a live demo honest and within the anno
 6. Empty the logs folder, or move its contents to an archive.
 7. Start the run with one command. Do not change code during the run.
 
-## Screenshot
+## See it
 
-![Screenshot of hackathon-checklist](../images/hackathon-checklist.png)
+<figure class="fig" data-fig="hackathon-checklist" data-ratio="16 / 10" data-title="The Telegram settings, with Hackathon mode on.">
+<figcaption>The Telegram settings, with Hackathon mode on.<ol><li>Hackathon mode: only status goes to Telegram.</li><li>Detail is locked to status while the mode is on.</li></ol></figcaption>
+<noscript><p>This view needs JavaScript. Open the <a href="../prototype/sentinel-prototype.html">prototype</a> instead.</p></noscript>
+</figure>
 
 ## Tip
 

@@ -12,9 +12,12 @@ The budget cap sets the most a run may spend, and Sentinel stops work as spend r
 4. Each task has a ceiling, by default 2 times its tier estimate. A task over its ceiling is killed, then escalated or blocked.
 5. Open the Cost panel to see spend. Tools that report no dollar figure show an "est" label. Estimates run high.
 
-## Screenshot
+## See it
 
-![Screenshot of cost-panel](../images/cost-panel.png)
+<figure class="fig" data-fig="cost-panel" data-ratio="16 / 10" data-title="The Cost panel.">
+<figcaption>The Cost panel, with the cap and the meter.<ol><li>Amber at 70%: no new tasks start. Red at 95%: workers stop.</li><li>Lower the cap. It can only go down during a run.</li></ol></figcaption>
+<noscript><p>This view needs JavaScript. Open the <a href="../prototype/sentinel-prototype.html">prototype</a> instead.</p></noscript>
+</figure>
 
 ## Tip
 

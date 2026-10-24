@@ -12,9 +12,12 @@ A lesson is a note with typed fields that records a fact from past runs. Sentine
 4. A lesson that goes unused for a long time becomes retired.
 5. Review lessons in the Brain panel, or from your phone. Approve, reject, or retire each one.
 
-## Screenshot
+## See it
 
-![Screenshot of brain-lessons](../images/brain-lessons.png)
+<figure class="fig" data-fig="brain-lessons" data-ratio="16 / 10" data-title="The lessons, filtered from the Brain notes.">
+<figcaption>The lessons, filtered from the Brain notes.<ol><li>Filter to lessons.</li><li>A lesson, with its state.</li><li>Open a lesson to approve, reject, or retire it.</li></ol></figcaption>
+<noscript><p>This view needs JavaScript. Open the <a href="../prototype/sentinel-prototype.html">prototype</a> instead.</p></noscript>
+</figure>
 
 ## Tip
 

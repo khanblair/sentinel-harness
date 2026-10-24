@@ -10,10 +10,6 @@ A remote lets you watch and steer a run from another device: the phone app over 
 2. Read [Telegram](telegram.md) to get alerts and answer approvals with one tap, without the app open.
 3. Read [What each remote may do](remote-limits.md) before you rely on either remote.
 
-## Screenshot
-
-![Screenshot of remote-overview](../images/remote-overview.png)
-
 ## Tip
 
 The phone is a remote, not the engine. The daemon keeps the run going if the phone goes away.

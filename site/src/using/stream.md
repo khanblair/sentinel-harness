@@ -12,9 +12,12 @@ The stream is the ordered feed of the open chat. It shows each run in that chat,
 4. Open the send-to chip to send a message to one agent instead of Sentinel.
 5. Press Ctrl+K on Windows or Linux, or Cmd+K on macOS, to open the command palette for chats, agents, panels, and settings.
 
-## Screenshot
+## See it
 
-![Screenshot of stream-composer](../images/stream-composer.png)
+<figure class="fig" data-fig="stream-composer" data-ratio="16 / 10" data-title="The stream and the composer, with the command menu open.">
+<figcaption>The stream and the composer, with the command menu open.<ol><li>The stream: the plan and the results, in order.</li><li>Type / to see the commands.</li><li>Enter sends. Shift+Enter starts a new line.</li></ol></figcaption>
+<noscript><p>This view needs JavaScript. Open the <a href="../prototype/sentinel-prototype.html">prototype</a> instead.</p></noscript>
+</figure>
 
 ## Tip
 

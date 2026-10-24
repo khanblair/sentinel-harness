@@ -23,9 +23,12 @@ Levels, set for the chat:
 
 Commands: `/status`, `/pause`, `/resume`, `/stop`, `/cap`, `/kill`, `/agent`, `/diff`, `/task`, `/run`, `/report`, `/daily`, `/brief`, `/wrapup`, `/brain`, `/help`.
 
-## Screenshot
+## See it
 
-![Screenshot of telegram-setup](../images/telegram-setup.png)
+<figure class="fig" data-fig="telegram-setup" data-ratio="16 / 10" data-title="Settings, Integrations, before the chat is paired.">
+<figcaption>Settings, Integrations, before the chat is paired.<ol><li>Paste the bot token from BotFather.</li><li>Your numeric user ID, not your @username.</li><li>Save checks both values.</li></ol></figcaption>
+<noscript><p>This view needs JavaScript. Open the <a href="../prototype/sentinel-prototype.html">prototype</a> instead.</p></noscript>
+</figure>
 
 ## Tip
 

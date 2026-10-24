@@ -10,10 +10,6 @@ The changelog will list each released version. Until a release is published, the
 2. Check the release page on GitHub for published versions.
 3. Expect each version to be tagged as `vX.Y.Z` after the checks pass. Versions follow semver.
 
-## Screenshot
-
-![Screenshot of changelog-overview](../images/changelog-overview.png)
-
 ## Tip
 
 Versions follow semver, set once in the root `Cargo.toml`.

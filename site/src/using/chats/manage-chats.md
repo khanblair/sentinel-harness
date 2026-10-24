@@ -14,9 +14,12 @@ Each chat has a menu with the actions for that chat. Rename and pin keep a chat 
 6. Search. Click the search button at the top of the sidebar to filter chats by title. Search covers every project.
 7. A chat with a live run cannot be archived or deleted. The live run still writes to this chat and to the project's working tree. Stop the run first, then archive or delete the chat.
 
-## Screenshot
+## See it
 
-![Screenshot of chat-menu](../../images/chat-menu.png)
+<figure class="fig" data-fig="chat-menu" data-ratio="16 / 10" data-title="The chat row menu.">
+<figcaption>The chat row menu: Rename, Pin, Archive, and Delete.<ol><li>Rename the chat.</li><li>Pin to the top of the project.</li><li>Archive: move to Archived.</li><li>Delete. Sentinel asks first.</li></ol></figcaption>
+<noscript><p>This view needs JavaScript. Open the <a href="../../prototype/sentinel-prototype.html">prototype</a> instead.</p></noscript>
+</figure>
 
 ## Tip
 

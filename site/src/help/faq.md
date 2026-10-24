@@ -14,10 +14,6 @@ The FAQ answers common questions about how Sentinel works.
 6. **Does a task that an agent calls done count as done?** No. Only the verifier marks a task VERIFIED. It needs a passing suite and a check by a different model.
 7. **Can I edit notes from the phone?** No. Edit notes on the PC.
 
-## Screenshot
-
-![Screenshot of faq-verdicts](../images/faq-verdicts.png)
-
 ## Tip
 
 When a verdict looks wrong, read the status words page first.

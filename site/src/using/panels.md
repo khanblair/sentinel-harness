@@ -12,9 +12,12 @@ Panels open as tabs beside the stream. The top bar has icons for the main panels
 4. On a tablet or phone, panels slide over the stream.
 5. On a phone, the bottom tabs are Stream, Board, Reserved, Changes, and More. The More tab holds the other panels.
 
-## Screenshot
+## See it
 
-![Screenshot of panel-icons-topbar](../images/panel-icons-topbar.png)
+<figure class="fig" data-fig="panel-icons-topbar" data-ratio="16 / 10" data-title="The top bar icons and the More menu.">
+<figcaption>The top bar icons, and the More menu.<ol><li>Each icon opens one panel on the right.</li><li>More holds the panels that have no icon.</li><li>Cost, Report, Telegram, Files, Agents, and Permissions.</li></ol></figcaption>
+<noscript><p>This view needs JavaScript. Open the <a href="../prototype/sentinel-prototype.html">prototype</a> instead.</p></noscript>
+</figure>
 
 ## Tip
 

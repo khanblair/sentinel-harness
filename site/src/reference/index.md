@@ -11,10 +11,6 @@ The reference pages list each settings section, the appearance options, the shor
 3. Read [Shortcuts and commands](shortcuts.md) to run controls from the keyboard or the composer.
 4. Read [Status words](status-words.md) to learn what each label and shape means.
 
-## Screenshot
-
-![Screenshot of reference-overview](../images/reference-overview.png)
-
 ## Tip
 
 Use the command palette to jump to a setting when you do not remember its section.

@@ -17,9 +17,12 @@ The guided tour points at seven parts of the run screen, one stop at a time, wit
    - The send-to chip.
    - Settings.
 
-## Screenshot
+## See it
 
-![Screenshot of tour-stop](../images/tour-stop.png)
+<figure class="fig" data-fig="tour-stop" data-ratio="16 / 10" data-title="A tour step, with its coach card.">
+<figcaption>A tour step, with its coach card.<ol><li>The part this step is about.</li><li>Next goes to the next part. Skip ends the tour.</li></ol></figcaption>
+<noscript><p>This view needs JavaScript. Open the <a href="../prototype/sentinel-prototype.html">prototype</a> instead.</p></noscript>
+</figure>
 
 ## Tip
 

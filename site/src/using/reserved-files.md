@@ -14,9 +14,12 @@ Reserved files give each task exclusive write access to the files it needs, so t
 6. When a task needs another file, it asks for it. A free file is granted. A busy file makes the task wait or yield.
 7. If one task must read the final form of a file that another task writes, the planner makes the first task wait for that checkpoint.
 
-## Screenshot
+## See it
 
-![Screenshot of reserved-panel](../images/reserved-panel.png)
+<figure class="fig" data-fig="reserved-panel" data-ratio="16 / 10" data-title="The Reserved panel during a live run.">
+<figcaption>The Reserved panel while a run is live.<ol><li>A held file: one task and one agent own it.</li><li>Waiting: T-03 starts when the lock is free.</li><li>Anything else is blocked and reverted.</li></ol></figcaption>
+<noscript><p>This view needs JavaScript. Open the <a href="../prototype/sentinel-prototype.html">prototype</a> instead.</p></noscript>
+</figure>
 
 ## Tip
 

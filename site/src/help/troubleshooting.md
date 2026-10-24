@@ -18,10 +18,6 @@ This page matches common symptoms to their causes and fixes.
 10. The retry prompt looks short. Compaction is working. Open the full output from the log reference.
 11. A task was killed at its ceiling. The cause is that its cost passed 2 times its tier estimate. Check the estimate, or let the task escalate.
 
-## Screenshot
-
-![Screenshot of troubleshooting-table](../images/troubleshooting-table.png)
-
 ## Tip
 
 Run `sentinel doctor` before you change any setting.

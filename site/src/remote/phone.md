@@ -13,9 +13,12 @@ The phone app is the same web interface as the PC, installed on your phone and r
 5. Add the app to the home screen. Use the bottom tabs to move between Stream, Board, Reserved, Changes, and More.
 6. Use chats on the phone. You can create a chat, send messages, rename, pin, and archive a chat. You cannot delete a chat. Delete it on the PC. See [What each remote may do](remote-limits.md).
 
-## Screenshot
+## See it
 
-![Screenshot of remote-pairing](../images/remote-pairing.png)
+<figure class="fig" data-fig="remote-pairing" data-ratio="16 / 10" data-title="The Remote panel, with the pairing steps.">
+<figcaption>The Remote panel, with the pairing steps.<ol><li>Part 1: Tailscale on this computer. Each row must be OK.</li><li>Part 2: install Tailscale on the phone and sign in.</li><li>The one-time code. It expires in 5 minutes.</li></ol></figcaption>
+<noscript><p>This view needs JavaScript. Open the <a href="../prototype/sentinel-prototype.html">prototype</a> instead.</p></noscript>
+</figure>
 
 ## Tip
 

@@ -15,9 +15,12 @@ A first run takes one chat from its first message to verified tasks, and you ans
 6. Answer requests for more files. Allow a free, sensible file. Deny anything outside the agent's own work.
 7. Read each verdict. A task is VERIFIED only after the suite passes, a new test covers the change, a different model confirms the diff, and no existing test was edited.
 
-## Screenshot
+## See it
 
-![Screenshot of first-run-stream](../images/first-run-stream.png)
+<figure class="fig" data-fig="first-run-stream" data-ratio="16 / 10" data-title="The stream during a run: plan, wave, and agent.">
+<figcaption>The stream during a run: the plan, a wave, and an agent.<ol><li>The plan. It lists the files each task reserves.</li><li>A wave: tasks that run together.</li><li>The agent: each step, as it happens.</li></ol></figcaption>
+<noscript><p>This view needs JavaScript. Open the <a href="../prototype/sentinel-prototype.html">prototype</a> instead.</p></noscript>
+</figure>
 
 ## Tip
 
