@@ -1,15 +1,26 @@
 name: release
 
-# Builds the `sentinel` binary (the UI is embedded, docs/development.md "Production Builds") on
-# GitHub-hosted runners and attaches it to a draft release, so a release build never has to run
-# on the owner's own computer.
+# Builds an installable, signed macOS disk image (Sentinel.dmg) on a GitHub-hosted Mac, so a
+# release build never runs on the owner's own computer. Linux and Windows builds are left out for
+# now.
+#
+# The disk image holds Sentinel.app: a universal binary (Apple silicon and Intel) with the UI
+# embedded. Opening the app picks a project, serves it on this Mac, and opens the UI in the browser
+# (`sentinel app`, docs/development.md "Release Steps").
 #
 # Triggers: pushing a tag that looks like a version ("v0.1.0"), or running this workflow by hand
-# from the Actions tab with a "tag" input. Both make a DRAFT release, which nobody sees until it
-# is published. Tag a commit only after `cargo xtask ci` has passed on it (docs/development.md,
-# Release Steps).
+# from the Actions tab with a "tag" input. Both make a DRAFT release with the .dmg attached, and
+# the .dmg is also an artifact of the run. Tag a commit only after the ci workflow is green on it.
 #
-# Signing and notarization are not set up yet. The builds are unsigned.
+# Signing. With the secrets below the app and the image are signed with a Developer ID
+# certificate and notarized, so macOS opens them without a warning. Without them the build still
+# runs and signs ad hoc: the image works, but macOS asks you to confirm the first open (right
+# click the app, then Open). Add the secrets in Settings, Secrets and variables, Actions:
+#   APPLE_CERTIFICATE           the "Developer ID Application" certificate as a .p12 file, base64
+#   APPLE_CERTIFICATE_PASSWORD  the password of that .p12 file
+#   APPLE_ID                    the Apple ID that is in the Apple Developer Program
+#   APPLE_TEAM_ID               the 10 character team id
+#   APPLE_APP_PASSWORD          an app-specific password for that Apple ID (notarization)
 
 on:
   push:
@@ -27,75 +38,117 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  verify:
-    name: verify (cargo xtask ci)
-    runs-on: ubuntu-latest
+  macos-dmg:
+    name: Sentinel.dmg (macOS, universal)
+    runs-on: macos-14
+    timeout-minutes: 60
+    env:
+      APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt, clippy
-          targets: wasm32-unknown-unknown
-      - uses: Swatinem/rust-cache@v2
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-nextest,cargo-deny,cargo-machete
-      - run: cargo xtask ci
 
-  build:
-    name: build (${{ matrix.target }})
-    needs: verify
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu, archive: tar.gz }
-          - { os: macos-latest, target: aarch64-apple-darwin, archive: tar.gz }
-          - { os: macos-latest, target: x86_64-apple-darwin, archive: tar.gz }
-          - { os: windows-latest, target: x86_64-pc-windows-msvc, archive: zip }
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-      - name: Resolve the release tag
+      - name: Resolve the release tag and version
         id: tag
         shell: bash
-        run: echo "name=${{ github.event.inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
+        run: |
+          tag="${{ github.event.inputs.tag || github.ref_name }}"
+          echo "name=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: wasm32-unknown-unknown,${{ matrix.target }}
+          targets: wasm32-unknown-unknown,aarch64-apple-darwin,x86_64-apple-darwin
       - uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@v2
         with:
           tool: trunk
-      - name: Build the UI, then the binary that embeds it
-        shell: bash
+
+      - name: Build the UI, then the binary for each Mac that embeds it
         run: |
           (cd crates/sentinel-ui && trunk build --release)
-          cargo build --release -p sentinel-cli --target ${{ matrix.target }}
-      - name: Package
-        id: package
-        shell: bash
+          cargo build --release -p sentinel-cli --target aarch64-apple-darwin
+          cargo build --release -p sentinel-cli --target x86_64-apple-darwin
+
+      - name: Join the two binaries into one universal binary
         run: |
-          name="sentinel-${{ steps.tag.outputs.name }}-${{ matrix.target }}"
-          mkdir -p "dist/$name"
-          bin=target/${{ matrix.target }}/release/sentinel
-          if [ "${{ matrix.archive }}" = "zip" ]; then bin="$bin.exe"; fi
-          cp "$bin" "dist/$name/"
-          cp -r docs "dist/$name/docs"
-          cd dist
-          if [ "${{ matrix.archive }}" = "zip" ]; then
-            7z a "$name.zip" "$name" > /dev/null
-            file="$name.zip"
-          else
-            tar -czf "$name.tar.gz" "$name"
-            file="$name.tar.gz"
+          mkdir -p dist
+          lipo -create -output dist/sentinel \
+            target/aarch64-apple-darwin/release/sentinel \
+            target/x86_64-apple-darwin/release/sentinel
+          lipo -info dist/sentinel
+
+      - name: Import the signing certificate
+        id: cert
+        if: env.APPLE_CERTIFICATE != ''
+        run: |
+          keychain="$RUNNER_TEMP/release.keychain-db"
+          password="$(uuidgen)"
+          echo "$APPLE_CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security import "$RUNNER_TEMP/certificate.p12" -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12 -k "$keychain"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$password" "$keychain"
+          security list-keychains -d user -s "$keychain" login.keychain-db
+          identity="$(security find-identity -v -p codesigning "$keychain" \
+            | grep 'Developer ID Application' | head -1 | sed -E 's/.*"(.*)".*/\1/')"
+          if [ -z "$identity" ]; then
+            echo "The certificate holds no 'Developer ID Application' identity." >&2
+            exit 1
           fi
-          shasum -a 256 "$file" > "$file.sha256"
-          echo "file=dist/$file" >> "$GITHUB_OUTPUT"
+          echo "identity=$identity" >> "$GITHUB_OUTPUT"
+          rm -f "$RUNNER_TEMP/certificate.p12"
+
+      - name: Build the app
+        env:
+          SIGNING_IDENTITY: ${{ steps.cert.outputs.identity }}
+        run: |
+          packaging/macos/build-app.sh dist/sentinel "${{ steps.tag.outputs.version }}" \
+            "${{ github.run_number }}" dist
+
+      - name: Build the disk image
+        env:
+          SIGNING_IDENTITY: ${{ steps.cert.outputs.identity }}
+        run: packaging/macos/make-dmg.sh dist/Sentinel.app "dist/Sentinel-${{ steps.tag.outputs.version }}.dmg"
+
+      - name: Notarize and staple
+        if: env.APPLE_CERTIFICATE != '' && env.APPLE_ID != '' && env.APPLE_TEAM_ID != '' && env.APPLE_APP_PASSWORD != ''
+        run: |
+          dmg="dist/Sentinel-${{ steps.tag.outputs.version }}.dmg"
+          xcrun notarytool submit "$dmg" --apple-id "$APPLE_ID" --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_PASSWORD" --wait
+          xcrun stapler staple "$dmg"
+          xcrun stapler validate "$dmg"
+
+      - name: Say what was built
+        run: |
+          dmg="dist/Sentinel-${{ steps.tag.outputs.version }}.dmg"
+          (cd dist && shasum -a 256 "$(basename "$dmg")" > "$(basename "$dmg").sha256")
+          if [ -n "$APPLE_CERTIFICATE" ] && [ -n "$APPLE_APP_PASSWORD" ]; then
+            echo "Signed with a Developer ID certificate and notarized." | tee -a "$GITHUB_STEP_SUMMARY"
+          elif [ -n "$APPLE_CERTIFICATE" ]; then
+            echo "Signed with a Developer ID certificate. Not notarized: the notarization secrets are missing." | tee -a "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Signed ad hoc. The signing secrets are not set, so macOS asks to confirm the first open (right click the app, then Open)." | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Sentinel-macOS-dmg
+          path: |
+            dist/Sentinel-${{ steps.tag.outputs.version }}.dmg
+            dist/Sentinel-${{ steps.tag.outputs.version }}.dmg.sha256
+          if-no-files-found: error
+
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.name }}
           draft: true
           files: |
-            ${{ steps.package.outputs.file }}
-            ${{ steps.package.outputs.file }}.sha256
+            dist/Sentinel-${{ steps.tag.outputs.version }}.dmg
+            dist/Sentinel-${{ steps.tag.outputs.version }}.dmg.sha256

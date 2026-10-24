@@ -87,6 +87,7 @@ pub(super) fn routes() -> Router<Engine> {
         .route("/api/tailscale/signin", post(tailscale_sign_in))
         .route("/api/host", get(host_status))
         .route("/api/host/check", post(host_check))
+        .route("/api/quit", post(quit))
         .route("/api/fs/pick", post(fs_pick))
         .route("/api/fs/list", get(fs_list))
 }
@@ -183,6 +184,12 @@ async fn host_check(State(engine): State<Engine>, Computer(_): Computer) -> ApiR
     engine.beat()?;
     engine.emit_quiet(&sentinel_core::Event::HostHeartbeat);
     Ok(Json(engine.host_status().await?))
+}
+
+/// Stop the daemon. The computer only: a phone cannot switch the host off.
+async fn quit(State(engine): State<Engine>, Computer(_): Computer) -> ApiResult<Value> {
+    engine.request_quit();
+    Ok(Json(okay()))
 }
 
 async fn tailscale_status(State(engine): State<Engine>) -> ApiResult<TailscaleStatus> {

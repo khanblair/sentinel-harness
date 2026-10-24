@@ -99,11 +99,28 @@ Linux x86_64, macOS (Apple silicon and Intel), Windows x86_64. Hackathon build t
 
 ## Release Steps
 
+CI and releases run on GitHub, not on your computer. Do not run `cargo xtask ci` or a release build locally: it fills the disk (the build output reached 60 GB). Locally, run the tests of the crate you changed: `cargo nextest run -p CRATE`.
+
 1. Update `progress-tracker.md` and the changelog section there.
-2. `cargo xtask ci`.
-3. Build UI, then the binary.
-4. Run the e2e suite on the built binary.
-5. Tag and publish the repo. For the hackathon, the repo must be open, list dependencies, and run with one command.
+2. Push to `main` and wait for the `ci` workflow to turn green.
+3. Tag the commit (`git tag v0.1.0 && git push origin v0.1.0`), or run the `release` workflow by hand from the Actions tab and type the tag.
+4. The `release` workflow builds `Sentinel-VERSION.dmg` on a GitHub Mac: a universal app (Apple silicon and Intel) with the UI embedded. It is attached to a draft release and to the run as an artifact.
+5. Download the .dmg, open it, and drag Sentinel to Applications. Opening the app picks a project (the last one, or a folder dialog), serves it on this Mac, and opens the UI in the browser. Open it again to get the browser tab back. Quit it in Settings, General, or run `sentinel stop`.
+6. Publish the draft release when it looks right.
+
+### Signing the .dmg
+
+With no setup the .dmg is signed ad hoc: it works, and macOS asks you to confirm the first open (right click the app, then Open). For a build that opens with no warning, join the Apple Developer Program, make a "Developer ID Application" certificate, export it as a .p12 file, and add these repository secrets (Settings, Secrets and variables, Actions):
+
+| Secret | What it is |
+|---|---|
+| `APPLE_CERTIFICATE` | The .p12 file, as base64 (`base64 -i certificate.p12 | pbcopy`) |
+| `APPLE_CERTIFICATE_PASSWORD` | The password you gave the .p12 file |
+| `APPLE_ID` | The Apple ID in the Developer Program |
+| `APPLE_TEAM_ID` | The 10 character team id |
+| `APPLE_APP_PASSWORD` | An app-specific password for that Apple ID, made at appleid.apple.com |
+
+With the first two the app and image are signed with the hardened runtime. With all five the image is also notarized and stapled. The files are in `packaging/macos/`. Linux and Windows builds are not part of the release yet.
 
 ## Telegram Setup
 

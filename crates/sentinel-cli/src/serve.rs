@@ -6,8 +6,9 @@ use std::process::ExitCode;
 
 use anyhow::{Context, Result, bail};
 use sentinel_core::api::PairStart;
+use sentinel_daemon::engine::Engine;
 use sentinel_daemon::secrets::{EnvFallback, KeychainStore, SecretStore};
-use sentinel_daemon::server::{self, ServerOptions};
+use sentinel_daemon::server::{self, BoundServer, ServerOptions};
 use sentinel_daemon::tailscale::BindMode;
 
 use crate::commands::{open_engine, repo_or_current};
@@ -25,15 +26,49 @@ pub(crate) struct DaemonArgs {
     pub headless: bool,
 }
 
-pub(crate) async fn daemon(args: DaemonArgs) -> Result<ExitCode> {
-    let repo = repo_or_current(args.repo)?;
-    let engine = open_engine(&repo, args.fake_agents)?;
+/// Open the repository's state and start everything that runs beside the server: the tool scan,
+/// the desktop token, the host loop, the routines, and Telegram.
+pub(crate) async fn prepare(repo: &Path, fake_agents: bool, headless: bool) -> Result<Engine> {
+    let engine = open_engine(repo, fake_agents)?;
     engine.scan_tools().await?;
     engine.ensure_desktop_token()?;
-    engine.set_headless(args.headless);
+    engine.set_headless(headless);
     engine.start_host_loop();
     engine.start_routines();
     sentinel_daemon::telegram::start_if_active(&engine).context("could not start Telegram")?;
+    Ok(engine)
+}
+
+/// Write the address that `open` and `pair` read, and say where the server is.
+pub(crate) fn publish(repo: &Path, bound: &BoundServer) -> Result<()> {
+    std::fs::write(addr_file(repo), bound.addr.to_string())
+        .context("could not write .sentinel/daemon.addr")?;
+    println!(
+        "Sentinel is serving {} on http://{}",
+        repo.display(),
+        bound.addr
+    );
+    Ok(())
+}
+
+/// Serve until Ctrl+C or a quit request, then take the address file away.
+pub(crate) async fn run_until_stopped(
+    engine: &Engine,
+    repo: &Path,
+    bound: BoundServer,
+) -> Result<ExitCode> {
+    tokio::select! {
+        served = bound.serve() => served.context("the server stopped")?,
+        () = engine.quit_requested() => println!("\nStopping (asked to quit)."),
+        _ = tokio::signal::ctrl_c() => println!("\nStopping."),
+    }
+    let _ = std::fs::remove_file(addr_file(repo));
+    Ok(ExitCode::SUCCESS)
+}
+
+pub(crate) async fn daemon(args: DaemonArgs) -> Result<ExitCode> {
+    let repo = repo_or_current(args.repo)?;
+    let engine = prepare(&repo, args.fake_agents, args.headless).await?;
     let bind = if args.dev_bind {
         BindMode::DevLoopback
     } else {
@@ -43,22 +78,39 @@ pub(crate) async fn daemon(args: DaemonArgs) -> Result<ExitCode> {
         port: args.port,
         bind,
     };
-    let bound = server::bind(engine, &options).await.context(
+    let bound = server::bind(engine.clone(), &options).await.context(
         "could not bind. Sign in to Tailscale, or pass --dev-bind to serve on 127.0.0.1 for development",
     )?;
-    std::fs::write(addr_file(&repo), bound.addr.to_string())
-        .context("could not write .sentinel/daemon.addr")?;
-    println!(
-        "Sentinel is serving {} on http://{}",
-        repo.display(),
-        bound.addr
-    );
+    publish(&repo, &bound)?;
     println!("Open the UI on this computer with: sentinel open");
-    tokio::select! {
-        served = bound.serve() => served.context("the server stopped")?,
-        _ = tokio::signal::ctrl_c() => println!("\nStopping."),
+    run_until_stopped(&engine, &repo, bound).await
+}
+
+/// Whether a daemon already answers at the address in this repository's address file.
+pub(crate) fn is_running(repo: &Path) -> bool {
+    let Ok(text) = std::fs::read_to_string(addr_file(repo)) else {
+        return false;
+    };
+    let Ok(addr) = text.trim().parse::<std::net::SocketAddr>() else {
+        return false;
+    };
+    std::net::TcpStream::connect_timeout(&addr, std::time::Duration::from_millis(400)).is_ok()
+}
+
+/// `sentinel stop`: ask the running daemon to quit.
+pub(crate) async fn stop(repo: Option<PathBuf>) -> Result<ExitCode> {
+    let (addr, token) = daemon_access(&repo_or_current(repo)?)?;
+    let response = reqwest::Client::new()
+        .post(format!("http://{addr}/api/quit"))
+        .bearer_auth(token)
+        .json(&serde_json::json!({}))
+        .send()
+        .await
+        .context("could not reach the daemon")?;
+    if !response.status().is_success() {
+        bail!("the daemon refused: {}", response.status());
     }
-    let _ = std::fs::remove_file(addr_file(&repo));
+    println!("Sentinel is stopping.");
     Ok(ExitCode::SUCCESS)
 }
 

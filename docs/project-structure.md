@@ -27,6 +27,7 @@ sentinel/
   site/                   the GitHub Pages how-to site (mdBook project)
   .github/                workflows, including the Pages deploy
   xtask/                  repo automation (checks, build helpers)
+  packaging/              the macOS app bundle and disk image for releases
   crates/                 all Rust crates
   fixtures/               sample repo and sample backlog for tests and the dry run
   tests/                  end-to-end tests
@@ -361,6 +362,7 @@ crates/sentinel-daemon/
   src/plan_phase.rs                    The first phase of a run: read the backlog, plan it, settle contradictions, and mark which
   src/prompt.rs                        The text each worker gets. Rules go in the prompt as guidance; the guard enforces the real
   src/pumps.rs                         Two small background jobs of a run: the write guard's events become stream events, and the
+  src/quit.rs                          A way to stop the daemon from the UI. The app has no terminal, so Ctrl+C is not there
   src/report_build.rs                  Build the honest report from what the store knows, and write `.sentinel/report.md`
   src/resume.rs                        Crash resume. A run that stopped without finishing keeps its tasks in the store. The next
   src/reviewer.rs                      Who reviews a task's diff. A different agent gives the real review. Without one (fake mode, or
@@ -417,6 +419,7 @@ crates/sentinel-daemon/
 ```
 crates/sentinel-cli/
   Cargo.toml                           manifest
+  src/app.rs                           router and layout
   src/commands.rs                      run, scan, pair, report, doctor
   src/doctor_host.rs                   The host checks of `sentinel doctor` (P14-06, `docs/product-scope.md` F21). Each row says
   src/main.rs                          entry
@@ -466,6 +469,7 @@ crates/sentinel-ui/
   src/components/blocked_write_card.rs A write to a file the task had not reserved. Sentinel blocks it and puts the file back
   src/components/board_column.rs       `BoardColumn`: one status group on the Board, with its heading and cards
   src/components/brain_chip.rs         The Brain chip: shows the Brain mode and opens the Brain menu
+  src/components/brief_card.rs         `BriefCard`: one brief in "Latest briefs" on the Routines page. The body keeps its line breaks
   src/components/budget_banner.rs      The budget banner: a warn notice at 70 percent of the cap, a danger notice at 95 percent
   src/components/budget_form.rs        The Agents and tools page, the Budget page, and the routing choices they share. The cap can only
   src/components/care_settings.rs      `CareSettings`: the care schedule, the budget per run, the switch that lets care apply changes
@@ -520,6 +524,8 @@ crates/sentinel-ui/
   src/components/repo_file_picker.rs   `PickerDialog`: the add dialogs for files, a folder, and a backlog file. The "This project" tab
   src/components/report_card.rs        The report card: counts by status from the snapshot, and buttons to the Report and the Brain
   src/components/reserved_row.rs       `ReservedRow`: one file path, the task that holds it, and the queue of waiting tasks
+  src/components/routine_editor.rs     `RoutineEditor`: the dialog body that adds a reminder or edits one (`docs/product-scope.md`,
+  src/components/routine_row.rs        `RoutineRow`: one routine on the Routines page (`docs/product-scope.md`, F25). On a phone a
   src/components/sidebar.rs            `Sidebar`: the run list grouped by repository, the New run button, search, and the footer
   src/components/slash_menu.rs         The command list under the composer. The arrow keys and Tab are handled by the composer, which
   src/components/status_badge.rs       `StatusBadge`: a shape, a color, and a label together, so state is never color alone
@@ -548,6 +554,7 @@ crates/sentinel-ui/
   src/main.rs                          mount
   src/palette.rs                       Command palette items and the search over them. The overlay is `components/command_palette.rs`
   src/prefs.rs                         appearance preferences and token overrides, stored per device
+  src/routines.rs                      Routines: jobs that run at a set time, such as the Morning brief (`docs/product-scope.md`, F25)
   src/slash.rs                         Slash commands. One parser and one list. Each command maps to one API route in `composer.rs`,
   src/state.rs                         client state from snapshot and events
   src/telegram.rs                      Telegram settings and activity: the pure rules the card and the panel share, and the calls to
@@ -583,6 +590,7 @@ crates/sentinel-ui/
   src/views/remote_tailscale.rs        The Tailscale half of the Remote panel: the three checks on this computer, the setup steps
   src/views/report.rs                  The Report panel: the honest per-task report, reasons for tasks not done, and an export
   src/views/reserved.rs                The Reserved panel: which task holds each file, and who waits (`docs/ui-rules.md`, Views)
+  src/views/routines_page.rs           The Routines page of Settings (`docs/product-scope.md`, F25): the routines, the add button, the
   src/views/settings.rs                The Settings modal (`docs/ui-rules.md`, Views: Settings). The overlay frame is
   src/views/settings_pages.rs          Settings pages: General (repository and wake lock) and Brain. The other pages live in
   src/views/stream.rs                  The stream: the run's items in order, built from the snapshot. The view follows the newest
@@ -619,6 +627,15 @@ crates/sentinel-mcp/
   tests/mcp/main.rs                    Integration tests for the MCP server: the protocol, the file tools, and the Brain tools
   tests/mcp/protocol.rs                file
   tests/mcp/support.rs                 Helpers shared by the test modules: run the server over lines and read the replies
+```
+
+## packaging/
+
+```
+packaging/
+  macos/Info.plist.in     the app's Info.plist, with the version and build number filled in
+  macos/build-app.sh      builds Sentinel.app from the release binary and signs it
+  macos/make-dmg.sh       puts the app in Sentinel.dmg with an Applications shortcut and signs it
 ```
 
 ## fixtures/ and tests/

@@ -146,6 +146,7 @@ pub const ROUTES: &[Route] = &[
         r#"{"frequency":{"every":"off"},"budget":"1.00","auto_apply":false,"last_run":null}"#,
     ),
     Route::post("/api/brain/care/run", Access::Computer),
+    Route::post("/api/quit", Access::Computer),
     Route::get("/api/routines", Access::Any),
     Route::post("/api/routines", Access::Computer).json(
         r#"{"name":"Standup","kind":"reminder","minute_of_day":540,"days":31,"text":"Plan"}"#,

@@ -1,6 +1,7 @@
 //! The `sentinel` command: start the daemon, run a backlog from the terminal, and look at the
 //! environment.
 
+mod app;
 mod commands;
 mod doctor_host;
 mod serve;
@@ -19,8 +20,9 @@ use clap::{Parser, Subcommand};
     about = "Run many coding agents in one shared working tree."
 )]
 struct Cli {
+    /// With no command, the macOS app starts itself (`sentinel app`), and a terminal shows help.
     #[command(subcommand)]
-    command: Command,
+    command: Option<Command>,
 }
 
 #[derive(Subcommand)]
@@ -97,6 +99,16 @@ enum Command {
         #[command(subcommand)]
         action: KeysCommand,
     },
+    /// What the macOS app runs: pick a project, serve it on this computer, and open the UI.
+    App {
+        #[arg(long)]
+        repo: Option<PathBuf>,
+    },
+    /// Stop the running daemon.
+    Stop {
+        #[arg(long)]
+        repo: Option<PathBuf>,
+    },
     /// Serve the file and Brain tools over stdio for an agent. Agent CLIs start it; no need to run it by hand.
     Mcp,
 }
@@ -131,13 +143,31 @@ enum KeysCommand {
 
 #[tokio::main]
 async fn main() -> ExitCode {
-    match dispatch(Cli::parse().command).await {
+    let Some(command) = Cli::parse().command.or_else(default_command) else {
+        return show_help();
+    };
+    match dispatch(command).await {
         Ok(code) => code,
         Err(error) => {
             eprintln!("error: {error:#}");
             ExitCode::from(2)
         }
     }
+}
+
+/// Finder starts an app with no arguments. Inside a `.app` bundle that means: open Sentinel.
+fn default_command() -> Option<Command> {
+    let exe = std::env::current_exe().ok()?;
+    exe.to_string_lossy()
+        .contains(".app/Contents/MacOS/")
+        .then_some(Command::App { repo: None })
+}
+
+fn show_help() -> ExitCode {
+    // Help goes to the terminal. A failure to print it has nowhere to be reported.
+    let _ = <Cli as clap::CommandFactory>::command().print_help();
+    println!();
+    ExitCode::from(2)
 }
 
 async fn dispatch(command: Command) -> anyhow::Result<ExitCode> {
@@ -152,6 +182,8 @@ async fn dispatch(command: Command) -> anyhow::Result<ExitCode> {
         Command::Doctor { repo } => commands::doctor(repo).await,
         Command::Report { repo, writeup } => commands::report(repo, writeup),
         Command::Mcp => commands::mcp().await,
+        Command::App { repo } => app::app(repo).await,
+        Command::Stop { repo } => serve::stop(repo).await,
         other @ (Command::Daemon { .. }
         | Command::Open { .. }
         | Command::Pair { .. }
@@ -203,7 +235,9 @@ async fn dispatch_serve(command: Command) -> anyhow::Result<ExitCode> {
         | Command::Scan { .. }
         | Command::Doctor { .. }
         | Command::Report { .. }
-        | Command::Mcp => {
+        | Command::Mcp
+        | Command::App { .. }
+        | Command::Stop { .. } => {
             unreachable!("handled by dispatch")
         }
     }

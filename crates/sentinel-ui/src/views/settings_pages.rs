@@ -15,6 +15,7 @@ use crate::components::status_badge::shape_markup;
 use crate::components::toggle::Toggle;
 use crate::components::top_bar::settle;
 use crate::components::tour_menu::TourMenu;
+use crate::layout::Layout;
 use crate::state::{Modal, ToastKind, Ui, use_ui};
 use crate::views::brain_settings::BrainSettings;
 use crate::views::settings::Field;
@@ -42,6 +43,7 @@ pub fn GeneralPage() -> impl IntoView {
         <p class="lead">"Where Sentinel works and how it starts."</p>
         <RepositoryField />
         <WakeLockField />
+        <QuitField />
         <Field label="Product tour" hint="Seven stops through the sidebar, panels, and permissions.">
             <TourMenu />
         </Field>
@@ -191,6 +193,30 @@ fn WakeLockField() -> impl IntoView {
             <Toggle checked=on on_change=Callback::new(move |next: bool| set_wake_lock(on, next)) />
         </Field>
     }
+}
+
+/// Stops the daemon. The app has no terminal, so this is how the owner switches Sentinel off.
+#[component]
+fn QuitField() -> impl IntoView {
+    let ui = use_ui();
+    let phone = move || ui.layout.get() == Layout::Phone;
+    view! {
+        <Field label="Quit Sentinel" hint="Stops the daemon on this computer. Runs, routines, and Telegram stop with it.">
+            <button class="btn dng" disabled=phone title=move || if phone() { "Needs the computer" } else { "" }
+                on:click=move |_| quit(ui)>
+                "Quit"
+            </button>
+        </Field>
+    }
+}
+
+fn quit(ui: Ui) {
+    spawn_local(async move {
+        let result = api::post_empty::<serde_json::Value>("/api/quit").await;
+        if let Err(failure) = result {
+            ui.show_toast(failure.to_string(), ToastKind::Danger);
+        }
+    });
 }
 
 fn load_wake_lock() -> bool {

@@ -227,6 +227,15 @@ pub fn exclude_sentinel_folder(repo: &Path) {
     let _ = fs::write(&exclude, text);
 }
 
+/// A plain message box, for a program that has no terminal to print to.
+pub fn alert(text: &str) {
+    rfd::MessageDialog::new()
+        .set_title("Sentinel")
+        .set_description(text)
+        .set_level(rfd::MessageLevel::Warning)
+        .show();
+}
+
 pub fn pick_native(start: Option<&Path>) -> Option<PathBuf> {
     let mut dialog = rfd::FileDialog::new();
     if let Some(start) = start {

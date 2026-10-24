@@ -83,6 +83,8 @@ pub(crate) struct Inner {
     pub(crate) brain: Mutex<Option<Arc<BrainState>>>,
     /// True on an always-on host: no native dialogs.
     pub headless: std::sync::atomic::AtomicBool,
+    /// Set when the owner asks the daemon to stop (`POST /api/quit`).
+    pub quit: tokio::sync::Notify,
     /// When this daemon started.
     pub started: OffsetDateTime,
 }
@@ -119,6 +121,7 @@ impl Engine {
                 live: Mutex::new(LiveRun::default()),
                 brain: Mutex::new(None),
                 headless: std::sync::atomic::AtomicBool::new(false),
+                quit: tokio::sync::Notify::new(),
                 started: OffsetDateTime::now_utc(),
             }),
         };

@@ -1,2 +1,6 @@
 [alias]
 xtask = "run --quiet --package xtask --"
+
+# Build output grew past 60 GB on a laptop. Incremental caches and full debug info are the bulk of it.
+[build]
+incremental = false
