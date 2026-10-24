@@ -1,11 +1,5 @@
 //! Task graph with cycle detection, topological order, and ready tasks.
 
-#![allow(clippy::too_many_lines)]
-#![allow(clippy::unwrap_used)]
-#![allow(clippy::too_many_arguments)]
-#![allow(clippy::items_after_statements)]
-#![allow(clippy::doc_markdown)]
-
 use std::collections::{HashMap, HashSet};
 
 use crate::{PlanError, Result};
@@ -14,8 +8,8 @@ use petgraph::graph::{DiGraph, NodeIndex};
 use petgraph::visit::EdgeRef;
 use sentinel_core::{Dependency, DependencyKind, Task, TaskId};
 
-/// Task graph using petgraph DiGraph.
-/// Nodes are TaskIds, edges are dependencies with kind.
+/// Task graph using petgraph `DiGraph`.
+/// Nodes are `TaskId`s, edges are dependencies with kind.
 #[derive(Debug)]
 pub struct TaskGraph {
     graph: DiGraph<TaskId, DependencyKind>,
@@ -25,8 +19,8 @@ pub struct TaskGraph {
 
 impl TaskGraph {
     /// Create a new task graph from tasks and dependencies.
-    /// Returns UnknownTask if a dependency names a missing task.
-    /// Returns Cycle with the task ids on the cycle if one exists.
+    /// Returns `UnknownTask` if a dependency names a missing task.
+    /// Returns `Cycle` with the task ids on the cycle if one exists.
     pub fn new(tasks: &[Task], deps: &[Dependency]) -> Result<TaskGraph> {
         let mut graph = DiGraph::new();
         let mut node_map = HashMap::new();
@@ -52,8 +46,7 @@ impl TaskGraph {
 
         // Check for cycles
         if let Err(cycle) = toposort(&graph, None) {
-            let cycle_node = cycle.node_id();
-            let cycle_ids = extract_cycle_ids(&graph, cycle_node, &node_map);
+            let cycle_ids = extract_cycle_ids(&graph, cycle.node_id());
             return Err(PlanError::Cycle(cycle_ids));
         }
 
@@ -66,86 +59,31 @@ impl TaskGraph {
 
     /// Return a topological order, ties broken by the original task order.
     pub fn order(&self) -> Vec<TaskId> {
-        // We need a stable topological sort that respects task_order for ties.
-        // petgraph's toposort doesn't guarantee stability, so we implement our own.
-        let mut in_degree: HashMap<NodeIndex, usize> = HashMap::new();
-        for node in self.graph.node_indices() {
-            in_degree.insert(node, 0);
-        }
-        for edge in self.graph.edge_references() {
-            *in_degree.get_mut(&edge.target()).unwrap() += 1;
-        }
-
-        // Use a priority queue based on task_order index
+        // petgraph's toposort does not keep task order for ties, so Kahn's
+        // algorithm runs here with a sorted ready list.
         let order_index: HashMap<&TaskId, usize> = self
             .task_order
             .iter()
             .enumerate()
             .map(|(i, id)| (id, i))
             .collect();
-
-        let mut ready: Vec<NodeIndex> = in_degree
-            .iter()
-            .filter(|&(_, &deg)| deg == 0)
-            .map(|(&node, _)| node)
+        let mut in_degree = self.in_degrees();
+        let mut ready: Vec<NodeIndex> = self
+            .graph
+            .node_indices()
+            .filter(|node| in_degree[node.index()] == 0)
             .collect();
+        self.sort_by_task_order(&mut ready, &order_index);
 
-        // Sort ready nodes by task_order (lowest index first)
-        ready.sort_by_key(|&n| {
-            order_index
-                .get(self.graph.node_weight(n).unwrap())
-                .copied()
-                .unwrap_or(usize::MAX)
-        });
-
-        let mut result = Vec::new();
-        while let Some(node) = ready.first().copied() {
-            ready.remove(0);
-            let task_id = self.graph.node_weight(node).unwrap().clone();
-            result.push(task_id);
-
-            let mut newly_ready = Vec::new();
-            for edge in self.graph.edges(node) {
-                let target = edge.target();
-                let deg = in_degree.get_mut(&target).unwrap();
-                *deg -= 1;
-                if *deg == 0 {
-                    newly_ready.push(target);
-                }
+        let mut result = Vec::with_capacity(self.graph.node_count());
+        while !ready.is_empty() {
+            let node = ready.remove(0);
+            if let Some(id) = self.graph.node_weight(node) {
+                result.push(id.clone());
             }
-            // Sort newly ready by task_order and merge with ready, keeping sorted order
-            newly_ready.sort_by_key(|&n| {
-                order_index
-                    .get(self.graph.node_weight(n).unwrap())
-                    .copied()
-                    .unwrap_or(usize::MAX)
-            });
-            // Merge two sorted vectors
-            let mut merged = Vec::with_capacity(ready.len() + newly_ready.len());
-            let mut i = 0;
-            let mut j = 0;
-            while i < ready.len() && j < newly_ready.len() {
-                let ri = order_index
-                    .get(self.graph.node_weight(ready[i]).unwrap())
-                    .copied()
-                    .unwrap_or(usize::MAX);
-                let nj = order_index
-                    .get(self.graph.node_weight(newly_ready[j]).unwrap())
-                    .copied()
-                    .unwrap_or(usize::MAX);
-                if ri <= nj {
-                    merged.push(ready[i]);
-                    i += 1;
-                } else {
-                    merged.push(newly_ready[j]);
-                    j += 1;
-                }
-            }
-            merged.extend_from_slice(&ready[i..]);
-            merged.extend_from_slice(&newly_ready[j..]);
-            ready = merged;
+            ready.extend(self.release_dependents(node, &mut in_degree));
+            self.sort_by_task_order(&mut ready, &order_index);
         }
-
         result
     }
 
@@ -156,11 +94,17 @@ impl TaskGraph {
             if done.contains(task_id) {
                 continue;
             }
-            let node = self.node_map[task_id];
+            let Some(&node) = self.node_map.get(task_id) else {
+                continue;
+            };
             let all_deps_done = self
                 .graph
                 .edges_directed(node, petgraph::Direction::Incoming)
-                .all(|e| done.contains(self.graph.node_weight(e.source()).unwrap()));
+                .all(|e| {
+                    self.graph
+                        .node_weight(e.source())
+                        .is_some_and(|id| done.contains(id))
+                });
             if all_deps_done {
                 ready.push(task_id.clone());
             }
@@ -170,68 +114,99 @@ impl TaskGraph {
 
     /// Return tasks that depend on the given task (direct dependents).
     pub fn dependents_of(&self, id: &TaskId) -> Vec<TaskId> {
-        let node = match self.node_map.get(id) {
-            Some(n) => *n,
-            None => return Vec::new(),
+        let Some(&node) = self.node_map.get(id) else {
+            return Vec::new();
         };
         self.graph
             .edges_directed(node, petgraph::Direction::Outgoing)
-            .map(|e| self.graph.node_weight(e.target()).unwrap().clone())
+            .filter_map(|e| self.graph.node_weight(e.target()).cloned())
+            .collect()
+    }
+
+    /// Number of incoming edges per node, indexed by `NodeIndex::index`.
+    fn in_degrees(&self) -> Vec<usize> {
+        let mut in_degree = vec![0; self.graph.node_count()];
+        for edge in self.graph.edge_references() {
+            in_degree[edge.target().index()] += 1;
+        }
+        in_degree
+    }
+
+    /// Remove one incoming edge from each dependent of `node`.
+    /// Returns the dependents that have no edges left.
+    fn release_dependents(&self, node: NodeIndex, in_degree: &mut [usize]) -> Vec<NodeIndex> {
+        let mut released = Vec::new();
+        for edge in self.graph.edges(node) {
+            let target = edge.target();
+            in_degree[target.index()] -= 1;
+            if in_degree[target.index()] == 0 {
+                released.push(target);
+            }
+        }
+        released
+    }
+
+    fn sort_by_task_order(&self, ready: &mut [NodeIndex], order_index: &HashMap<&TaskId, usize>) {
+        ready.sort_by_key(|&node| self.task_rank(node, order_index));
+    }
+
+    fn task_rank(&self, node: NodeIndex, order_index: &HashMap<&TaskId, usize>) -> usize {
+        self.graph
+            .node_weight(node)
+            .and_then(|id| order_index.get(id))
+            .copied()
+            .unwrap_or(usize::MAX)
+    }
+}
+
+/// Depth-first search for a cycle that passes through `start`.
+struct CycleSearch<'a> {
+    graph: &'a DiGraph<TaskId, DependencyKind>,
+    start: NodeIndex,
+    visited: HashSet<NodeIndex>,
+    path: Vec<NodeIndex>,
+}
+
+impl CycleSearch<'_> {
+    fn visit(&mut self, node: NodeIndex) -> Option<Vec<TaskId>> {
+        self.visited.insert(node);
+        self.path.push(node);
+        let graph = self.graph;
+        for target in graph.edges(node).map(|edge| edge.target()) {
+            if let Some(cycle) = self.follow(target) {
+                return Some(cycle);
+            }
+        }
+        self.path.pop();
+        None
+    }
+
+    fn follow(&mut self, target: NodeIndex) -> Option<Vec<TaskId>> {
+        if !self.visited.contains(&target) {
+            return self.visit(target);
+        }
+        if target == self.start && self.path.len() > 1 {
+            return Some(self.path_ids());
+        }
+        None
+    }
+
+    fn path_ids(&self) -> Vec<TaskId> {
+        self.path
+            .iter()
+            .filter_map(|node| self.graph.node_weight(*node).cloned())
             .collect()
     }
 }
 
-fn extract_cycle_ids(
-    graph: &DiGraph<TaskId, DependencyKind>,
-    start: NodeIndex,
-    _node_map: &HashMap<TaskId, NodeIndex>,
-) -> Vec<TaskId> {
-    // Use DFS to find a cycle path from start back to start
-    let mut visited = HashSet::new();
-    let mut path = Vec::new();
-    let mut cycle = Vec::new();
-
-    fn dfs(
-        graph: &DiGraph<TaskId, DependencyKind>,
-        node: NodeIndex,
-        start: NodeIndex,
-        visited: &mut HashSet<NodeIndex>,
-        path: &mut Vec<NodeIndex>,
-        cycle: &mut Vec<TaskId>,
-    ) -> bool {
-        visited.insert(node);
-        path.push(node);
-
-        if node == start && path.len() > 1 {
-            // Found cycle
-            *cycle = path
-                .iter()
-                .map(|n| graph.node_weight(*n).unwrap().clone())
-                .collect();
-            return true;
-        }
-
-        for edge in graph.edges(node) {
-            if !visited.contains(&edge.target()) {
-                if dfs(graph, edge.target(), start, visited, path, cycle) {
-                    return true;
-                }
-            } else if edge.target() == start && path.len() > 1 {
-                // Found cycle back to start
-                *cycle = path
-                    .iter()
-                    .map(|n| graph.node_weight(*n).unwrap().clone())
-                    .collect();
-                return true;
-            }
-        }
-
-        path.pop();
-        false
-    }
-
-    dfs(graph, start, start, &mut visited, &mut path, &mut cycle);
-    cycle
+fn extract_cycle_ids(graph: &DiGraph<TaskId, DependencyKind>, start: NodeIndex) -> Vec<TaskId> {
+    let mut search = CycleSearch {
+        graph,
+        start,
+        visited: HashSet::new(),
+        path: Vec::new(),
+    };
+    search.visit(start).unwrap_or_default()
 }
 
 #[cfg(test)]

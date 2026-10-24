@@ -1,20 +1,18 @@
 //! Planner contract: request/response, prompt, validation, backends.
 
-#![allow(clippy::too_many_lines)]
-#![allow(clippy::format_push_string)]
-#![allow(clippy::single_char_add_str)]
-#![allow(clippy::uninlined_format_args)]
-#![allow(clippy::manual_string_new)]
-#![allow(clippy::wildcard_enum_match_arm)]
-
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 
-use crate::{PlanError, Result, backlog::BacklogItem, graph::TaskGraph};
+use crate::{PlanError, Result, backlog::BacklogItem};
 use futures::FutureExt;
 use sentinel_core::{Dependency, DependencyKind, Scope, Task, TaskFlags, TaskId, Tier};
 use serde::{Deserialize, Serialize};
+
+/// Bodies shorter than this many bytes plan at the cheap tier.
+const CHEAP_BODY_BYTES: usize = 200;
+/// Bodies shorter than this many bytes plan at the mid tier.
+const MID_BODY_BYTES: usize = 600;
 
 /// Request sent to the planner backend.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -54,33 +52,7 @@ pub trait PlannerBackend: Send + Sync {
     ) -> Pin<Box<dyn Future<Output = Result<Plan>> + Send + 'a>>;
 }
 
-/// Generate the prompt for the planner model.
-pub fn planner_prompt(request: &PlanRequest) -> String {
-    let mut prompt = String::new();
-    prompt.push_str("You are a task planner for Sentinel, a multi-agent coding system.\n");
-    prompt.push_str("Given a backlog and a list of repository files, produce a JSON plan.\n\n");
-
-    prompt.push_str("Repository files:\n");
-    for f in &request.repo_files {
-        prompt.push_str(&format!("  {}\n", f));
-    }
-    prompt.push_str("\n");
-
-    prompt.push_str("Backlog tasks:\n");
-    for item in &request.items {
-        prompt.push_str(&format!("  {}: {}\n", item.id, item.title));
-        if !item.body.is_empty() {
-            prompt.push_str(&format!("    Body: {}\n", item.body));
-        }
-        if item.claims_done {
-            prompt.push_str("    (claims_done: true)\n");
-        }
-    }
-    prompt.push_str("\n");
-
-    prompt.push_str("Output ONE JSON object with this shape (no prose, no code fences):\n");
-    prompt.push_str(
-        r#"{
+const PLAN_SHAPE: &str = r#"{
   "tasks": [
     {
       "id": "T-01",
@@ -92,222 +64,144 @@ pub fn planner_prompt(request: &PlanRequest) -> String {
       "contradicts": []
     }
   ]
-}"#,
-    );
-    prompt.push_str("\n\nRules:\n");
-    prompt.push_str("- Every backlog item must have exactly one planned task.\n");
-    prompt.push_str("- Scope entries are non-empty relative paths without '..'.\n");
-    prompt.push_str("- depends_on, read_after_write, contradicts name known task ids and never the task itself.\n");
-    prompt.push_str("- No dependency cycles.\n");
-    prompt.push_str("- Tier is one of: cheap, mid, smart.\n");
-    prompt.push_str("- If a task claims done, set already_done to true.\n");
-    prompt.push_str(
-        "- Two tasks with identical titles (ignoring case) should contradict each other.\n",
-    );
+}"#;
 
+const PLANNER_RULES: [&str; 7] = [
+    "Every backlog item must have exactly one planned task.",
+    "Scope entries are non-empty relative paths without '..'.",
+    "depends_on, read_after_write, contradicts name known task ids and never the task itself.",
+    "No dependency cycles.",
+    "Tier is one of: cheap, mid, smart.",
+    "If a task claims done, set already_done to true.",
+    "Two tasks with identical titles (ignoring case) should contradict each other.",
+];
+
+/// Generate the prompt for the planner model.
+pub fn planner_prompt(request: &PlanRequest) -> String {
+    let mut prompt = String::new();
+    prompt.push_str("You are a task planner for Sentinel, a multi-agent coding system.\n");
+    prompt.push_str("Given a backlog and a list of repository files, produce a JSON plan.\n\n");
+    push_repo_files(&mut prompt, &request.repo_files);
+    push_backlog(&mut prompt, &request.items);
+
+    prompt.push_str("Output ONE JSON object with this shape (no prose, no code fences):\n");
+    prompt.push_str(PLAN_SHAPE);
+    prompt.push_str("\n\nRules:\n");
+    for rule in PLANNER_RULES {
+        prompt.push_str("- ");
+        prompt.push_str(rule);
+        prompt.push('\n');
+    }
     prompt
+}
+
+fn push_line(prompt: &mut String, line: &str) {
+    prompt.push_str(line);
+    prompt.push('\n');
+}
+
+fn push_repo_files(prompt: &mut String, repo_files: &[String]) {
+    prompt.push_str("Repository files:\n");
+    for file in repo_files {
+        push_line(prompt, &format!("  {file}"));
+    }
+    prompt.push('\n');
+}
+
+fn push_backlog(prompt: &mut String, items: &[BacklogItem]) {
+    prompt.push_str("Backlog tasks:\n");
+    for item in items {
+        push_line(prompt, &format!("  {}: {}", item.id, item.title));
+        if !item.body.is_empty() {
+            push_line(prompt, &format!("    Body: {}", item.body));
+        }
+        if item.claims_done {
+            push_line(prompt, "    (claims_done: true)");
+        }
+    }
+    prompt.push('\n');
 }
 
 /// Parse a JSON plan from model output (may be wrapped in prose or code fences).
 pub fn parse_plan_json(text: &str, request: &PlanRequest) -> Result<Plan> {
-    // Find the first JSON object in the text
-    let json_start = text
-        .find('{')
-        .ok_or_else(|| PlanError::Parse("no JSON object found".to_string()))?;
-
-    // Find the matching closing brace
-    let mut depth = 0;
-    let mut json_end = None;
-    for (i, ch) in text[json_start..].char_indices() {
-        match ch {
-            '{' => depth += 1,
-            '}' => {
-                depth -= 1;
-                if depth == 0 {
-                    json_end = Some(json_start + i + 1);
-                    break;
-                }
-            }
-            _ => {}
-        }
-    }
-
-    let json_end = json_end.ok_or_else(|| PlanError::Parse("unclosed JSON object".to_string()))?;
-    let json_text = &text[json_start..json_end];
-
+    let json_text = first_json_object(text)?;
     let plan: Plan = serde_json::from_str(json_text)?;
     validate_plan(&plan, request)?;
     Ok(plan)
 }
 
-/// Validate a plan against the request.
-pub fn validate_plan(plan: &Plan, request: &PlanRequest) -> Result<()> {
-    // Check every backlog item has exactly one planned task
-    let item_ids: HashSet<&TaskId> = request.items.iter().map(|i| &i.id).collect();
-    let mut seen_ids = HashSet::new();
+/// The first `{ ... }` block in `text`, braces matched.
+fn first_json_object(text: &str) -> Result<&str> {
+    let start = text
+        .find('{')
+        .ok_or_else(|| PlanError::Parse("no JSON object found".to_string()))?;
+    let len = object_len(&text[start..])
+        .ok_or_else(|| PlanError::Parse("unclosed JSON object".to_string()))?;
+    Ok(&text[start..start + len])
+}
 
-    for pt in &plan.tasks {
-        if !item_ids.contains(&pt.id) {
-            return Err(PlanError::Parse(format!(
-                "plan contains unknown task: {}",
-                pt.id
-            )));
-        }
-        if !seen_ids.insert(&pt.id) {
-            return Err(PlanError::Parse(format!(
-                "duplicate planned task: {}",
-                pt.id
-            )));
-        }
-
-        // Check self-dependencies
-        if pt.depends_on.contains(&pt.id)
-            || pt.read_after_write.contains(&pt.id)
-            || pt.contradicts.contains(&pt.id)
-        {
-            return Err(PlanError::Parse(format!(
-                "task {} depends on itself",
-                pt.id
-            )));
-        }
-
-        // Check dependencies name known tasks
-        for dep in &pt.depends_on {
-            if !item_ids.contains(dep) {
-                return Err(PlanError::Parse(format!(
-                    "task {} depends on unknown task {}",
-                    pt.id, dep
-                )));
-            }
-        }
-        for dep in &pt.read_after_write {
-            if !item_ids.contains(dep) {
-                return Err(PlanError::Parse(format!(
-                    "task {} has read_after_write to unknown task {}",
-                    pt.id, dep
-                )));
-            }
-        }
-        for c in &pt.contradicts {
-            if !item_ids.contains(c) {
-                return Err(PlanError::Parse(format!(
-                    "task {} contradicts unknown task {}",
-                    pt.id, c
-                )));
-            }
-        }
-
-        // Validate scope entries
-        for scope_path in &pt.scope {
-            if scope_path.is_empty() {
-                return Err(PlanError::InvalidScope("empty scope path".to_string()));
-            }
-            if scope_path.contains("..") {
-                return Err(PlanError::InvalidScope(format!(
-                    "scope path contains '..': {}",
-                    scope_path
-                )));
-            }
-            if scope_path.starts_with('/') {
-                return Err(PlanError::InvalidScope(format!(
-                    "scope path is absolute: {}",
-                    scope_path
-                )));
-            }
+/// Byte length of the object at the start of `text`, which must begin with `{`.
+fn object_len(text: &str) -> Option<usize> {
+    let mut depth = 0usize;
+    for (i, ch) in text.char_indices() {
+        depth = match ch {
+            '{' => depth + 1,
+            '}' => depth - 1,
+            _ => depth,
+        };
+        if ch == '}' && depth == 0 {
+            return Some(i + 1);
         }
     }
+    None
+}
 
-    // Check no missing tasks
-    for item in &request.items {
-        if !seen_ids.contains(&item.id) {
-            return Err(PlanError::Parse(format!(
-                "backlog item {} missing from plan",
-                item.id
-            )));
-        }
-    }
+pub use crate::plan_check::validate_plan;
 
-    // Check for cycles using TaskGraph
-    let tasks: Vec<Task> = plan
-        .tasks
-        .iter()
-        .map(|pt| {
-            let mut task = Task::new(pt.id.clone(), "".to_string(), "".to_string());
-            task.tier = pt.tier;
-            task
-        })
-        .collect();
-
-    let deps: Vec<Dependency> = plan
-        .tasks
-        .iter()
-        .flat_map(|pt| {
-            pt.depends_on
-                .iter()
-                .map(move |d| Dependency {
-                    task: pt.id.clone(),
-                    depends_on: d.clone(),
-                    kind: DependencyKind::Order,
-                })
-                .chain(pt.read_after_write.iter().map(move |d| Dependency {
-                    task: pt.id.clone(),
-                    depends_on: d.clone(),
-                    kind: DependencyKind::ReadAfterWrite,
-                }))
-        })
-        .collect();
-
-    TaskGraph::new(&tasks, &deps).map_err(|e| match e {
-        PlanError::Cycle(ids) => PlanError::Parse(format!("dependency cycle: {:?}", ids)),
-        other => other,
-    })?;
-
-    Ok(())
+/// Order edges, then read-after-write edges, for one planned task.
+pub(crate) fn dependencies_of(pt: &PlannedTask) -> impl Iterator<Item = Dependency> + '_ {
+    let ordered = pt.depends_on.iter().map(move |dep| Dependency {
+        task: pt.id.clone(),
+        depends_on: dep.clone(),
+        kind: DependencyKind::Order,
+    });
+    let raw = pt.read_after_write.iter().map(move |dep| Dependency {
+        task: pt.id.clone(),
+        depends_on: dep.clone(),
+        kind: DependencyKind::ReadAfterWrite,
+    });
+    ordered.chain(raw)
 }
 
 /// Build sentinel-core Task and Dependency from a validated plan.
 pub fn build_tasks(request: &PlanRequest, plan: &Plan) -> Result<(Vec<Task>, Vec<Dependency>)> {
-    let mut tasks = Vec::new();
-    let mut deps = Vec::new();
-
     let item_map: HashMap<&TaskId, &BacklogItem> =
         request.items.iter().map(|i| (&i.id, i)).collect();
 
-    for pt in &plan.tasks {
-        let item = item_map
-            .get(&pt.id)
-            .ok_or_else(|| PlanError::UnknownTask(pt.id.to_string()))?;
-
-        let scope =
-            Scope::from_paths(&pt.scope).map_err(|e| PlanError::InvalidScope(e.to_string()))?;
-
-        let mut task = Task::new(pt.id.clone(), item.title.clone(), item.body.clone());
-        task.status = sentinel_core::TaskStatus::Planned;
-        task.tier = pt.tier;
-        task.scope = scope;
-        task.flags = TaskFlags {
-            already_done: pt.already_done,
-            contradicts: pt.contradicts.clone(),
-        };
-        tasks.push(task);
-
-        for dep in &pt.depends_on {
-            deps.push(Dependency {
-                task: pt.id.clone(),
-                depends_on: dep.clone(),
-                kind: DependencyKind::Order,
-            });
-        }
-        for dep in &pt.read_after_write {
-            deps.push(Dependency {
-                task: pt.id.clone(),
-                depends_on: dep.clone(),
-                kind: DependencyKind::ReadAfterWrite,
-            });
-        }
-    }
-
+    let tasks = plan
+        .tasks
+        .iter()
+        .map(|pt| build_task(&item_map, pt))
+        .collect::<Result<Vec<Task>>>()?;
+    let deps = plan.tasks.iter().flat_map(dependencies_of).collect();
     Ok((tasks, deps))
+}
+
+fn build_task(item_map: &HashMap<&TaskId, &BacklogItem>, pt: &PlannedTask) -> Result<Task> {
+    let item = item_map
+        .get(&pt.id)
+        .ok_or_else(|| PlanError::UnknownTask(pt.id.to_string()))?;
+    let scope = Scope::from_paths(&pt.scope).map_err(|e| PlanError::InvalidScope(e.to_string()))?;
+
+    let mut task = Task::new(pt.id.clone(), item.title.clone(), item.body.clone());
+    task.status = sentinel_core::TaskStatus::Planned;
+    task.tier = pt.tier;
+    task.scope = scope;
+    task.flags = TaskFlags {
+        already_done: pt.already_done,
+        contradicts: pt.contradicts.clone(),
+    };
+    Ok(task)
 }
 
 /// Heuristic planner: no model, used for tests and --fake-agents.
@@ -318,69 +212,77 @@ impl PlannerBackend for HeuristicPlanner {
         &'a self,
         request: &'a PlanRequest,
     ) -> Pin<Box<dyn Future<Output = Result<Plan>> + Send + 'a>> {
-        async move {
-            let mut planned = Vec::new();
-            let mut title_map: HashMap<String, Vec<TaskId>> = HashMap::new();
+        async move { Ok(heuristic_plan(request)) }.boxed()
+    }
+}
 
-            // First pass: collect titles for contradiction detection
-            for item in &request.items {
-                let lower_title = item.title.to_lowercase();
-                title_map
-                    .entry(lower_title)
-                    .or_default()
-                    .push(item.id.clone());
-            }
+fn heuristic_plan(request: &PlanRequest) -> Plan {
+    let contradicts = contradiction_map(&request.items);
+    let tasks = request
+        .items
+        .iter()
+        .map(|item| PlannedTask {
+            id: item.id.clone(),
+            scope: scope_from_text(item, &request.repo_files),
+            depends_on: Vec::new(),
+            read_after_write: Vec::new(),
+            tier: tier_for_body(&item.body),
+            already_done: item.claims_done,
+            contradicts: contradicts.get(&item.id).cloned().unwrap_or_default(),
+        })
+        .collect();
+    Plan { tasks }
+}
 
-            // Find contradicting titles
-            let mut contradicts_map: HashMap<TaskId, Vec<TaskId>> = HashMap::new();
-            for (_, ids) in title_map {
-                if ids.len() > 1 {
-                    for id in &ids {
-                        let mut others = ids.clone();
-                        others.retain(|x| x != id);
-                        contradicts_map.insert(id.clone(), others);
-                    }
-                }
-            }
+/// Every item whose title matches another item's title (ignoring case) contradicts it.
+fn contradiction_map(items: &[BacklogItem]) -> HashMap<TaskId, Vec<TaskId>> {
+    let mut title_map: HashMap<String, Vec<TaskId>> = HashMap::new();
+    for item in items {
+        title_map
+            .entry(item.title.to_lowercase())
+            .or_default()
+            .push(item.id.clone());
+    }
 
-            for item in &request.items {
-                // Scope: repo files whose filename (without extension) appears as a word in title or body
-                let mut scope = Vec::new();
-                let text = format!("{} {}", item.title, item.body).to_lowercase();
-                for file in &request.repo_files {
-                    let file_name = std::path::Path::new(file)
-                        .file_stem()
-                        .and_then(|s| s.to_str())
-                        .unwrap_or("")
-                        .to_lowercase();
-                    if !file_name.is_empty() && text.split_whitespace().any(|w| w == file_name) {
-                        scope.push(file.clone());
-                    }
-                }
-
-                // Tier by body length
-                let tier = if item.body.len() < 200 {
-                    Tier::Cheap
-                } else if item.body.len() < 600 {
-                    Tier::Mid
-                } else {
-                    Tier::Smart
-                };
-
-                planned.push(PlannedTask {
-                    id: item.id.clone(),
-                    scope,
-                    depends_on: Vec::new(),
-                    read_after_write: Vec::new(),
-                    tier,
-                    already_done: item.claims_done,
-                    contradicts: contradicts_map.get(&item.id).cloned().unwrap_or_default(),
-                });
-            }
-
-            Ok(Plan { tasks: planned })
+    let mut contradicts = HashMap::new();
+    for ids in title_map.into_values().filter(|ids| ids.len() > 1) {
+        for id in &ids {
+            let others: Vec<TaskId> = ids.iter().filter(|other| *other != id).cloned().collect();
+            contradicts.insert(id.clone(), others);
         }
-        .boxed()
+    }
+    contradicts
+}
+
+/// Repo files whose name without extension is a word in the item's title or body.
+fn scope_from_text(item: &BacklogItem, repo_files: &[String]) -> Vec<String> {
+    let text = format!("{} {}", item.title, item.body).to_lowercase();
+    let words: Vec<&str> = text.split_whitespace().collect();
+    repo_files
+        .iter()
+        .filter(|file| {
+            let stem = file_stem_lowercase(file);
+            !stem.is_empty() && words.contains(&stem.as_str())
+        })
+        .cloned()
+        .collect()
+}
+
+fn file_stem_lowercase(file: &str) -> String {
+    std::path::Path::new(file)
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .unwrap_or("")
+        .to_lowercase()
+}
+
+fn tier_for_body(body: &str) -> Tier {
+    if body.len() < CHEAP_BODY_BYTES {
+        Tier::Cheap
+    } else if body.len() < MID_BODY_BYTES {
+        Tier::Mid
+    } else {
+        Tier::Smart
     }
 }
 
@@ -574,9 +476,8 @@ That was the plan."#;
         assert!(matches!(err, PlanError::Parse(s) if s.contains("cycle")));
     }
 
-    #[test]
-    fn build_tasks_sets_status_tier_scope_and_dep_kinds() {
-        let plan = Plan {
+    fn fixture_plan() -> Plan {
+        Plan {
             tasks: vec![
                 PlannedTask {
                     id: TaskId::new("T-01"),
@@ -606,8 +507,11 @@ That was the plan."#;
                     contradicts: vec![],
                 },
             ],
-        };
-        let request = make_request(
+        }
+    }
+
+    fn fixture_request() -> PlanRequest {
+        make_request(
             vec![
                 make_item("T-01", "Task 1", "Body 1", true),
                 make_item("T-02", "Task 2", "Body 2", false),
@@ -618,7 +522,13 @@ That was the plan."#;
                 "src/b.rs".to_string(),
                 "src/c.rs".to_string(),
             ],
-        );
+        )
+    }
+
+    #[test]
+    fn build_tasks_sets_status_tier_scope_and_dep_kinds() {
+        let request = fixture_request();
+        let plan = fixture_plan();
         let (tasks, deps) = build_tasks(&request, &plan).unwrap();
 
         assert_eq!(tasks.len(), 3);
