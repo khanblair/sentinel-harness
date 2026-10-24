@@ -49,9 +49,11 @@ fn loaded_lines(engine: &Engine) -> Vec<String> {
         .events_after(0, 100_000)
         .unwrap()
         .into_iter()
-        .filter_map(|record| match record.event {
-            Event::Message { text, .. } if text.starts_with("Brain loaded") => Some(text),
-            _ => None,
+        .filter_map(|record| {
+            let Event::Message { text, .. } = record.event else {
+                return None;
+            };
+            text.starts_with("Brain loaded").then_some(text)
         })
         .collect()
 }
@@ -71,8 +73,10 @@ async fn learn_mode_loads_pinned_notes_and_writes_the_journal() {
     let (_dir, engine) = run_with_mode(BrainMode::Learn, true).await;
 
     let lines = loaded_lines(&engine);
-    assert!(!lines.is_empty(), "the stream says which notes were loaded");
-    assert!(lines[0].contains("1 pinned"), "{lines:?}");
+    let first = lines
+        .first()
+        .expect("the stream says which notes were loaded");
+    assert!(first.contains("1 pinned"), "{lines:?}");
 
     let types = note_types(&engine);
     for wanted in [NoteType::Run, NoteType::Task, NoteType::File] {
@@ -87,7 +91,7 @@ async fn learn_mode_loads_pinned_notes_and_writes_the_journal() {
 async fn read_only_mode_loads_notes_but_writes_no_journal() {
     let (_dir, engine) = run_with_mode(BrainMode::ReadOnly, true).await;
 
-    assert!(!loaded_lines(&engine).is_empty());
+    assert_ne!(loaded_lines(&engine), Vec::<String>::new());
     assert_eq!(note_types(&engine), vec![NoteType::Convention]);
 }
 
@@ -95,6 +99,6 @@ async fn read_only_mode_loads_notes_but_writes_no_journal() {
 async fn off_mode_loads_nothing_and_writes_nothing() {
     let (_dir, engine) = run_with_mode(BrainMode::Off, false).await;
 
-    assert!(loaded_lines(&engine).is_empty());
-    assert!(note_types(&engine).is_empty());
+    assert_eq!(loaded_lines(&engine), Vec::<String>::new());
+    assert_eq!(note_types(&engine), Vec::<NoteType>::new());
 }
