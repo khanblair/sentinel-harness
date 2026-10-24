@@ -20,6 +20,7 @@ pub mod config;
 pub mod connections;
 pub mod controls;
 pub mod doctor;
+mod dry_run;
 pub mod engine;
 pub mod folders;
 pub mod hashing;

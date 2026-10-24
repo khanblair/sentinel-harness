@@ -4,6 +4,7 @@ pub mod api;
 pub mod brain_api;
 pub mod chat;
 pub mod cost;
+pub mod dry_run;
 pub mod error;
 pub mod event;
 pub mod ids;
