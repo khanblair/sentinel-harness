@@ -58,12 +58,12 @@ impl Engine {
                 .lower_cap(new_cap)
                 .map_err(|e| EngineError::Refused(e.to_string()))?;
         }
-        let total = self.total_cost(&self.live_summary().spent)?;
-        self.emit(Event::CostUpdate {
+        let total = self.total_cost(self.live_summary().spent)?;
+        self.emit(&Event::CostUpdate {
             total,
             cap: new_cap,
         })?;
-        self.emit(Event::DeviceAction {
+        self.emit(&Event::DeviceAction {
             device: sentinel_core::DeviceId::new(&caller.name),
             action: format!("lowered the cap to {new_cap}"),
         })?;
@@ -77,7 +77,7 @@ impl Engine {
             ));
         }
         self.update_config(|c| c.permission_mode = mode)?;
-        self.emit(Event::PermissionChanged { mode })?;
+        self.emit(&Event::PermissionChanged { mode })?;
         Ok(())
     }
 
@@ -94,7 +94,7 @@ impl Engine {
             }
         }
         if update.capabilities.is_some() {
-            self.emit(Event::PermissionChanged {
+            self.emit(&Event::PermissionChanged {
                 mode: self.config().permission_mode,
             })?;
         }
@@ -121,7 +121,7 @@ impl Engine {
             .into_iter()
             .find(|t| &t.id == id)
         {
-            self.emit(Event::ToolStatusChanged {
+            self.emit(&Event::ToolStatusChanged {
                 tool: tool.id,
                 status: tool.status,
             })?;
@@ -176,7 +176,7 @@ impl Engine {
             // The run loop may have moved on already: a closed channel is fine.
             let _ = waiter.send(answer.to_owned());
         }
-        self.emit(Event::DeviceAction {
+        self.emit(&Event::DeviceAction {
             device: sentinel_core::DeviceId::new(&caller.name),
             action: format!("answered {id}"),
         })?;
@@ -202,7 +202,7 @@ impl Engine {
         if let Some(waiter) = lock(&self.inner.live).approvals.remove(id) {
             let _ = waiter.send(allow);
         }
-        self.emit(Event::ApprovalResolved {
+        self.emit(&Event::ApprovalResolved {
             approval: id.clone(),
             state,
             decided_by: caller.name.clone(),
@@ -216,7 +216,7 @@ impl Engine {
         if text.trim().is_empty() {
             return Err(EngineError::Invalid("The message is empty.".to_owned()));
         }
-        self.emit(Event::Message {
+        self.emit(&Event::Message {
             from: caller.name.clone(),
             to,
             text: text.trim().to_owned(),

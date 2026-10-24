@@ -11,7 +11,7 @@ use sentinel_verify::verifier::{
 };
 use tokio::sync::watch;
 
-use crate::agents::run_for_text;
+use crate::agents::{TextJob, run_for_text};
 use crate::engine::{Engine, lock};
 use crate::run_ctx::RunMemory;
 
@@ -125,15 +125,14 @@ impl DiffReviewer for AgentReviewer {
                 });
             };
             let prompt = review_prompt(request, MAX_DIFF_BYTES);
-            let text = run_for_text(
-                &self.engine,
-                self.stop.clone(),
-                self.budget.clone(),
-                worker.as_ref(),
-                &tool,
+            let job = TextJob {
+                stop: self.stop.clone(),
+                budget: self.budget.clone(),
+                worker: worker.as_ref(),
+                tool: &tool,
                 prompt,
-            )
-            .await;
+            };
+            let text = run_for_text(&self.engine, job).await;
             Ok(parse_review_answer(&text, &tool.name))
         })
     }

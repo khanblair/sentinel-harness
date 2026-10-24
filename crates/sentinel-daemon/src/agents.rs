@@ -76,7 +76,7 @@ impl Engine {
         let first_scan = self.store().list_tools()?.is_empty();
         for tool in &found {
             self.store().upsert_tool(tool)?;
-            self.emit(Event::ToolDetected { tool: tool.clone() })?;
+            self.emit(&Event::ToolDetected { tool: tool.clone() })?;
         }
         if first_scan {
             self.apply_first_scan_defaults(&found)?;
@@ -198,7 +198,7 @@ pub(crate) async fn make_plan(ctx: &RunCtx, request: &PlanRequest) -> Result<Pla
     if let Some(plan) = ask_agent_for_plan(ctx, request).await {
         return Ok(plan);
     }
-    engine.emit_quiet(Event::Message {
+    engine.emit_quiet(&Event::Message {
         from: "sentinel".to_owned(),
         to: None,
         text: "No agent gave a usable plan, so Sentinel used its offline planner. Scopes may be empty.".to_owned(),
@@ -235,15 +235,14 @@ async fn ask_agent_for_plan(ctx: &RunCtx, request: &PlanRequest) -> Option<Plan>
             .into_iter()
             .find(|t| t.id == agent)?;
         let worker = engine.worker_for(&tool).ok()?;
-        let text = run_for_text(
-            engine,
-            ctx.stop.clone(),
-            ctx.budget.clone(),
-            worker.as_ref(),
-            &tool,
-            planner_prompt(request),
-        )
-        .await;
+        let job = TextJob {
+            stop: ctx.stop.clone(),
+            budget: ctx.budget.clone(),
+            worker: worker.as_ref(),
+            tool: &tool,
+            prompt: planner_prompt(request),
+        };
+        let text = run_for_text(engine, job).await;
         if let Ok(plan) = parse_plan_json(&text, request) {
             return Some(plan);
         }
@@ -252,29 +251,31 @@ async fn ask_agent_for_plan(ctx: &RunCtx, request: &PlanRequest) -> Option<Plan>
     None
 }
 
+/// One question put to a worker whose answer is plain text.
+pub(crate) struct TextJob<'a> {
+    pub stop: watch::Receiver<bool>,
+    pub budget: Arc<sentinel_workers::Budget>,
+    pub worker: &'a dyn Worker,
+    pub tool: &'a ToolInfo,
+    pub prompt: String,
+}
+
 /// Run a worker once and join its output lines. The planner and the reviewer use this.
-pub(crate) async fn run_for_text(
-    engine: &Engine,
-    stop: watch::Receiver<bool>,
-    budget: Arc<sentinel_workers::Budget>,
-    worker: &dyn Worker,
-    tool: &ToolInfo,
-    prompt: String,
-) -> String {
+pub(crate) async fn run_for_text(engine: &Engine, job: TextJob<'_>) -> String {
     let (lines, _receiver) = mpsc::unbounded_channel();
     let control = RunControl {
-        kill: stop,
+        kill: job.stop,
         lines,
-        budget,
+        budget: job.budget,
     };
     let spec = RunSpec {
         task: sentinel_core::TaskId::new("PLAN"),
-        agent: tool.id.clone(),
+        agent: job.tool.id.clone(),
         model: String::new(),
-        prompt,
+        prompt: job.prompt,
         workdir: engine.repo_path(),
         timeout: Duration::from_secs(180),
     };
-    let outcome = worker.run(spec, control).await;
+    let outcome = job.worker.run(spec, control).await;
     outcome.output_tail.join("\n")
 }

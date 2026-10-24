@@ -85,7 +85,7 @@ fn engine_for(repo: &Path) -> Engine {
     .unwrap();
     engine
         .update_config(|c| {
-            c.cap_usd = "5.00".to_owned();
+            "5.00".clone_into(&mut c.cap_usd);
             c.decision_timeout_seconds = 2;
             c.approval_timeout_seconds = 2;
             c.task_timeout_seconds = 5;
@@ -116,6 +116,36 @@ fn status_of(engine: &Engine, id: &str) -> TaskStatus {
         .status
 }
 
+/// The status each task of the sample backlog must end with, and why.
+fn assert_sample_statuses(engine: &Engine) {
+    for (id, expected, why) in [
+        ("T-01", TaskStatus::Verified, "real work"),
+        ("T-02", TaskStatus::Verified, "real work"),
+        ("T-04", TaskStatus::Verified, "real work"),
+        ("T-06", TaskStatus::Skipped, "claims done"),
+        (
+            "T-03",
+            TaskStatus::Contradiction,
+            "unanswered contradiction",
+        ),
+        (
+            "T-07",
+            TaskStatus::Contradiction,
+            "unanswered contradiction",
+        ),
+        (
+            "T-05",
+            TaskStatus::Partial,
+            "wrote an unreserved file, no new test",
+        ),
+        ("T-09", TaskStatus::Blocked, "failing agent"),
+        ("T-10", TaskStatus::Blocked, "edited an existing test"),
+        ("T-08", TaskStatus::Blocked, "too slow"),
+    ] {
+        assert_eq!(status_of(engine, id), expected, "{id}: {why}");
+    }
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn a_full_run_on_the_sample_repo_ends_with_honest_statuses() {
     let dir = sample_repo();
@@ -124,40 +154,7 @@ async fn a_full_run_on_the_sample_repo_ends_with_honest_statuses() {
     engine.start_run(RunRequest::default()).await.unwrap();
     wait_done(&engine).await;
 
-    for id in ["T-01", "T-02", "T-04"] {
-        assert_eq!(status_of(&engine, id), TaskStatus::Verified, "{id}");
-    }
-    assert_eq!(
-        status_of(&engine, "T-06"),
-        TaskStatus::Skipped,
-        "claims done"
-    );
-    assert_eq!(
-        status_of(&engine, "T-03"),
-        TaskStatus::Contradiction,
-        "unanswered contradiction"
-    );
-    assert_eq!(
-        status_of(&engine, "T-07"),
-        TaskStatus::Contradiction,
-        "unanswered contradiction"
-    );
-    assert_eq!(
-        status_of(&engine, "T-05"),
-        TaskStatus::Partial,
-        "wrote an unreserved file, no new test"
-    );
-    assert_eq!(
-        status_of(&engine, "T-09"),
-        TaskStatus::Blocked,
-        "failing agent"
-    );
-    assert_eq!(
-        status_of(&engine, "T-10"),
-        TaskStatus::Blocked,
-        "edited an existing test"
-    );
-    assert_eq!(status_of(&engine, "T-08"), TaskStatus::Blocked, "too slow");
+    assert_sample_statuses(&engine);
 
     let events = engine.events_after(0, 100_000).unwrap();
     assert!(

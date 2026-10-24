@@ -17,6 +17,7 @@ use sentinel_workers::context::ContextLimits;
 use tokio::sync::{mpsc, watch};
 
 use crate::attempt::record_end;
+use crate::config::Config;
 use crate::engine::{Engine, EngineError, Result, lock};
 use crate::plan_phase::plan_phase;
 use crate::reviewer::{AgentReviewer, ScopeReviewer};
@@ -31,9 +32,41 @@ impl Engine {
     /// Start a run in the background. Returns as soon as it is started: the stream and the
     /// snapshot show the rest.
     pub async fn start_run(&self, request: RunRequest) -> Result<RunInfo> {
-        let state = self.harness_state();
+        self.check_can_start().await?;
+        let (ctx, stop_tx) = self.prepare_run(&request)?;
+        let (guard_tx, guard_rx) = mpsc::unbounded_channel();
+        let info = lock(&self.inner.live)
+            .run
+            .clone()
+            .ok_or_else(|| EngineError::Invalid("run not registered".to_owned()))?;
+        self.emit(&Event::RunStarted {
+            run: info.id.clone(),
+            backlog: info.backlog.clone(),
+        })?;
+        self.set_state(HarnessState::Running);
+        let guard = start_guard(
+            ctx.git.clone(),
+            Arc::new(RunPolicy {
+                scheduler: ctx.scheduler.clone(),
+            }),
+            guard_tx,
+            GuardOptions::default(),
+        )
+        .map_err(|e| EngineError::Invalid(e.to_string()))?;
+        tokio::spawn(forward_guard_events(self.clone(), guard_rx));
+        tokio::spawn(budget_pump(
+            self.clone(),
+            ctx.budget.clone(),
+            ctx.stop.clone(),
+        ));
+        tokio::spawn(run_main(ctx, request, guard, stop_tx));
+        Ok(info)
+    }
+
+    /// A run needs no live run, and at least one agent that is on and ready.
+    async fn check_can_start(&self) -> Result<()> {
         if matches!(
-            state,
+            self.harness_state(),
             HarnessState::Running
                 | HarnessState::Paused
                 | HarnessState::Stopping
@@ -44,71 +77,73 @@ impl Engine {
         if self.store().list_tools()?.is_empty() {
             self.scan_tools().await?;
         }
-        if !self
+        let ready = self
             .store()
             .list_tools()?
             .iter()
-            .any(|t| t.enabled && t.status.is_ready())
-        {
+            .any(|t| t.enabled && t.status.is_ready());
+        if !ready {
             return Err(EngineError::Refused(
                 "No agent is ready. Turn one on in Settings, Agents and tools.".to_owned(),
             ));
         }
-        let (ctx, stop_tx, guard_events) = self.prepare_run(&request)?;
-        let info = lock(&self.inner.live)
-            .run
-            .clone()
-            .ok_or_else(|| EngineError::Invalid("run not registered".to_owned()))?;
-        self.emit(Event::RunStarted {
-            run: info.id.clone(),
-            backlog: info.backlog.clone(),
-        })?;
-        self.set_state(HarnessState::Running);
-        let guard = start_guard(
-            ctx.git.clone(),
-            Arc::new(RunPolicy {
-                scheduler: ctx.scheduler.clone(),
-            }),
-            guard_events.0,
-            GuardOptions::default(),
-        )
-        .map_err(|e| EngineError::Invalid(e.to_string()))?;
-        tokio::spawn(forward_guard_events(self.clone(), guard_events.1));
-        tokio::spawn(budget_pump(
-            self.clone(),
-            ctx.budget.clone(),
-            ctx.stop.clone(),
-        ));
-        tokio::spawn(run_main(ctx, request, guard, stop_tx));
-        Ok(info)
+        Ok(())
     }
 
-    #[allow(
-        clippy::type_complexity,
-        reason = "one private helper; a named type would only be used here"
-    )]
-    fn prepare_run(
-        &self,
-        request: &RunRequest,
-    ) -> Result<(
-        Arc<RunCtx>,
-        watch::Sender<bool>,
-        (mpsc::UnboundedSender<Event>, mpsc::UnboundedReceiver<Event>),
-    )> {
-        let config = self.config();
+    /// The git handle for the run, on a clean tree and a fresh private index.
+    fn clean_git(&self) -> Result<Git> {
         let repo = self.repo_path();
         let git = Git::new(&repo, repo.join(".sentinel/index"))
             .map_err(|e| EngineError::Invalid(e.to_string()))?;
         git.reset_private_index()
             .map_err(|e| EngineError::Invalid(e.to_string()))?;
-        if !git
+        let clean = git
             .is_clean()
-            .map_err(|e| EngineError::Invalid(e.to_string()))?
-        {
+            .map_err(|e| EngineError::Invalid(e.to_string()))?;
+        if !clean {
             return Err(EngineError::Refused(
                 "The working tree has uncommitted changes. Commit or stash them, then start the run.".to_owned(),
             ));
         }
+        Ok(git)
+    }
+
+    /// Fake mode checks scope only. A real run asks an agent to review the diff.
+    fn reviewer_for(
+        &self,
+        memory: &Arc<Mutex<RunMemory>>,
+        stop: &watch::Receiver<bool>,
+        budget: &Arc<Budget>,
+    ) -> Arc<dyn DiffReviewer> {
+        if self.is_fake() {
+            return Arc::new(ScopeReviewer {
+                store: self.store().clone(),
+            });
+        }
+        Arc::new(AgentReviewer {
+            engine: self.clone(),
+            memory: memory.clone(),
+            stop: stop.clone(),
+            budget: budget.clone(),
+        })
+    }
+
+    fn new_run_info(&self, request: &RunRequest, config: &Config) -> RunInfo {
+        RunInfo {
+            id: RunId::generate(),
+            backlog: request
+                .backlog
+                .clone()
+                .unwrap_or_else(|| config.backlog.clone()),
+            wave: 0,
+            started_at: self.now(),
+        }
+    }
+
+    fn prepare_run(&self, request: &RunRequest) -> Result<(Arc<RunCtx>, watch::Sender<bool>)> {
+        let config = self.config();
+        let repo = self.repo_path();
+        let git = self.clean_git()?;
         self.store().reset_for_new_run()?;
         let (budget, _kill) = Budget::new(config.cap()?);
         let retry_limit = self.router()?.retry_limit();
@@ -118,30 +153,10 @@ impl Engine {
         let (pause_tx, pause_rx) = watch::channel(false);
         let (stop_tx, stop_rx) = watch::channel(false);
         let memory = Arc::new(Mutex::new(RunMemory::default()));
-        let reviewer: Arc<dyn DiffReviewer> = if self.is_fake() {
-            Arc::new(ScopeReviewer {
-                store: self.store().clone(),
-            })
-        } else {
-            Arc::new(AgentReviewer {
-                engine: self.clone(),
-                memory: memory.clone(),
-                stop: stop_rx.clone(),
-                budget: budget.clone(),
-            })
-        };
-        let info = RunInfo {
-            id: RunId::generate(),
-            backlog: request
-                .backlog
-                .clone()
-                .unwrap_or_else(|| config.backlog.clone()),
-            wave: 0,
-            started_at: self.now(),
-        };
+        let reviewer = self.reviewer_for(&memory, &stop_rx, &budget);
+        let info = self.new_run_info(request, &config);
         let ctx = Arc::new(RunCtx {
             engine: self.clone(),
-            run_id: info.id.clone(),
             git,
             scheduler: Arc::new(Mutex::new(scheduler)),
             budget: budget.clone(),
@@ -161,7 +176,7 @@ impl Engine {
         live.budget = Some(budget);
         live.pause = Some(pause_tx);
         live.stop = Some(stop_tx.clone());
-        Ok((ctx, stop_tx, mpsc::unbounded_channel()))
+        Ok((ctx, stop_tx))
     }
 
     pub fn pause_run(&self) -> Result<()> {
@@ -219,7 +234,7 @@ impl Engine {
 /// Events from the write guard thread become stream events.
 async fn forward_guard_events(engine: Engine, mut events: mpsc::UnboundedReceiver<Event>) {
     while let Some(event) = events.recv().await {
-        engine.emit_quiet(event);
+        engine.emit_quiet(&event);
     }
 }
 
@@ -229,11 +244,11 @@ async fn budget_pump(engine: Engine, budget: Arc<Budget>, mut stop: watch::Recei
     let mut last = None;
     while !*stop.borrow() {
         for event in budget.drain_events() {
-            engine.emit_quiet(budget_event(event));
+            engine.emit_quiet(&budget_event(event));
         }
         let spent = budget.spent();
         if last != Some(spent) {
-            engine.emit_quiet(Event::CostUpdate {
+            engine.emit_quiet(&Event::CostUpdate {
                 total: spent,
                 cap: budget.cap(),
             });
@@ -245,7 +260,7 @@ async fn budget_pump(engine: Engine, budget: Arc<Budget>, mut stop: watch::Recei
         }
     }
     for event in budget.drain_events() {
-        engine.emit_quiet(budget_event(event));
+        engine.emit_quiet(&budget_event(event));
     }
 }
 
@@ -273,7 +288,7 @@ async fn run_main(
 ) {
     let result = drive(&ctx, &request).await;
     if let Err(error) = &result {
-        ctx.engine.emit_quiet(Event::Message {
+        ctx.engine.emit_quiet(&Event::Message {
             from: "sentinel".to_owned(),
             to: None,
             text: format!("The run ended because of an error: {error}"),
@@ -288,7 +303,7 @@ async fn run_main(
 async fn drive(ctx: &Arc<RunCtx>, request: &RunRequest) -> Result<()> {
     let plan = plan_phase(ctx, request).await?;
     if !plan.approved {
-        ctx.engine.emit_quiet(Event::Message {
+        ctx.engine.emit_quiet(&Event::Message {
             from: "sentinel".to_owned(),
             to: None,
             text: "The plan was not approved, so nothing ran.".to_owned(),
@@ -297,7 +312,7 @@ async fn drive(ctx: &Arc<RunCtx>, request: &RunRequest) -> Result<()> {
     }
     for number in 1..=MAX_WAVES {
         match run_wave(ctx, number).await? {
-            WaveEnd::Ran(_) => {}
+            WaveEnd::Ran => {}
             WaveEnd::Empty | WaveEnd::Stop => break,
         }
     }
@@ -312,14 +327,14 @@ async fn finish(ctx: &Arc<RunCtx>) {
     }
     let _ = lock(&ctx.scheduler).recover_after_crash(engine.now());
     if let Err(error) = engine.write_report_file().await {
-        engine.emit_quiet(Event::Message {
+        engine.emit_quiet(&Event::Message {
             from: "sentinel".to_owned(),
             to: None,
             text: format!("The report could not be written: {error}"),
         });
     }
     let (verified, total) = count_verified(engine);
-    engine.emit_quiet(Event::RunFinished { verified, total });
+    engine.emit_quiet(&Event::RunFinished { verified, total });
     {
         let mut live = lock(&engine.inner.live);
         live.budget = None;
@@ -345,6 +360,34 @@ fn count_verified(engine: &Engine) -> (u32, u32) {
     )
 }
 
+/// How a task that has not reached an end gets one: the statuses it passes through, the last one
+/// being the end, and the reason. `None` for a task that already ended.
+fn close_plan(status: TaskStatus, why: &str) -> Option<(&'static [TaskStatus], String)> {
+    match status {
+        TaskStatus::Planned | TaskStatus::Ready | TaskStatus::Waiting => Some((
+            &[TaskStatus::Skipped],
+            format!("{why} before this task started."),
+        )),
+        TaskStatus::Reserved | TaskStatus::Running => Some((
+            &[TaskStatus::Failed, TaskStatus::Blocked],
+            format!("{why} while this task was running."),
+        )),
+        TaskStatus::Failed => Some((
+            &[TaskStatus::Blocked],
+            format!("{why} while this task was failing."),
+        )),
+        TaskStatus::Checkpointed | TaskStatus::Verifying => Some((
+            &[TaskStatus::Verifying, TaskStatus::Partial],
+            format!("{why} before this task was verified. Its commit is kept."),
+        )),
+        TaskStatus::Verified
+        | TaskStatus::Blocked
+        | TaskStatus::Contradiction
+        | TaskStatus::Skipped
+        | TaskStatus::Partial => None,
+    }
+}
+
 fn close_out(ctx: &RunCtx) -> Result<()> {
     let store = ctx.engine.store();
     let why = if ctx.stopped() {
@@ -353,51 +396,14 @@ fn close_out(ctx: &RunCtx) -> Result<()> {
         "The run ended"
     };
     for task in store.list_tasks()? {
-        let id = &task.id;
-        match task.status {
-            TaskStatus::Planned | TaskStatus::Ready | TaskStatus::Waiting => {
-                store.set_task_status(id, TaskStatus::Skipped)?;
-                record_end(
-                    ctx,
-                    id,
-                    TaskStatus::Skipped,
-                    &format!("{why} before this task started."),
-                );
-            }
-            TaskStatus::Reserved | TaskStatus::Running => {
-                store.set_task_status(id, TaskStatus::Failed)?;
-                store.set_task_status(id, TaskStatus::Blocked)?;
-                record_end(
-                    ctx,
-                    id,
-                    TaskStatus::Blocked,
-                    &format!("{why} while this task was running."),
-                );
-            }
-            TaskStatus::Failed => {
-                store.set_task_status(id, TaskStatus::Blocked)?;
-                record_end(
-                    ctx,
-                    id,
-                    TaskStatus::Blocked,
-                    &format!("{why} while this task was failing."),
-                );
-            }
-            TaskStatus::Checkpointed | TaskStatus::Verifying => {
-                store.set_task_status(id, TaskStatus::Verifying)?;
-                store.set_task_status(id, TaskStatus::Partial)?;
-                record_end(
-                    ctx,
-                    id,
-                    TaskStatus::Partial,
-                    &format!("{why} before this task was verified. Its commit is kept."),
-                );
-            }
-            TaskStatus::Verified
-            | TaskStatus::Blocked
-            | TaskStatus::Contradiction
-            | TaskStatus::Skipped
-            | TaskStatus::Partial => {}
+        let Some((steps, reason)) = close_plan(task.status, why) else {
+            continue;
+        };
+        for step in steps {
+            store.set_task_status(&task.id, *step)?;
+        }
+        if let Some(end) = steps.last() {
+            record_end(ctx, &task.id, *end, &reason);
         }
     }
     Ok(())

@@ -28,7 +28,7 @@ impl Engine {
             changed
         };
         if changed {
-            self.emit_quiet(Event::TailscaleChanged {
+            self.emit_quiet(&Event::TailscaleChanged {
                 state: status.state,
             });
         }
@@ -50,7 +50,7 @@ impl Engine {
     /// The phone sends the code. The computer then has to approve the new device.
     pub fn pair_submit(&self, submit: &PairSubmit) -> std::result::Result<PendingId, PairError> {
         let id = lock(&self.inner.pairing).submit(submit, self.now())?;
-        self.emit_quiet(Event::DeviceAction {
+        self.emit_quiet(&Event::DeviceAction {
             device: DeviceId::new(id.as_str()),
             action: format!("asked to pair as {}", submit.device_name),
         });
@@ -67,7 +67,7 @@ impl Engine {
 
     pub fn pair_approve(&self, id: &PendingId) -> std::result::Result<PairResult, PairError> {
         let result = lock(&self.inner.pairing).approve(id, &self.inner.store, self.now())?;
-        self.emit_quiet(Event::DeviceAction {
+        self.emit_quiet(&Event::DeviceAction {
             device: result.device.clone(),
             action: "paired".to_owned(),
         });
@@ -84,7 +84,7 @@ impl Engine {
 
     pub fn revoke_device(&self, id: &DeviceId, by: &str) -> Result<()> {
         self.inner.store.revoke_device(id, self.now())?;
-        self.emit(Event::DeviceAction {
+        self.emit(&Event::DeviceAction {
             device: id.clone(),
             action: format!("revoked by {by}"),
         })?;
@@ -197,10 +197,8 @@ impl Engine {
             .list_devices()?
             .into_iter()
             .any(|d| d.kind == sentinel_core::DeviceKind::Desktop && d.revoked_at.is_none());
-        if known {
-            if let Ok(token) = std::fs::read_to_string(&path) {
-                return Ok(token.trim().to_owned());
-            }
+        if known && let Ok(token) = std::fs::read_to_string(&path) {
+            return Ok(token.trim().to_owned());
         }
         let token = crate::hashing::new_token();
         self.inner.store.insert_device(&sentinel_store::Device {

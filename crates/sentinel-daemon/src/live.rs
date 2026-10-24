@@ -46,13 +46,13 @@ impl Engine {
 
     pub(crate) fn set_state(&self, state: HarnessState) {
         lock(&self.inner.live).state = state;
-        self.emit_quiet(sentinel_core::Event::HarnessState { state });
+        self.emit_quiet(&sentinel_core::Event::HarnessState { state });
     }
 
     /// Total spend: the live budget when a run is live, else everything the store knows.
-    pub(crate) fn total_cost(&self, live_spent: &Option<Cost>) -> crate::engine::Result<Cost> {
+    pub(crate) fn total_cost(&self, live_spent: Option<Cost>) -> crate::engine::Result<Cost> {
         match live_spent {
-            Some(spent) => Ok(*spent),
+            Some(spent) => Ok(spent),
             None => Ok(self.inner.store.total_cost()?),
         }
     }

@@ -153,8 +153,8 @@ impl Engine {
     }
 
     /// Store an event, append it to `.sentinel/log.jsonl`, and send it to every device.
-    pub fn emit(&self, event: Event) -> Result<EventRecord> {
-        let record = self.inner.store.append_event(&event, self.now())?;
+    pub fn emit(&self, event: &Event) -> Result<EventRecord> {
+        let record = self.inner.store.append_event(event, self.now())?;
         self.append_log(&record);
         // Nobody listening is fine: the event is already stored.
         let _ = self.inner.bus.send(record.clone());
@@ -162,7 +162,7 @@ impl Engine {
     }
 
     /// Like `emit`, for callers that cannot act on a store failure.
-    pub fn emit_quiet(&self, event: Event) {
+    pub fn emit_quiet(&self, event: &Event) {
         if let Err(error) = self.emit(event) {
             tracing_error(&error);
         }
@@ -220,7 +220,7 @@ impl Engine {
         let mut snapshot = Snapshot::empty();
         snapshot.harness = live.state;
         snapshot.run = live.run;
-        snapshot.repo = lock(&self.inner.repo).clone();
+        snapshot.repo.clone_from(&lock(&self.inner.repo));
         snapshot.tasks = store.list_tasks()?;
         snapshot.dependencies = store.list_dependencies()?;
         snapshot.reservations = store.list_reservations(&[
@@ -233,7 +233,7 @@ impl Engine {
         snapshot.capabilities = store.list_capabilities()?;
         snapshot.brain_mode = config.brain_mode;
         snapshot.cost = CostSnapshot {
-            total: self.total_cost(&live.spent)?,
+            total: self.total_cost(live.spent)?,
             cap: self.cap(&config),
         };
         snapshot.per_agent_cost = self.per_agent_cost()?;

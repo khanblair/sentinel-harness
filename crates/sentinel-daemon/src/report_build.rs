@@ -60,7 +60,7 @@ impl Engine {
         write_report(&report, &path)
             .await
             .map_err(|e| EngineError::Invalid(e.to_string()))?;
-        self.emit(Event::ReportReady)?;
+        self.emit(&Event::ReportReady)?;
         Ok(())
     }
 }
@@ -81,7 +81,15 @@ fn default_reason(status: TaskStatus) -> String {
         TaskStatus::Partial => "Some checks passed.",
         TaskStatus::Skipped => "Skipped.",
         TaskStatus::Contradiction => "Contradicts another task.",
-        _ => "The run ended before this task finished.",
+        TaskStatus::Planned
+        | TaskStatus::Ready
+        | TaskStatus::Waiting
+        | TaskStatus::Reserved
+        | TaskStatus::Running
+        | TaskStatus::Checkpointed
+        | TaskStatus::Verifying
+        | TaskStatus::Failed
+        | TaskStatus::Blocked => "The run ended before this task finished.",
     }
     .to_owned()
 }

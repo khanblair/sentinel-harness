@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use sentinel_core::{Event, RunId, Task, TaskId, TaskStatus, ToolInfo};
 use sentinel_store::{CheckpointRecord, RunRecord};
-use sentinel_tree::{checkpoint, restore_path, write_guard_files};
+use sentinel_tree::{Checkpoint, checkpoint, restore_path, write_guard_files};
 use sentinel_workers::budget::default_ceiling;
 use sentinel_workers::context::{FailureInput, failure_summary};
 use sentinel_workers::{OutputLine, RunControl, RunOutcome, RunSpec};
@@ -55,9 +55,14 @@ async fn try_attempt(ctx: &Arc<RunCtx>, task_id: &TaskId) -> Result<()> {
         .ok_or_else(|| EngineError::NotFound(agent.to_string()))?;
     let worker = engine.worker_for(&tool)?;
     start(ctx, &task, &tool)?;
-    let (spec, run_id) = build_spec(ctx, &task, &tool);
-    let outcome = run_worker(ctx, worker.as_ref(), spec, &task, &tool, &run_id).await;
-    finish_bookkeeping(ctx, &task, &tool, &run_id, &outcome)?;
+    let attempt = Attempt {
+        task: &task,
+        tool: &tool,
+        run_id: RunId::generate(),
+    };
+    let spec = build_spec(ctx, &task, &tool);
+    let outcome = run_worker(ctx, worker.as_ref(), spec, &attempt).await;
+    finish_bookkeeping(ctx, &attempt, &outcome)?;
     if outcome.end == sentinel_workers::EndKind::Completed {
         finish_success(ctx, &task, &outcome)
     } else {
@@ -65,6 +70,13 @@ async fn try_attempt(ctx: &Arc<RunCtx>, task_id: &TaskId) -> Result<()> {
         fail_task(ctx, task_id, &reason, &outcome.output_tail.join("\n"));
         Ok(())
     }
+}
+
+/// One task handed to one agent, with the id of the run that records it.
+struct Attempt<'a> {
+    task: &'a Task,
+    tool: &'a ToolInfo,
+    run_id: RunId,
 }
 
 fn start(ctx: &RunCtx, task: &Task, tool: &ToolInfo) -> Result<()> {
@@ -78,15 +90,15 @@ fn start(ctx: &RunCtx, task: &Task, tool: &ToolInfo) -> Result<()> {
     lock(&engine.inner.live)
         .agent_task
         .insert(tool.id.clone(), task.id.clone());
-    engine.emit(Event::FilesReserved {
+    engine.emit(&Event::FilesReserved {
         task: task.id.clone(),
         paths: task.scope.entries().map(str::to_owned).collect(),
     })?;
-    engine.emit(Event::TaskStatus {
+    engine.emit(&Event::TaskStatus {
         task: task.id.clone(),
         status: TaskStatus::Running,
     })?;
-    engine.emit(Event::Message {
+    engine.emit(&Event::Message {
         from: "sentinel".to_owned(),
         to: Some(tool.id.clone()),
         text: format!(
@@ -103,7 +115,7 @@ fn start(ctx: &RunCtx, task: &Task, tool: &ToolInfo) -> Result<()> {
     Ok(())
 }
 
-fn build_spec(ctx: &RunCtx, task: &Task, tool: &ToolInfo) -> (RunSpec, RunId) {
+fn build_spec(ctx: &RunCtx, task: &Task, tool: &ToolInfo) -> RunSpec {
     let memory = lock(&ctx.memory);
     let failure = memory.failures.get(&task.id).cloned();
     drop(memory);
@@ -114,47 +126,26 @@ fn build_spec(ctx: &RunCtx, task: &Task, tool: &ToolInfo) -> (RunSpec, RunId) {
         lessons: &[],
     });
     let prompt = task_prompt(task, retry.as_ref(), &ctx.limits);
-    let spec = RunSpec {
+    RunSpec {
         task: task.id.clone(),
         agent: tool.id.clone(),
         model: String::new(),
         prompt,
         workdir: ctx.engine.repo_path(),
         timeout: ctx.task_timeout(),
-    };
-    (spec, RunId::generate())
+    }
 }
 
 async fn run_worker(
     ctx: &RunCtx,
     worker: &dyn sentinel_workers::Worker,
     spec: RunSpec,
-    task: &Task,
-    tool: &ToolInfo,
-    run_id: &RunId,
+    attempt: &Attempt<'_>,
 ) -> RunOutcome {
-    let engine = &ctx.engine;
-    let started = engine.now();
-    let record = RunRecord {
-        id: run_id.clone(),
-        task: task.id.clone(),
-        tool: tool.id.clone(),
-        model: spec.model.clone(),
-        started_at: started,
-        ended_at: None,
-        exit_code: None,
-        cost: sentinel_core::Cost::ZERO,
-    };
-    if let Err(error) = engine.store().insert_run(&record) {
-        eprintln!("sentinel: could not record the run: {error}");
-    }
-    let (task_kill, task_kill_rx) = watch::channel(false);
-    lock(&engine.inner.live)
-        .task_kills
-        .insert(task.id.clone(), task_kill);
-    let kill = merge_kill(vec![ctx.stop.clone(), ctx.budget.receiver(), task_kill_rx]);
-    let (lines, forwarded) = mpsc::unbounded_channel();
-    let forwarder = tokio::spawn(forward_lines(ctx.engine.clone(), forwarded));
+    record_run_start(ctx, attempt, &spec);
+    let kill = kill_signal(ctx, &attempt.task.id);
+    let (lines, line_rx) = mpsc::unbounded_channel();
+    let forwarder = tokio::spawn(forward_lines(ctx.engine.clone(), line_rx));
     let control = RunControl {
         kill,
         lines,
@@ -166,6 +157,31 @@ async fn run_worker(
     outcome
 }
 
+fn record_run_start(ctx: &RunCtx, attempt: &Attempt<'_>, spec: &RunSpec) {
+    let record = RunRecord {
+        id: attempt.run_id.clone(),
+        task: attempt.task.id.clone(),
+        tool: attempt.tool.id.clone(),
+        model: spec.model.clone(),
+        started_at: ctx.engine.now(),
+        ended_at: None,
+        exit_code: None,
+        cost: sentinel_core::Cost::ZERO,
+    };
+    if let Err(error) = ctx.engine.store().insert_run(&record) {
+        eprintln!("sentinel: could not record the run: {error}");
+    }
+}
+
+/// Fires when the run stops, the budget guard trips, or the user kills this one task.
+fn kill_signal(ctx: &RunCtx, task: &TaskId) -> watch::Receiver<bool> {
+    let (task_kill, task_kill_rx) = watch::channel(false);
+    lock(&ctx.engine.inner.live)
+        .task_kills
+        .insert(task.clone(), task_kill);
+    merge_kill(vec![ctx.stop.clone(), ctx.budget.receiver(), task_kill_rx])
+}
+
 async fn forward_lines(
     engine: crate::engine::Engine,
     mut lines: mpsc::UnboundedReceiver<OutputLine>,
@@ -174,7 +190,7 @@ async fn forward_lines(
     while let Some(line) = lines.recv().await {
         sent += 1;
         if sent <= MAX_STREAM_LINES {
-            engine.emit_quiet(Event::AgentOutput {
+            engine.emit_quiet(&Event::AgentOutput {
                 task: line.task,
                 agent: line.agent,
                 line: line.text,
@@ -183,24 +199,18 @@ async fn forward_lines(
     }
 }
 
-fn finish_bookkeeping(
-    ctx: &RunCtx,
-    task: &Task,
-    tool: &ToolInfo,
-    run_id: &RunId,
-    outcome: &RunOutcome,
-) -> Result<()> {
+fn finish_bookkeeping(ctx: &RunCtx, attempt: &Attempt<'_>, outcome: &RunOutcome) -> Result<()> {
     let engine = &ctx.engine;
     let code = outcome.exit_code.unwrap_or(-1);
     engine
         .store()
-        .finish_run(run_id, engine.now(), code, outcome.cost)?;
+        .finish_run(&attempt.run_id, engine.now(), code, outcome.cost)?;
     let mut live = lock(&engine.inner.live);
-    live.agent_task.remove(&tool.id);
-    live.task_kills.remove(&task.id);
+    live.agent_task.remove(&attempt.tool.id);
+    live.task_kills.remove(&attempt.task.id);
     drop(live);
     let guard_dir = engine.repo_path().join(".sentinel/guard");
-    let _ = sentinel_tree::guard_config::remove_guard_files(&guard_dir, &task.id);
+    let _ = sentinel_tree::guard_config::remove_guard_files(&guard_dir, &attempt.task.id);
     Ok(())
 }
 
@@ -224,7 +234,6 @@ fn reason_for(ctx: &RunCtx, outcome: &RunOutcome) -> String {
 
 /// The agent finished cleanly: commit the files of its scope that changed.
 fn finish_success(ctx: &RunCtx, task: &Task, outcome: &RunOutcome) -> Result<()> {
-    let engine = &ctx.engine;
     let changed = ctx
         .git
         .changed_paths()
@@ -249,6 +258,12 @@ fn finish_success(ctx: &RunCtx, task: &Task, outcome: &RunOutcome) -> Result<()>
         );
         return Ok(());
     };
+    record_checkpoint(ctx, task, made)
+}
+
+/// Store a new checkpoint, move the task to Checkpointed, and tell the stream.
+fn record_checkpoint(ctx: &RunCtx, task: &Task, made: Checkpoint) -> Result<()> {
+    let engine = &ctx.engine;
     engine.store().insert_checkpoint(&CheckpointRecord {
         task: task.id.clone(),
         commit: made.commit.clone(),
@@ -261,16 +276,16 @@ fn finish_success(ctx: &RunCtx, task: &Task, outcome: &RunOutcome) -> Result<()>
     lock(&ctx.scheduler)
         .on_checkpoint(&task.id, engine.now())
         .map_err(|e| EngineError::Invalid(e.to_string()))?;
-    engine.emit(Event::Checkpoint {
+    engine.emit(&Event::Checkpoint {
         task: task.id.clone(),
         commit: made.commit,
         paths: made.paths.clone(),
     })?;
-    engine.emit(Event::FilesReleased {
+    engine.emit(&Event::FilesReleased {
         task: task.id.clone(),
         paths: made.paths,
     })?;
-    engine.emit(Event::TaskStatus {
+    engine.emit(&Event::TaskStatus {
         task: task.id.clone(),
         status: TaskStatus::Checkpointed,
     })?;
@@ -303,11 +318,11 @@ pub(crate) fn fail_task(ctx: &RunCtx, task_id: &TaskId, reason: &str, output: &s
         return;
     }
     escalate(ctx, task_id);
-    engine.emit_quiet(Event::TaskStatus {
+    engine.emit_quiet(&Event::TaskStatus {
         task: task_id.clone(),
         status,
     });
-    engine.emit_quiet(Event::Message {
+    engine.emit_quiet(&Event::Message {
         from: "sentinel".to_owned(),
         to: None,
         text: format!("{task_id} did not work out: {reason} It goes back for another try."),
@@ -329,11 +344,11 @@ pub(crate) fn record_end(ctx: &RunCtx, task_id: &TaskId, status: TaskStatus, rea
     if let Err(error) = ctx.engine.store().upsert_verification(&record) {
         eprintln!("sentinel: could not record the end of {task_id}: {error}");
     }
-    ctx.engine.emit_quiet(Event::TaskStatus {
+    ctx.engine.emit_quiet(&Event::TaskStatus {
         task: task_id.clone(),
         status,
     });
-    ctx.engine.emit_quiet(Event::Verdict {
+    ctx.engine.emit_quiet(&Event::Verdict {
         task: task_id.clone(),
         status,
         reason: reason.to_owned(),
@@ -367,9 +382,9 @@ fn escalate(ctx: &RunCtx, task_id: &TaskId) {
         return;
     };
     let current = tier.unwrap_or(task.tier);
-    if let Some(agent) = agent {
-        if let Some((next, _)) = router.escalate(current, &agent) {
-            lock(&ctx.memory).tiers.insert(task_id.clone(), next);
-        }
+    if let Some(agent) = agent
+        && let Some((next, _)) = router.escalate(current, &agent)
+    {
+        lock(&ctx.memory).tiers.insert(task_id.clone(), next);
     }
 }

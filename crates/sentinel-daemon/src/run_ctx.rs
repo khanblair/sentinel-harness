@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use sentinel_core::{PermissionMode, RunId, TaskId, Tier, ToolId};
+use sentinel_core::{PermissionMode, TaskId, Tier, ToolId};
 use sentinel_gate::ApprovalBook;
 use sentinel_reserve::Scheduler;
 use sentinel_tree::{Checkpoint, Git, WritePolicy, WriteVerdict};
@@ -31,7 +31,6 @@ pub(crate) struct RunMemory {
 
 pub(crate) struct RunCtx {
     pub engine: Engine,
-    pub run_id: RunId,
     pub git: Git,
     pub scheduler: Arc<Mutex<Scheduler>>,
     pub budget: Arc<Budget>,

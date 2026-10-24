@@ -18,11 +18,11 @@ use crate::run_ctx::RunCtx;
 use crate::verify_phase::{send_back_by_id, verify_wave};
 
 /// The full suite may take a while on a real repository.
-const SUITE_TIMEOUT: Duration = Duration::from_secs(900);
+const SUITE_TIMEOUT: Duration = Duration::from_mins(15);
 
 pub(crate) enum WaveEnd {
-    /// The wave ran. Holds the task ids that were in it.
-    Ran(Vec<TaskId>),
+    /// The wave ran.
+    Ran,
     /// Nothing is ready: the run is finished.
     Empty,
     /// The run must stop: stop signal, budget, or a denied wave.
@@ -35,7 +35,7 @@ pub(crate) async fn run_wave(ctx: &Arc<RunCtx>, number: u32) -> Result<WaveEnd> 
         return Ok(WaveEnd::Stop);
     }
     if !ctx.budget.can_start_task() {
-        ctx.engine.emit_quiet(Event::Message {
+        ctx.engine.emit_quiet(&Event::Message {
             from: "sentinel".to_owned(),
             to: None,
             text: "70% of the cap is spent, so no new task starts.".to_owned(),
@@ -59,7 +59,7 @@ pub(crate) async fn run_wave(ctx: &Arc<RunCtx>, number: u32) -> Result<WaveEnd> 
     }
     run_tasks(ctx, number, &wave.tasks).await?;
     barrier_and_verify(ctx, number, &wave.tasks).await?;
-    Ok(WaveEnd::Ran(wave.tasks))
+    Ok(WaveEnd::Ran)
 }
 
 /// Tasks that wait on a task that ended badly can never run: say so and skip them.
@@ -90,7 +90,7 @@ async fn gate_wave(ctx: &Arc<RunCtx>, number: u32) -> bool {
 }
 
 async fn run_tasks(ctx: &Arc<RunCtx>, number: u32, tasks: &[TaskId]) -> Result<()> {
-    ctx.engine.emit(Event::WaveStarted {
+    ctx.engine.emit(&Event::WaveStarted {
         wave: number,
         tasks: tasks.to_vec(),
     })?;
@@ -125,11 +125,10 @@ async fn barrier_and_verify(ctx: &Arc<RunCtx>, number: u32, tasks: &[TaskId]) ->
         .git
         .is_clean()
         .map_err(|e| EngineError::Invalid(e.to_string()))?;
-    let engine = &ctx.engine;
     match barrier.decide(clean) {
         BarrierDecision::RunSuite => {}
         BarrierDecision::RefuseDirty | BarrierDecision::WaitForTasks => {
-            engine.emit(Event::Message {
+            ctx.engine.emit(&Event::Message {
                 from: "sentinel".to_owned(),
                 to: None,
                 text: "The barrier did not run: the tree is not clean. Look at the Changes panel."
@@ -138,21 +137,28 @@ async fn barrier_and_verify(ctx: &Arc<RunCtx>, number: u32, tasks: &[TaskId]) ->
             return fail_wave(ctx, &checkpointed, "The tree was not clean at the barrier.");
         }
     }
-    engine.emit(Event::BarrierStart { wave: number })?;
+    let suite = run_barrier(ctx, number).await?;
+    barrier.suite_finished(suite.passed);
+    verify_wave(ctx, &suite, &checkpointed).await
+}
+
+/// Run the full suite on the clean tree and record it as a barrier.
+async fn run_barrier(ctx: &RunCtx, number: u32) -> Result<SuiteResult> {
+    let engine = &ctx.engine;
+    engine.emit(&Event::BarrierStart { wave: number })?;
     let barrier_id = engine.store().start_barrier(number, engine.now())?;
     let suite = run_the_suite(ctx, number).await?;
-    barrier.suite_finished(suite.passed);
     engine.store().finish_barrier(
         barrier_id,
         engine.now(),
         suite.passed,
         &suite.log_ref.to_string_lossy(),
     )?;
-    engine.emit(Event::BarrierEnd {
+    engine.emit(&Event::BarrierEnd {
         wave: number,
         passed: suite.passed,
     })?;
-    verify_wave(ctx, &suite, &checkpointed).await
+    Ok(suite)
 }
 
 fn checkpointed(ctx: &RunCtx, tasks: &[TaskId]) -> Result<Vec<TaskId>> {
@@ -177,7 +183,7 @@ fn restore_strays(ctx: &RunCtx) {
     };
     for path in changed {
         if restore_path(&ctx.git, &path, "HEAD").is_ok() {
-            ctx.engine.emit_quiet(Event::WriteBlocked {
+            ctx.engine.emit_quiet(&Event::WriteBlocked {
                 task: None,
                 path,
                 restored: true,

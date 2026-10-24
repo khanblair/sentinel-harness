@@ -21,7 +21,6 @@ use crate::run_ctx::RunCtx;
 
 /// What the plan phase found.
 pub(crate) struct PlanOutcome {
-    pub total: u32,
     /// False when the user denied the plan card: the run ends before any task starts.
     pub approved: bool,
 }
@@ -44,7 +43,7 @@ pub(crate) async fn plan_phase(ctx: &Arc<RunCtx>, request: &RunRequest) -> Resul
         store.add_dependency(dependency)?;
     }
     let already_done = skip_claimed_done(ctx, &tasks)?;
-    ctx.engine.emit(Event::PlanReady {
+    ctx.engine.emit(&Event::PlanReady {
         tasks: count(tasks.len()),
         contradictions: count(pairs.len()),
         already_done,
@@ -52,10 +51,7 @@ pub(crate) async fn plan_phase(ctx: &Arc<RunCtx>, request: &RunRequest) -> Resul
     settle_contradictions(ctx, &pairs, &tasks).await?;
     mark_ready(ctx)?;
     let approved = approve_plan(ctx).await;
-    Ok(PlanOutcome {
-        total: count(tasks.len()),
-        approved,
-    })
+    Ok(PlanOutcome { approved })
 }
 
 fn count(n: usize) -> u32 {
@@ -136,11 +132,11 @@ pub(crate) fn finish_without_work(
         reason: reason.to_owned(),
         receipt_json: "null".to_owned(),
     })?;
-    ctx.engine.emit(Event::TaskStatus {
+    ctx.engine.emit(&Event::TaskStatus {
         task: task.clone(),
         status,
     })?;
-    ctx.engine.emit(Event::Verdict {
+    ctx.engine.emit(&Event::Verdict {
         task: task.clone(),
         status,
         reason: reason.to_owned(),
@@ -197,7 +193,7 @@ fn mark_ready(ctx: &RunCtx) -> Result<()> {
     for task in store.list_tasks()? {
         if task.status == TaskStatus::Planned {
             store.set_task_status(&task.id, TaskStatus::Ready)?;
-            ctx.engine.emit(Event::TaskStatus {
+            ctx.engine.emit(&Event::TaskStatus {
                 task: task.id,
                 status: TaskStatus::Ready,
             })?;
@@ -218,8 +214,8 @@ async fn approve_plan(ctx: &Arc<RunCtx>) -> bool {
         let next = next_mode_after_plan_approval(mode);
         *lock(&ctx.mode) = next;
         ctx.engine
-            .emit_quiet(Event::PermissionChanged { mode: next });
-        ctx.engine.emit_quiet(Event::Message {
+            .emit_quiet(&Event::PermissionChanged { mode: next });
+        ctx.engine.emit_quiet(&Event::Message {
             from: "sentinel".to_owned(),
             to: None,
             text: format!("Plan approved. The run goes on in {}.", next.label()),

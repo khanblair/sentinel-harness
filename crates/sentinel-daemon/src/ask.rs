@@ -25,7 +25,7 @@ pub(crate) async fn ask_approval(ctx: &Arc<RunCtx>, approval: Approval) -> bool 
     lock(&engine.inner.live)
         .approvals
         .insert(approval.id.clone(), sender);
-    engine.emit_quiet(Event::ApprovalRequested {
+    engine.emit_quiet(&Event::ApprovalRequested {
         approval: approval.clone(),
     });
     let timeout = Duration::from_secs(ctx.config.approval_timeout_seconds);
@@ -38,6 +38,13 @@ pub(crate) async fn ask_approval(ctx: &Arc<RunCtx>, approval: Approval) -> bool 
     if let Some(allow) = answer {
         return allow;
     }
+    default_approval(ctx, &approval);
+    false
+}
+
+/// Nobody answered: deny the card and say so in the stream.
+fn default_approval(ctx: &RunCtx, approval: &Approval) {
+    let engine = &ctx.engine;
     lock(&engine.inner.live).approvals.remove(&approval.id);
     let saved = engine.store().answer_approval(
         &approval.id,
@@ -46,13 +53,12 @@ pub(crate) async fn ask_approval(ctx: &Arc<RunCtx>, approval: Approval) -> bool 
         engine.now(),
     );
     if saved.is_ok() {
-        engine.emit_quiet(Event::ApprovalResolved {
+        engine.emit_quiet(&Event::ApprovalResolved {
             approval: approval.id.clone(),
             state: ApprovalState::Defaulted,
             decided_by: "default".to_owned(),
         });
     }
-    false
 }
 
 /// Put a decision in the stream and wait. Returns the answer, or `None` when nobody answered in
@@ -67,7 +73,7 @@ pub(crate) async fn ask_decision(ctx: &Arc<RunCtx>, decision: &Decision) -> Opti
     lock(&engine.inner.live)
         .decisions
         .insert(decision.id.clone(), sender);
-    engine.emit_quiet(Event::DecisionRequested {
+    engine.emit_quiet(&Event::DecisionRequested {
         decision: decision.clone(),
     });
     let timeout = Duration::from_secs(ctx.config.decision_timeout_seconds);
