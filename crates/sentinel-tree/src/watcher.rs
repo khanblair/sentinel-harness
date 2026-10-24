@@ -75,13 +75,7 @@ pub fn start_guard(
         .canonicalize()
         .unwrap_or_else(|_| git.root().to_path_buf());
     let (path_sender, incoming) = mpsc::channel();
-    let mut watcher = notify::recommended_watcher(move |change: notify::Result<notify::Event>| {
-        forward_paths(change, &path_sender);
-    })
-    .map_err(notify_error)?;
-    watcher
-        .watch(&root, RecursiveMode::Recursive)
-        .map_err(notify_error)?;
+    let watcher = watch_root(&root, path_sender)?;
     let stop = Arc::new(AtomicBool::new(false));
     let guard = Guard {
         root,
@@ -104,6 +98,18 @@ pub fn start_guard(
         stop,
         thread: Some(thread),
     })
+}
+
+/// Watch every path under `root`. The returned watcher must stay alive for events to arrive.
+fn watch_root(root: &Path, path_sender: Sender<PathBuf>) -> Result<notify::RecommendedWatcher> {
+    let mut watcher = notify::recommended_watcher(move |change: notify::Result<notify::Event>| {
+        forward_paths(change, &path_sender);
+    })
+    .map_err(notify_error)?;
+    watcher
+        .watch(root, RecursiveMode::Recursive)
+        .map_err(notify_error)?;
+    Ok(watcher)
 }
 
 fn forward_paths(change: notify::Result<notify::Event>, sender: &Sender<PathBuf>) {
