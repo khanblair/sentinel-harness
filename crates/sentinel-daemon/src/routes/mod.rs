@@ -7,6 +7,7 @@ mod chats;
 mod run;
 mod setup;
 mod state;
+mod telegram;
 
 use axum::Json;
 use axum::Router;
@@ -151,6 +152,7 @@ pub fn protected_routes() -> Router<Engine> {
         .merge(access::routes())
         .merge(setup::routes())
         .merge(brain::routes())
+        .merge(telegram::routes())
 }
 
 async fn health() -> Json<Value> {

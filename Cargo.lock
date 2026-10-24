@@ -3390,6 +3390,7 @@ dependencies = [
  "sentinel-plan",
  "sentinel-reserve",
  "sentinel-store",
+ "sentinel-telegram",
  "sentinel-tree",
  "sentinel-verify",
  "sentinel-workers",

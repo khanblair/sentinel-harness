@@ -34,6 +34,7 @@ pub mod reset;
 pub mod runs;
 pub mod settings;
 pub mod tasks;
+pub mod telegram;
 pub mod tools;
 pub mod verifications;
 
