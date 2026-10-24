@@ -226,28 +226,29 @@ fn is_emoji(c: char) -> bool {
     matches!(c, '\u{1F300}'..='\u{1FAFF}' | '\u{2600}'..='\u{27BF}')
 }
 
+/// Index of the quote that ends the string literal opened at `open`, or the length of `bytes`.
+fn string_end(bytes: &[u8], open: usize) -> usize {
+    let mut index = open + 1;
+    while index < bytes.len() {
+        match bytes[index] {
+            b'\\' => index += 2,
+            b'"' => return index,
+            _ => index += 1,
+        }
+    }
+    bytes.len()
+}
+
 /// Byte offset of `//` outside a string literal.
 fn comment_start(line: &str) -> Option<usize> {
     let bytes = line.as_bytes();
     let mut index = 0;
-    let mut in_string = false;
     while index < bytes.len() {
-        let byte = bytes[index];
-        if in_string {
-            match byte {
-                b'\\' => index += 1,
-                b'"' => in_string = false,
-                _ => {}
-            }
-            index += 1;
-            continue;
+        match bytes[index] {
+            b'"' => index = string_end(bytes, index) + 1,
+            b'/' if bytes.get(index + 1) == Some(&b'/') => return Some(index),
+            _ => index += 1,
         }
-        if byte == b'"' {
-            in_string = true;
-        } else if byte == b'/' && bytes.get(index + 1) == Some(&b'/') {
-            return Some(index);
-        }
-        index += 1;
     }
     None
 }
@@ -259,22 +260,13 @@ fn rust_strings(line: &str) -> Vec<&str> {
     let mut found = Vec::new();
     let mut index = 0;
     while index < bytes.len() {
-        if bytes[index] != b'"' {
-            index += 1;
-            continue;
-        }
-        let start = index + 1;
-        index = start;
-        while index < bytes.len() {
-            match bytes[index] {
-                b'\\' => index += 1,
-                b'"' => break,
-                _ => {}
-            }
+        if bytes[index] == b'"' {
+            let end = string_end(bytes, index).min(code.len());
+            found.push(&code[index + 1..end]);
+            index = end + 1;
+        } else {
             index += 1;
         }
-        found.push(&code[start..index.min(code.len())]);
-        index += 1;
     }
     found
 }

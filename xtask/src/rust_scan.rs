@@ -58,28 +58,25 @@ impl RustFile {
         flags
     }
 
-    /// The deepest brace depth inside the function body. The body itself is 0.
+    /// The deepest brace depth inside the function body. The body itself is 0. Markup inside a
+    /// `view! { ... }` macro is not logic, so everything inside it counts as one level.
     pub fn max_nesting(&self, span: &FnSpan) -> usize {
         let code = self.code_lines();
         let Some((open_line, open_col)) = body_open(&code, span.start_line - 1) else {
             return 0;
         };
-        let mut depth = 0usize;
-        let mut peak = 0usize;
+        let mut depth = Depth::default();
         for (idx, line) in code.iter().enumerate().skip(open_line) {
             let start = if idx == open_line { open_col + 1 } else { 0 };
-            for ch in line.chars().skip(start) {
+            for (at, ch) in line.char_indices().filter(|(at, _)| *at >= start) {
                 if ch == '{' {
-                    depth += 1;
-                    peak = peak.max(depth);
-                } else if ch == '}' && depth == 0 {
-                    return peak;
-                } else if ch == '}' {
-                    depth -= 1;
+                    depth.open(&line[..at]);
+                } else if ch == '}' && depth.close() {
+                    return depth.peak;
                 }
             }
         }
-        peak
+        depth.peak
     }
 
     fn scan(&self) -> (Vec<FnSpan>, Vec<(usize, usize)>) {
@@ -159,6 +156,46 @@ fn in_range(ranges: &[(usize, usize)], line: usize) -> bool {
 }
 
 /// Finds the start of a function body: the first `{` outside brackets, or `None` on `;`.
+/// Brace depth while scanning a function body.
+#[derive(Default)]
+struct Depth {
+    open: usize,
+    peak: usize,
+    /// Braces still open inside a `view!` macro, or 0 when outside one.
+    markup: usize,
+}
+
+impl Depth {
+    /// `before` is the text on the line before the brace.
+    fn open(&mut self, before: &str) {
+        if self.markup > 0 {
+            self.markup += 1;
+            return;
+        }
+        self.open += 1;
+        self.peak = self.peak.max(self.open);
+        if before.trim_end().ends_with("view!") {
+            self.markup = 1;
+        }
+    }
+
+    /// True when the brace closes the function body itself.
+    fn close(&mut self) -> bool {
+        if self.markup > 0 {
+            self.markup -= 1;
+            if self.markup == 0 {
+                self.open -= 1;
+            }
+            return false;
+        }
+        if self.open == 0 {
+            return true;
+        }
+        self.open -= 1;
+        false
+    }
+}
+
 fn body_open(code: &[String], from: usize) -> Option<(usize, usize)> {
     let mut brackets = 0usize;
     for (idx, line) in code.iter().enumerate().skip(from) {
@@ -384,6 +421,14 @@ mod tests {
         assert_eq!((spans.len(), spans[0].name.as_str()), (2, "outer"));
         assert_eq!((spans[0].start_line, spans[0].end_line), (1, 7));
         assert_eq!(file.max_nesting(&spans[0]), 2);
+    }
+
+    #[test]
+    fn markup_inside_a_view_macro_counts_as_one_level() {
+        let text = "fn page() {\n    view! {\n        <div>{move || { if a { b } else { c } }}</div>\n    }\n}\n";
+        let file = scan(text);
+        let spans = file.functions();
+        assert_eq!(file.max_nesting(&spans[0]), 1);
     }
 
     #[test]

@@ -94,8 +94,17 @@ enum KeysCommand {
 
 #[tokio::main]
 async fn main() -> ExitCode {
-    let cli = Cli::parse();
-    let result = match cli.command {
+    match dispatch(Cli::parse().command).await {
+        Ok(code) => code,
+        Err(error) => {
+            eprintln!("error: {error:#}");
+            ExitCode::from(2)
+        }
+    }
+}
+
+async fn dispatch(command: Command) -> anyhow::Result<ExitCode> {
+    match command {
         Command::Run {
             backlog,
             repo,
@@ -105,6 +114,16 @@ async fn main() -> ExitCode {
         Command::Scan { repo } => commands::scan(repo).await,
         Command::Doctor => commands::doctor().await,
         Command::Report { repo } => commands::report(repo),
+        other @ (Command::Daemon { .. }
+        | Command::Open { .. }
+        | Command::Pair { .. }
+        | Command::Keys { .. }) => dispatch_serve(other).await,
+    }
+}
+
+/// The commands that run or reach the daemon.
+async fn dispatch_serve(command: Command) -> anyhow::Result<ExitCode> {
+    match command {
         Command::Daemon {
             repo,
             port,
@@ -126,12 +145,8 @@ async fn main() -> ExitCode {
             KeysCommand::Delete { name } => serve::keys(&serve::KeysAction::Delete, &name),
             KeysCommand::Status { name } => serve::keys(&serve::KeysAction::Status, &name),
         },
-    };
-    match result {
-        Ok(code) => code,
-        Err(error) => {
-            eprintln!("error: {error:#}");
-            ExitCode::from(2)
+        Command::Run { .. } | Command::Scan { .. } | Command::Doctor | Command::Report { .. } => {
+            unreachable!("handled by dispatch")
         }
     }
 }

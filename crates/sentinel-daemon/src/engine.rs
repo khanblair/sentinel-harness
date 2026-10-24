@@ -194,7 +194,7 @@ impl Engine {
             text.lines().filter(|l| l.starts_with("## ")).count()
         });
         let status = |name: &str| check.rows.iter().find(|r| r.name == name).map(|r| r.status);
-        let info = RepoInfo {
+        let repo_info = RepoInfo {
             name: root
                 .file_name()
                 .map_or_else(String::new, |n| n.to_string_lossy().into_owned()),
@@ -204,7 +204,7 @@ impl Engine {
             clean: status("Clean working tree") == Some(sentinel_core::api::CheckStatus::Ok),
             backlog_tasks: u32::try_from(backlog_tasks).unwrap_or(u32::MAX),
         };
-        *lock(&self.inner.repo) = Some(info);
+        *lock(&self.inner.repo) = Some(repo_info);
     }
 
     /// The repository the engine works on: the configured path, else the folder it started in.

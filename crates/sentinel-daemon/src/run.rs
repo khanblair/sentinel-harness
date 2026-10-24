@@ -6,7 +6,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use sentinel_core::api::RunRequest;
-use sentinel_core::{Event, HarnessState, RunId, RunInfo, TaskId, TaskStatus, ToolId};
+use sentinel_core::{Event, HarnessState, RunId, RunInfo, TaskId, ToolId};
 use sentinel_gate::ApprovalBook;
 use sentinel_reserve::Scheduler;
 use sentinel_tree::{Git, GuardOptions, start_guard};
@@ -17,7 +17,7 @@ use sentinel_workers::context::ContextLimits;
 use time::OffsetDateTime;
 use tokio::sync::{mpsc, watch};
 
-use crate::attempt::record_end;
+use crate::close_out::finish;
 use crate::config::Config;
 use crate::engine::{Engine, EngineError, Result, lock};
 use crate::plan_phase::plan_phase;
@@ -38,15 +38,15 @@ impl Engine {
         let resume = self.interrupted_since()?;
         let (ctx, stop_tx) = self.prepare_run(&request, resume)?;
         let (guard_tx, guard_rx) = mpsc::unbounded_channel();
-        let info = lock(&self.inner.live)
+        let run_info = lock(&self.inner.live)
             .run
             .clone()
             .ok_or_else(|| EngineError::Invalid("run not registered".to_owned()))?;
         if resume.is_none() {
-            self.mark_run_live(info.started_at)?;
+            self.mark_run_live(run_info.started_at)?;
             self.emit(&Event::RunStarted {
-                run: info.id.clone(),
-                backlog: info.backlog.clone(),
+                run: run_info.id.clone(),
+                backlog: run_info.backlog.clone(),
             })?;
         }
         self.set_state(if resume.is_some() {
@@ -70,7 +70,7 @@ impl Engine {
             ctx.stop.clone(),
         ));
         tokio::spawn(run_main(ctx, request, guard, stop_tx));
-        Ok(info)
+        Ok(run_info)
     }
 
     /// A run needs no live run, and at least one agent that is on and ready.
@@ -196,7 +196,7 @@ impl Engine {
         let (stop_tx, stop_rx) = watch::channel(false);
         let memory = Arc::new(Mutex::new(RunMemory::default()));
         let reviewer = self.reviewer_for(&memory, &stop_rx, &budget);
-        let info = self.new_run_info(request, &config, resume);
+        let run_info = self.new_run_info(request, &config, resume);
         let ctx = Arc::new(RunCtx {
             engine: self.clone(),
             git,
@@ -214,12 +214,22 @@ impl Engine {
             checkpoint_lock: Mutex::new(()),
             resuming: resume.is_some(),
         });
-        let mut live = lock(&self.inner.live);
-        live.run = Some(info);
-        live.budget = Some(budget);
-        live.pause = Some(pause_tx);
-        live.stop = Some(stop_tx.clone());
+        self.register_live(run_info, &budget, (pause_tx, stop_tx.clone()));
         Ok((ctx, stop_tx))
+    }
+
+    /// Put the run where the controls (pause, resume, stop) and the snapshot can reach it.
+    fn register_live(
+        &self,
+        run_info: RunInfo,
+        budget: &Arc<Budget>,
+        (pause, stop): (watch::Sender<bool>, watch::Sender<bool>),
+    ) {
+        let mut live = lock(&self.inner.live);
+        live.run = Some(run_info);
+        live.budget = Some(budget.clone());
+        live.pause = Some(pause);
+        live.stop = Some(stop);
     }
 
     pub fn pause_run(&self) -> Result<()> {
@@ -362,97 +372,6 @@ async fn drive(ctx: &Arc<RunCtx>, request: &RunRequest) -> Result<()> {
         match run_wave(ctx, number).await? {
             WaveEnd::Ran => {}
             WaveEnd::Empty | WaveEnd::Stop => break,
-        }
-    }
-    Ok(())
-}
-
-/// Close every task that has not reached an end, write the report, and mark the run done.
-async fn finish(ctx: &Arc<RunCtx>) {
-    let engine = &ctx.engine;
-    if let Err(error) = close_out(ctx) {
-        eprintln!("sentinel: could not close out the run: {error}");
-    }
-    let _ = lock(&ctx.scheduler).recover_after_crash(engine.now());
-    if let Err(error) = engine.write_report_file().await {
-        engine.emit_quiet(&Event::Message {
-            from: "sentinel".to_owned(),
-            to: None,
-            text: format!("The report could not be written: {error}"),
-        });
-    }
-    let (verified, total) = count_verified(engine);
-    engine.emit_quiet(&Event::RunFinished { verified, total });
-    {
-        let mut live = lock(&engine.inner.live);
-        live.budget = None;
-        live.run = None;
-        live.pause = None;
-        live.stop = None;
-        live.task_kills.clear();
-        live.agent_task.clear();
-    }
-    engine.clear_run_live();
-    engine.set_state(HarnessState::Done);
-    engine.refresh_repo();
-}
-
-fn count_verified(engine: &Engine) -> (u32, u32) {
-    let tasks = engine.store().list_tasks().unwrap_or_default();
-    let verified = tasks
-        .iter()
-        .filter(|t| t.status == TaskStatus::Verified)
-        .count();
-    (
-        u32::try_from(verified).unwrap_or(0),
-        u32::try_from(tasks.len()).unwrap_or(0),
-    )
-}
-
-/// How a task that has not reached an end gets one: the statuses it passes through, the last one
-/// being the end, and the reason. `None` for a task that already ended.
-fn close_plan(status: TaskStatus, why: &str) -> Option<(&'static [TaskStatus], String)> {
-    match status {
-        TaskStatus::Planned | TaskStatus::Ready | TaskStatus::Waiting => Some((
-            &[TaskStatus::Skipped],
-            format!("{why} before this task started."),
-        )),
-        TaskStatus::Reserved | TaskStatus::Running => Some((
-            &[TaskStatus::Failed, TaskStatus::Blocked],
-            format!("{why} while this task was running."),
-        )),
-        TaskStatus::Failed => Some((
-            &[TaskStatus::Blocked],
-            format!("{why} while this task was failing."),
-        )),
-        TaskStatus::Checkpointed | TaskStatus::Verifying => Some((
-            &[TaskStatus::Verifying, TaskStatus::Partial],
-            format!("{why} before this task was verified. Its commit is kept."),
-        )),
-        TaskStatus::Verified
-        | TaskStatus::Blocked
-        | TaskStatus::Contradiction
-        | TaskStatus::Skipped
-        | TaskStatus::Partial => None,
-    }
-}
-
-fn close_out(ctx: &RunCtx) -> Result<()> {
-    let store = ctx.engine.store();
-    let why = if ctx.stopped() {
-        "The run was stopped"
-    } else {
-        "The run ended"
-    };
-    for task in store.list_tasks()? {
-        let Some((steps, reason)) = close_plan(task.status, why) else {
-            continue;
-        };
-        for step in steps {
-            store.set_task_status(&task.id, *step)?;
-        }
-        if let Some(end) = steps.last() {
-            record_end(ctx, &task.id, *end, &reason);
         }
     }
     Ok(())

@@ -125,17 +125,17 @@ async fn found_binary_with_version_becomes_ready() {
     let options = make_options(&bin_dir, temp.path(), vec![]);
 
     let results = detect_all(&make_profiles(), &options).await;
-    let info = results
+    let found = results
         .iter()
         .find(|i| i.id == ToolId::new("opencode"))
         .expect("opencode found");
 
-    assert_eq!(info.status, ToolStatus::Ready);
-    assert_eq!(info.version, "1.2.3");
-    assert_eq!(info.path, bin_dir.join("opencode").to_string_lossy());
-    assert_eq!(info.adapter, "opencode");
-    assert_eq!(info.tier, Tier::Cheap);
-    assert!(!info.enabled);
+    assert_eq!(found.status, ToolStatus::Ready);
+    assert_eq!(found.version, "1.2.3");
+    assert_eq!(found.path, bin_dir.join("opencode").to_string_lossy());
+    assert_eq!(found.adapter, "opencode");
+    assert_eq!(found.tier, Tier::Cheap);
+    assert!(!found.enabled);
 }
 
 #[tokio::test]
@@ -144,14 +144,14 @@ async fn missing_binary_is_missing() {
     let options = make_options(temp.path(), temp.path(), vec![]);
 
     let results = detect_all(&make_profiles(), &options).await;
-    let info = results
+    let found = results
         .iter()
         .find(|i| i.id == ToolId::new("opencode"))
         .expect("opencode found");
 
-    assert_eq!(info.status, ToolStatus::Missing);
-    assert_eq!(info.path, "");
-    assert_eq!(info.version, "");
+    assert_eq!(found.status, ToolStatus::Missing);
+    assert_eq!(found.path, "");
+    assert_eq!(found.version, "");
 }
 
 #[tokio::test]
@@ -163,12 +163,12 @@ async fn dir_login_missing_folder_is_needs_login() {
     let options = make_options(&bin_dir, temp.path(), vec![]);
 
     let results = detect_all(&make_profiles(), &options).await;
-    let info = results
+    let found = results
         .iter()
         .find(|i| i.id == ToolId::new("testlogin"))
         .expect("testlogin found");
 
-    assert_eq!(info.status, ToolStatus::NeedsLogin);
+    assert_eq!(found.status, ToolStatus::NeedsLogin);
 }
 
 #[tokio::test]
@@ -183,12 +183,12 @@ async fn dir_login_present_folder_is_ready() {
     let options = make_options(&bin_dir, temp.path(), vec![]);
 
     let results = detect_all(&make_profiles(), &options).await;
-    let info = results
+    let found = results
         .iter()
         .find(|i| i.id == ToolId::new("testlogin"))
         .expect("testlogin found");
 
-    assert_eq!(info.status, ToolStatus::Ready);
+    assert_eq!(found.status, ToolStatus::Ready);
 }
 
 #[tokio::test]
@@ -200,12 +200,12 @@ async fn version_probe_failure_is_failed() {
     let options = make_options(&bin_dir, temp.path(), vec![]);
 
     let results = detect_all(&make_profiles(), &options).await;
-    let info = results
+    let found = results
         .iter()
         .find(|i| i.id == ToolId::new("opencode"))
         .expect("opencode found");
 
-    assert_eq!(info.status, ToolStatus::Failed);
+    assert_eq!(found.status, ToolStatus::Failed);
 }
 
 #[tokio::test]
@@ -222,12 +222,12 @@ async fn version_probe_timeout_is_failed() {
     };
 
     let results = detect_all(&make_profiles(), &options).await;
-    let info = results
+    let found = results
         .iter()
         .find(|i| i.id == ToolId::new("opencode"))
         .expect("opencode found");
 
-    assert_eq!(info.status, ToolStatus::Failed);
+    assert_eq!(found.status, ToolStatus::Failed);
 }
 
 #[tokio::test]
@@ -239,15 +239,15 @@ async fn extra_name_on_path_becomes_generic_needs_command() {
     let options = make_options(&bin_dir, temp.path(), vec!["mytool".to_string()]);
 
     let results = detect_all(&make_profiles(), &options).await;
-    let info = results
+    let found = results
         .iter()
         .find(|i| i.id == ToolId::new("mytool"))
         .expect("mytool found");
 
-    assert_eq!(info.adapter, GENERIC_ID);
-    assert_eq!(info.status, ToolStatus::NeedsCommand);
-    assert_eq!(info.version, "2.0.0");
-    assert_eq!(info.tier, Tier::Cheap);
+    assert_eq!(found.adapter, GENERIC_ID);
+    assert_eq!(found.status, ToolStatus::NeedsCommand);
+    assert_eq!(found.version, "2.0.0");
+    assert_eq!(found.tier, Tier::Cheap);
 }
 
 #[tokio::test]
@@ -259,13 +259,13 @@ async fn needs_template_profile_found_is_needs_command() {
     let options = make_options(&bin_dir, temp.path(), vec![]);
 
     let results = detect_all(&make_profiles(), &options).await;
-    let info = results
+    let found = results
         .iter()
         .find(|i| i.id == ToolId::new("needstemplate"))
         .expect("needstemplate found");
 
-    assert_eq!(info.status, ToolStatus::NeedsCommand);
-    assert_eq!(info.adapter, "needstemplate");
+    assert_eq!(found.status, ToolStatus::NeedsCommand);
+    assert_eq!(found.adapter, "needstemplate");
 }
 
 #[tokio::test]

@@ -158,34 +158,40 @@ async fn settle_contradictions(
     for pair in pairs {
         let decision = decision_for(pair, &title);
         let answer = ask_decision(ctx, &decision).await;
-        let answered = if answer.is_some() {
+        let state = if answer.is_some() {
             DecisionState::Answered
         } else {
             DecisionState::Defaulted
         };
         let resolved = sentinel_core::Decision {
-            state: answered,
+            state,
             answer: answer.clone(),
-            ..decision.clone()
+            ..decision
         };
-        match apply_answer(&resolved, answer.as_deref()) {
-            Resolution::Keep { chosen, skipped } => {
-                let reason = format!("You chose {chosen} instead, so this task was skipped.");
-                finish_without_work(ctx, &skipped, TaskStatus::Skipped, &reason)?;
-            }
-            Resolution::SkipBoth { a, b } => {
-                let why = if answer.is_some() {
-                    "You skipped both tasks."
-                } else {
-                    "Nobody answered, so both tasks were skipped."
-                };
-                let reason = format!("{a} and {b} contradict each other. {why}");
-                finish_without_work(ctx, &a, TaskStatus::Contradiction, &reason)?;
-                finish_without_work(ctx, &b, TaskStatus::Contradiction, &reason)?;
-            }
-        }
+        let resolution = apply_answer(&resolved, answer.as_deref());
+        apply_resolution(ctx, resolution, answer.is_some())?;
     }
     Ok(())
+}
+
+/// Carry out what the user chose: skip the loser, or mark both tasks as contradicting.
+fn apply_resolution(ctx: &RunCtx, resolution: Resolution, answered: bool) -> Result<()> {
+    match resolution {
+        Resolution::Keep { chosen, skipped } => {
+            let reason = format!("You chose {chosen} instead, so this task was skipped.");
+            finish_without_work(ctx, &skipped, TaskStatus::Skipped, &reason)
+        }
+        Resolution::SkipBoth { a, b } => {
+            let why = if answered {
+                "You skipped both tasks."
+            } else {
+                "Nobody answered, so both tasks were skipped."
+            };
+            let reason = format!("{a} and {b} contradict each other. {why}");
+            finish_without_work(ctx, &a, TaskStatus::Contradiction, &reason)?;
+            finish_without_work(ctx, &b, TaskStatus::Contradiction, &reason)
+        }
+    }
 }
 
 fn mark_ready(ctx: &RunCtx) -> Result<()> {

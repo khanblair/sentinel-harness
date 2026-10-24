@@ -6,6 +6,7 @@ mod ask;
 pub mod assets;
 mod attempt;
 pub mod auth;
+mod close_out;
 pub mod cmd;
 pub mod config;
 pub mod connections;

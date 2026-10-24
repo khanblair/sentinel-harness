@@ -101,7 +101,7 @@ CSS variables only for values that tokens define. Class names follow `block__ele
 | Long function | 40 lines | `smell-check` |
 | Big file | 400 lines of code. Test modules and files under `tests/` do not count | `smell-check` |
 | Many parameters | 4 (use a struct beyond) | clippy |
-| Deep nesting | 3 levels | clippy cognitive complexity and `smell-check` |
+| Deep nesting | 3 levels. Markup inside a `view! { ... }` block counts as one level | clippy cognitive complexity and `smell-check` |
 | Large enum match with `_` catch-all hiding cases | Avoid | clippy `wildcard_enum_match_arm` |
 | Duplicate code | 3 or more copies of a 6-line block | `xtask dup-check` |
 | Needless `clone` | Avoid in hot paths | clippy |

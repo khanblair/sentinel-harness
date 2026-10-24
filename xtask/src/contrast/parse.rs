@@ -51,15 +51,13 @@ fn array_text<'a>(text: &'a str, name: &str) -> Result<&'a str, String> {
 fn matching_bracket(text: &str) -> Option<usize> {
     let mut depth = 0_i32;
     for (index, ch) in text.char_indices() {
-        match ch {
-            '[' => depth += 1,
-            ']' => {
-                depth -= 1;
-                if depth == 0 {
-                    return Some(index);
-                }
-            }
-            _ => {}
+        depth += match ch {
+            '[' => 1,
+            ']' => -1,
+            _ => 0,
+        };
+        if ch == ']' && depth == 0 {
+            return Some(index);
         }
     }
     None

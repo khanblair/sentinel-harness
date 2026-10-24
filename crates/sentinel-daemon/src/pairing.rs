@@ -4,7 +4,7 @@
 //! `sentinel-store`, and the phone polls for its token, which it receives exactly once.
 //! The daemon keeps only a hash of the token (`docs/mobile.md`, Connecting and Pairing).
 //!
-//! Time always arrives as a parameter. The manager keeps the last time it saw, so a poll
+//! Time always arrives as a parameter. The pairing manager keeps the last time it saw, so a poll
 //! without a clock still knows whether a pending request ran out of time.
 
 use std::collections::BTreeMap;
@@ -186,27 +186,12 @@ impl PairingManager {
         now: OffsetDateTime,
     ) -> Result<PairResult, PairError> {
         self.latest_seen_time = Some(now);
-        let request = match self.requests.remove(id) {
-            Some(request) if request.state == RequestState::Waiting => request,
-            // A decision already went out for this pending id.
-            Some(request) => {
-                self.requests.insert(id.clone(), request);
-                return Err(PairError::UnknownPending);
-            }
-            None => return Err(PairError::UnknownPending),
-        };
+        let request = self.take_waiting(id)?;
         if request.expires_at < now {
             return Err(PairError::Expired);
         }
         let token = new_token();
-        let device = Device {
-            id: DeviceId::new(Uuid::new_v4().to_string()),
-            name: request.device_name.clone(),
-            kind: DeviceKind::Phone,
-            token_hash: hash_token(&token),
-            created_at: now,
-            revoked_at: None,
-        };
+        let device = phone_device(&request.device_name, &token, now);
         store.insert_device(&device)?;
         let approved = PairResult {
             device: device.id,
@@ -222,16 +207,22 @@ impl PairingManager {
         Ok(approved)
     }
 
-    /// The PC rejects the request.
-    pub fn deny(&mut self, id: &PendingId) -> Result<(), PairError> {
-        let request = match self.requests.remove(id) {
-            Some(request) if request.state == RequestState::Waiting => request,
+    /// Take a request that still waits for a decision out of the table. A request that already
+    /// got a decision stays where it is.
+    fn take_waiting(&mut self, id: &PendingId) -> Result<PendingRequest, PairError> {
+        match self.requests.remove(id) {
+            Some(request) if request.state == RequestState::Waiting => Ok(request),
             Some(request) => {
                 self.requests.insert(id.clone(), request);
-                return Err(PairError::UnknownPending);
+                Err(PairError::UnknownPending)
             }
-            None => return Err(PairError::UnknownPending),
-        };
+            None => Err(PairError::UnknownPending),
+        }
+    }
+
+    /// The PC rejects the request.
+    pub fn deny(&mut self, id: &PendingId) -> Result<(), PairError> {
+        let request = self.take_waiting(id)?;
         self.requests.insert(
             id.clone(),
             PendingRequest {
@@ -325,6 +316,18 @@ fn display_code(code: &str) -> String {
     format!("{}-{}", &code[..4], &code[4..])
 }
 
+/// The device row for a phone that was just approved. It keeps only the hash of the token.
+fn phone_device(name: &str, token: &str, now: OffsetDateTime) -> Device {
+    Device {
+        id: DeviceId::new(Uuid::new_v4().to_string()),
+        name: name.to_owned(),
+        kind: DeviceKind::Phone,
+        token_hash: hash_token(token),
+        created_at: now,
+        revoked_at: None,
+    }
+}
+
 fn new_code() -> String {
     // The alphabet has 32 characters, and one masked byte picks one of them evenly.
     // No `rand` crate is allowed here, so UUID bytes are the random source.
@@ -379,8 +382,8 @@ mod tests {
 
     #[test]
     fn start_shows_a_qr_and_a_dashed_code_when_tailscale_runs() {
-        let mut manager = PairingManager::new();
-        let start = manager.start("http://100.64.0.9:8080", running(), at(0));
+        let mut pairs = PairingManager::new();
+        let start = pairs.start("http://100.64.0.9:8080", running(), at(0));
         assert_eq!(start.url, "http://100.64.0.9:8080/pair");
         assert_eq!(start.code.chars().count(), CODE_LENGTH + 1);
         assert_eq!(start.code.chars().nth(4), Some('-'));
@@ -414,171 +417,168 @@ mod tests {
 
     #[test]
     fn start_replaces_the_open_code() {
-        let mut manager = PairingManager::new();
-        let first = manager.start("http://host", running(), at(0));
-        let second = manager.start("http://host", running(), at(0));
+        let mut pairs = PairingManager::new();
+        let first = pairs.start("http://host", running(), at(0));
+        let second = pairs.start("http://host", running(), at(0));
         assert_ne!(first.code, second.code);
         let submit = submit_for(&first.code, "phone");
-        assert_eq!(manager.submit(&submit, at(10)), Err(PairError::BadCode));
+        assert_eq!(pairs.submit(&submit, at(10)), Err(PairError::BadCode));
     }
 
     #[test]
     fn the_happy_path_stores_a_phone_device_and_hands_out_the_token_once() {
         let store = Store::open_in_memory().unwrap();
-        let mut manager = PairingManager::new();
-        manager.start("http://100.64.0.9", running(), at(0));
+        let mut pairs = PairingManager::new();
+        pairs.start("http://100.64.0.9", running(), at(0));
         let code = "12345678".to_owned();
-        manager.session.as_mut().unwrap().code = code.clone();
-        let id = manager
+        pairs.session.as_mut().unwrap().code = code.clone();
+        let id = pairs
             .submit(&submit_for(&code.to_ascii_lowercase(), "my phone"), at(30))
             .unwrap();
-        let approved = manager.approve(&id, &store, at(40)).unwrap();
+        let approved = pairs.approve(&id, &store, at(40)).unwrap();
         let device = store
             .device_by_token_hash(&hash_token(&approved.token))
             .unwrap()
             .unwrap();
         assert_eq!(device.name, "my phone");
         assert_eq!(device.kind, DeviceKind::Phone);
-        assert_eq!(manager.outcome(&id), PairOutcome::Approved(approved));
-        assert_eq!(manager.outcome(&id), PairOutcome::Unknown);
+        assert_eq!(pairs.outcome(&id), PairOutcome::Approved(approved));
+        assert_eq!(pairs.outcome(&id), PairOutcome::Unknown);
     }
 
     #[test]
     fn approve_adds_exactly_one_pending_then_nothing() {
         let store = Store::open_in_memory().unwrap();
-        let mut manager = PairingManager::new();
-        manager.start("http://host", running(), at(0));
-        manager.session.as_mut().unwrap().code = "ABCDEFGH".to_owned();
-        let id = manager
+        let mut pairs = PairingManager::new();
+        pairs.start("http://host", running(), at(0));
+        pairs.session.as_mut().unwrap().code = "ABCDEFGH".to_owned();
+        let id = pairs
             .submit(&submit_for("ABCDEFGH", "phone"), at(10))
             .unwrap();
-        assert_eq!(manager.pending().len(), 1);
-        manager.approve(&id, &store, at(20)).unwrap();
-        assert_eq!(manager.pending(), []);
+        assert_eq!(pairs.pending().len(), 1);
+        pairs.approve(&id, &store, at(20)).unwrap();
+        assert_eq!(pairs.pending(), []);
     }
 
     #[test]
     fn a_wrong_code_is_rejected_and_the_right_one_still_works() {
-        let mut manager = PairingManager::new();
-        manager.start("http://host", running(), at(0));
-        manager.session.as_mut().unwrap().code = "ABCDEFGH".to_owned();
+        let mut pairs = PairingManager::new();
+        pairs.start("http://host", running(), at(0));
+        pairs.session.as_mut().unwrap().code = "ABCDEFGH".to_owned();
         assert_eq!(
-            manager.submit(&submit_for("XXXXXXXX", "phone"), at(10)),
+            pairs.submit(&submit_for("XXXXXXXX", "phone"), at(10)),
             Err(PairError::BadCode)
         );
-        let right = manager.submit(&submit_for("abcdefgh", "phone"), at(11));
+        let right = pairs.submit(&submit_for("abcdefgh", "phone"), at(11));
         assert!(right.is_ok());
     }
 
     #[test]
     fn a_submitted_code_cannot_be_submitted_again() {
         let store = Store::open_in_memory().unwrap();
-        let mut manager = PairingManager::new();
-        manager.start("http://host", running(), at(0));
-        manager.session.as_mut().unwrap().code = "ABCDEFGH".to_owned();
-        manager
+        let mut pairs = PairingManager::new();
+        pairs.start("http://host", running(), at(0));
+        pairs.session.as_mut().unwrap().code = "ABCDEFGH".to_owned();
+        pairs
             .submit(&submit_for("ABCDEFGH", "phone"), at(10))
             .unwrap();
         assert_eq!(
-            manager.submit(&submit_for("ABCDEFGH", "phone too"), at(11)),
+            pairs.submit(&submit_for("ABCDEFGH", "phone too"), at(11)),
             Err(PairError::AlreadyUsed)
         );
         // Approval does not hand the spent code out again either.
-        let pending = manager.pending().remove(0);
-        manager.approve(&pending.id, &store, at(12)).unwrap();
+        let pending = pairs.pending().remove(0);
+        pairs.approve(&pending.id, &store, at(12)).unwrap();
         assert_eq!(
-            manager.submit(&submit_for("ABCDEFGH", "phone too"), at(13)),
+            pairs.submit(&submit_for("ABCDEFGH", "phone too"), at(13)),
             Err(PairError::AlreadyUsed)
         );
     }
 
     #[test]
     fn a_code_stops_working_after_five_minutes() {
-        let mut manager = PairingManager::new();
-        manager.start("http://host", running(), at(0));
-        manager.session.as_mut().unwrap().code = "ABCDEFGH".to_owned();
+        let mut pairs = PairingManager::new();
+        pairs.start("http://host", running(), at(0));
+        pairs.session.as_mut().unwrap().code = "ABCDEFGH".to_owned();
         let ahead =
             at(0) + time::Duration::seconds(i64::try_from(CODE_LIFETIME_SECONDS).unwrap() + 1);
         assert_eq!(
-            manager.submit(&submit_for("ABCDEFGH", "phone"), ahead),
+            pairs.submit(&submit_for("ABCDEFGH", "phone"), ahead),
             Err(PairError::Expired)
         );
     }
 
     #[test]
     fn five_wrong_codes_block_the_sixth_even_when_it_is_right() {
-        let mut manager = PairingManager::new();
-        manager.start("http://host", running(), at(0));
-        manager.session.as_mut().unwrap().code = "ABCDEFGH".to_owned();
+        let mut pairs = PairingManager::new();
+        pairs.start("http://host", running(), at(0));
+        pairs.session.as_mut().unwrap().code = "ABCDEFGH".to_owned();
         for attempt in 0..WRONG_SUBMISSION_LIMIT {
             let submit = submit_for("XXXXXXXX", "phone");
             assert_eq!(
-                manager.submit(&submit, at(10 + i64::from(attempt))),
+                pairs.submit(&submit, at(10 + i64::from(attempt))),
                 Err(PairError::BadCode)
             );
         }
         assert_eq!(
-            manager.submit(&submit_for("ABCDEFGH", "phone"), at(50)),
+            pairs.submit(&submit_for("ABCDEFGH", "phone"), at(50)),
             Err(PairError::BadCode)
         );
         let unblocked = at(14)
             + time::Duration::seconds(i64::try_from(WRONG_SUBMISSION_BLOCK_SECONDS).unwrap() + 1);
-        let right = manager.submit(&submit_for("ABCDEFGH", "phone"), unblocked);
+        let right = pairs.submit(&submit_for("ABCDEFGH", "phone"), unblocked);
         assert!(right.is_ok());
     }
 
     #[test]
     fn deny_reaches_the_phone_once() {
-        let mut manager = PairingManager::new();
-        manager.start("http://host", running(), at(0));
-        manager.session.as_mut().unwrap().code = "ABCDEFGH".to_owned();
-        let id = manager
+        let mut pairs = PairingManager::new();
+        pairs.start("http://host", running(), at(0));
+        pairs.session.as_mut().unwrap().code = "ABCDEFGH".to_owned();
+        let id = pairs
             .submit(&submit_for("ABCDEFGH", "phone"), at(10))
             .unwrap();
-        assert_eq!(manager.deny(&id), Ok(()));
-        assert_eq!(manager.outcome(&id), PairOutcome::Denied);
-        assert_eq!(manager.outcome(&id), PairOutcome::Unknown);
-        assert_eq!(manager.deny(&id), Err(PairError::UnknownPending));
+        assert_eq!(pairs.deny(&id), Ok(()));
+        assert_eq!(pairs.outcome(&id), PairOutcome::Denied);
+        assert_eq!(pairs.outcome(&id), PairOutcome::Unknown);
+        assert_eq!(pairs.deny(&id), Err(PairError::UnknownPending));
     }
 
     #[test]
     fn approvals_and_denials_only_answer_known_pendings() {
         let store = Store::open_in_memory().unwrap();
-        let mut manager = PairingManager::new();
+        let mut pairs = PairingManager::new();
         assert_eq!(
-            manager.approve(&PendingId::new("gone"), &store, at(0)),
+            pairs.approve(&PendingId::new("gone"), &store, at(0)),
             Err(PairError::UnknownPending)
         );
         assert_eq!(
-            manager.deny(&PendingId::new("gone")),
+            pairs.deny(&PendingId::new("gone")),
             Err(PairError::UnknownPending)
         );
-        assert_eq!(
-            manager.outcome(&PendingId::new("gone")),
-            PairOutcome::Unknown
-        );
+        assert_eq!(pairs.outcome(&PendingId::new("gone")), PairOutcome::Unknown);
     }
 
     #[test]
     fn the_phone_reads_expired_once_the_window_has_passed() {
-        let mut manager = PairingManager::new();
-        manager.start("http://host", running(), at(0));
-        manager.session.as_mut().unwrap().code = "ABCDEFGH".to_owned();
-        let _id = manager
+        let mut pairs = PairingManager::new();
+        pairs.start("http://host", running(), at(0));
+        pairs.session.as_mut().unwrap().code = "ABCDEFGH".to_owned();
+        let _id = pairs
             .submit(&submit_for("ABCDEFGH", "phone"), at(10))
             .unwrap();
         // A new `start` is the call that moves the clock past the pending lifetime.
-        manager.start(
+        pairs.start(
             "http://host",
             running(),
             at(0) + time::Duration::seconds(600),
         );
-        let id = manager
+        let id = pairs
             .pending()
             .pop()
             .expect("the pending request is still listed")
             .id;
-        assert_eq!(manager.outcome(&id), PairOutcome::Expired);
-        assert_eq!(manager.outcome(&id), PairOutcome::Unknown);
+        assert_eq!(pairs.outcome(&id), PairOutcome::Expired);
+        assert_eq!(pairs.outcome(&id), PairOutcome::Unknown);
     }
 }

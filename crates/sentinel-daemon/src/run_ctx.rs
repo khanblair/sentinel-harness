@@ -96,33 +96,41 @@ impl WritePolicy for RunPolicy {
 /// percent, or a kill of this one task.
 pub(crate) fn merge_kill(sources: Vec<watch::Receiver<bool>>) -> watch::Receiver<bool> {
     let (sender, receiver) = watch::channel(sources.iter().any(|s| *s.borrow()));
-    tokio::spawn(async move {
-        let mut sources = sources;
-        loop {
-            if sources.iter().any(|s| *s.borrow()) {
-                sender.send_replace(true);
-                return;
-            }
-            if sources.is_empty() {
-                return;
-            }
-            let outcome = {
-                let waits = sources.iter_mut().map(|s| Box::pin(s.changed()));
-                tokio::select! {
-                    (changed, index, _) = futures::future::select_all(waits) => Some((changed.is_err(), index)),
-                    () = sender.closed() => None,
-                }
-            };
-            match outcome {
-                None => return,
-                Some((true, index)) => {
-                    sources.swap_remove(index);
-                }
-                Some((false, _)) => {}
-            }
-        }
-    });
+    tokio::spawn(forward_kill(sources, sender));
     receiver
+}
+
+/// Wait on every source. When one turns `true`, send `true`. A source whose sender is gone is
+/// dropped. Stop when nothing is left or nobody listens any more.
+async fn forward_kill(mut sources: Vec<watch::Receiver<bool>>, sender: watch::Sender<bool>) {
+    loop {
+        if sources.iter().any(|s| *s.borrow()) {
+            sender.send_replace(true);
+            return;
+        }
+        if sources.is_empty() {
+            return;
+        }
+        let Some(gone) = next_change(&mut sources, &sender).await else {
+            return;
+        };
+        if let Some(index) = gone {
+            sources.swap_remove(index);
+        }
+    }
+}
+
+/// Wait for one source to change. `None`: nobody listens to the merged signal any more.
+/// `Some(Some(index))`: that source's sender is gone. `Some(None)`: a source changed.
+async fn next_change(
+    sources: &mut [watch::Receiver<bool>],
+    sender: &watch::Sender<bool>,
+) -> Option<Option<usize>> {
+    let waits = sources.iter_mut().map(|s| Box::pin(s.changed()));
+    tokio::select! {
+        (changed, index, _) = futures::future::select_all(waits) => Some(changed.is_err().then_some(index)),
+        () = sender.closed() => None,
+    }
 }
 
 #[cfg(test)]

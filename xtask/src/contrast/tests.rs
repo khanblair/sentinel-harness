@@ -112,16 +112,11 @@ fn missing_dark_table_fails_with_clear_message() {
 }
 
 // ---- Real repo test ----
-// Note: The real repo currently has a contrast failure (light theme accent-fg on accent is 4.4:1).
-// This test verifies the check runs on the real repo without crashing.
 
 #[test]
-fn real_repo_runs_without_error() {
+fn the_real_repo_passes() {
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let root = manifest_dir.parent().unwrap(); // workspace root
     let findings = run(root).unwrap();
-    // Just verify the check runs; the real repo has a known contrast issue
-    // that would need to be fixed in prefs.rs for a fully clean pass.
-    eprintln!("Real repo findings: {findings:#?}");
-    // Test passes as long as the check executes without error
+    assert_eq!(findings.len(), 0, "contrast findings: {findings:#?}");
 }

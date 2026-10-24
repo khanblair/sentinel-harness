@@ -60,11 +60,8 @@ async fn handshake(socket: &mut WebSocket, engine: &Engine) -> Option<i64> {
     caller_for_token(engine, token).await?;
     loop {
         match next_frame(socket).await? {
-            ClientFrame::Ping => {
-                if !send_frame(socket, &ServerFrame::Pong).await {
-                    return None;
-                }
-            }
+            ClientFrame::Ping if !send_frame(socket, &ServerFrame::Pong).await => return None,
+            ClientFrame::Ping => {}
             ClientFrame::Subscribe { after } => return Some(after),
             ClientFrame::Auth { .. } => return None,
         }
@@ -109,28 +106,39 @@ async fn relay_live(
     last_sent: &mut i64,
 ) -> Ending {
     loop {
-        tokio::select! {
-            received = live.recv() => match received {
-                Ok(record) => {
-                    if is_fresh(record.id, *last_sent)
-                        && !send_event(socket, last_sent, record).await
-                    {
-                        return Ending::Gone;
-                    }
-                }
-                Err(RecvError::Lagged(_)) => return Ending::Lagged,
-                Err(RecvError::Closed) => return Ending::Gone,
-            },
-            frame = next_frame(socket) => match frame {
-                Some(ClientFrame::Ping) => {
-                    if !send_frame(socket, &ServerFrame::Pong).await {
-                        return Ending::Gone;
-                    }
-                }
-                Some(_) => {}
-                None => return Ending::Gone,
-            },
+        let ending = tokio::select! {
+            received = live.recv() => relay_event(socket, last_sent, received).await,
+            frame = next_frame(socket) => answer_client(socket, frame).await,
+        };
+        if let Some(ending) = ending {
+            return ending;
         }
+    }
+}
+
+/// Send a live event the client has not seen. `Some` ends the stream.
+async fn relay_event(
+    socket: &mut WebSocket,
+    last_sent: &mut i64,
+    received: Result<EventRecord, RecvError>,
+) -> Option<Ending> {
+    match received {
+        Ok(record) => (is_fresh(record.id, *last_sent)
+            && !send_event(socket, last_sent, record).await)
+            .then_some(Ending::Gone),
+        Err(RecvError::Lagged(_)) => Some(Ending::Lagged),
+        Err(RecvError::Closed) => Some(Ending::Gone),
+    }
+}
+
+/// Answer a frame from the client while events flow. `Some` ends the stream.
+async fn answer_client(socket: &mut WebSocket, frame: Option<ClientFrame>) -> Option<Ending> {
+    match frame {
+        Some(ClientFrame::Ping) => {
+            (!send_frame(socket, &ServerFrame::Pong).await).then_some(Ending::Gone)
+        }
+        Some(_) => None,
+        None => Some(Ending::Gone),
     }
 }
 

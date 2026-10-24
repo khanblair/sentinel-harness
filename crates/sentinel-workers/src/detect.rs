@@ -38,16 +38,16 @@ pub async fn detect_all(profiles: &[Profile], options: &DetectOptions) -> Vec<To
         if profile.id == GENERIC_ID {
             continue;
         }
-        let info = detect_one(profile, options).await;
-        results.push(info);
+        let found = detect_one(profile, options).await;
+        results.push(found);
     }
 
     for name in &options.extra_names {
         if profiles.iter().any(|p| p.id == *name) {
             continue;
         }
-        if let Some(info) = detect_extra(name, options).await {
-            results.push(info);
+        if let Some(found) = detect_extra(name, options).await {
+            results.push(found);
         }
     }
 
