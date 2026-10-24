@@ -129,20 +129,20 @@ fn increment_attempts_counts_up() {
     assert_eq!(store.get_task(&task.id).unwrap().unwrap().attempts, 2);
 }
 
+fn dependency(task: &str, depends_on: &str, kind: DependencyKind) -> Dependency {
+    Dependency {
+        task: TaskId::new(task),
+        depends_on: TaskId::new(depends_on),
+        kind,
+    }
+}
+
 #[test]
 fn dependencies_round_trip() {
     let store = Store::open_in_memory().unwrap();
     let deps = [
-        Dependency {
-            task: TaskId::new("T-02"),
-            depends_on: TaskId::new("T-01"),
-            kind: DependencyKind::Order,
-        },
-        Dependency {
-            task: TaskId::new("T-03"),
-            depends_on: TaskId::new("T-01"),
-            kind: DependencyKind::ReadAfterWrite,
-        },
+        dependency("T-02", "T-01", DependencyKind::Order),
+        dependency("T-03", "T-01", DependencyKind::ReadAfterWrite),
     ];
     for dep in &deps {
         store.add_dependency(dep).unwrap();

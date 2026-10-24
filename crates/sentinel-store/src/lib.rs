@@ -135,6 +135,23 @@ pub(crate) fn time_from_text(text: &str) -> Result<OffsetDateTime> {
     })
 }
 
+/// The `WHERE` clause that keeps rows whose `column` is one of `states`, and the
+/// values to bind to it. An empty list means no filter at all.
+pub(crate) fn state_filter(
+    column: &str,
+    states: &[impl Serialize],
+) -> Result<(String, Vec<String>)> {
+    if states.is_empty() {
+        return Ok((String::new(), Vec::new()));
+    }
+    let placeholders = vec!["?"; states.len()].join(",");
+    let values = states
+        .iter()
+        .map(enum_text)
+        .collect::<Result<Vec<String>>>()?;
+    Ok((format!(" WHERE {column} IN ({placeholders})"), values))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

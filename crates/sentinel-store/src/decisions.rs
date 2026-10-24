@@ -5,7 +5,7 @@ use rusqlite::{Connection, OptionalExtension, Row, params};
 use sentinel_core::{CoreError, Decision, DecisionId, DecisionState};
 use time::OffsetDateTime;
 
-use crate::{Result, Store, StoreError, enum_from_text, enum_text, time_text};
+use crate::{Result, Store, StoreError, enum_from_text, enum_text, state_filter, time_text};
 
 const DECISION_COLUMNS: &str = "id, prompt, tasks_json, state, answer";
 
@@ -77,7 +77,8 @@ impl Store {
     /// An empty filter means every prompt, oldest first.
     pub fn list_decisions(&self, states: &[DecisionState]) -> Result<Vec<Decision>> {
         let connection = self.connection()?;
-        let (sql, filters) = decision_filter(states)?;
+        let (clause, filters) = state_filter("state", states)?;
+        let sql = format!("SELECT {DECISION_COLUMNS} FROM decisions{clause} ORDER BY at, id");
         let rows = {
             let mut statement = connection.prepare(&sql)?;
             let mapped = statement.query_map(
@@ -117,27 +118,6 @@ fn decision_state_name(state: DecisionState) -> &'static str {
         DecisionState::Answered => "answered",
         DecisionState::Defaulted => "defaulted",
     }
-}
-
-fn decision_filter(states: &[DecisionState]) -> Result<(String, Vec<String>)> {
-    if states.is_empty() {
-        return Ok((
-            format!("SELECT {DECISION_COLUMNS} FROM decisions ORDER BY at, id"),
-            Vec::new(),
-        ));
-    }
-    let placeholders = vec!["?"; states.len()].join(",");
-    let filters = states
-        .iter()
-        .map(enum_text)
-        .collect::<Result<Vec<String>>>()?;
-    Ok((
-        format!(
-            "SELECT {DECISION_COLUMNS} FROM decisions WHERE state IN ({placeholders}) \
-             ORDER BY at, id"
-        ),
-        filters,
-    ))
 }
 
 fn read_decision_row(row: &Row<'_>) -> rusqlite::Result<DecisionRow> {
