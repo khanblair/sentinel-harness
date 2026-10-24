@@ -39,6 +39,7 @@ Goal: a repo that checks itself.
 | P0-04 | Add `smell-check`, `doc-check`, `ban-check` | Each fails on a seeded violation |
 | P0-05 | Add `deny.toml` with banned crates | `cargo deny check` passes |
 | P0-06 | Extend `smell-check` (data clumps, message chains, public fields) and add `dup-check` | Each fails on a seeded violation and passes on clean code |
+| P0-07 | GitHub workflows (`ci`, `pages`, `release`, `nightly-agent-smoke`) and `dependabot.yml` | Each file parses as YAML. `ci.yml` runs `cargo xtask ci` on a push to main |
 
 Dependencies: none. Tests: each check has a failing fixture and a passing fixture.
 

@@ -1,0 +1,67 @@
+name: pages
+
+# Builds the how-to site (site/, an mdBook project, docs/product-scope.md F22) and publishes it
+# to GitHub Pages on every push to main. Nothing happens until site/book.toml exists (Phase 15).
+#
+# To turn it on: Settings, Pages, Source: "GitHub Actions". A private repository needs a plan
+# that allows Pages for private repositories; a public repository does not.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - "design/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      present: ${{ steps.site.outputs.present }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check that the site exists yet
+        id: site
+        run: |
+          if [ -f site/book.toml ]; then echo "present=true" >> "$GITHUB_OUTPUT"; fi
+      - if: steps.site.outputs.present == 'true'
+        uses: dtolnay/rust-toolchain@stable
+      - if: steps.site.outputs.present == 'true'
+        uses: Swatinem/rust-cache@v2
+      - if: steps.site.outputs.present == 'true'
+        uses: taiki-e/install-action@v2
+        with:
+          tool: mdbook
+      # The same slop and doc checks as ci.yml, on the site text.
+      - if: steps.site.outputs.present == 'true'
+        run: cargo xtask slop-check
+      - if: steps.site.outputs.present == 'true'
+        run: mdbook build site
+      - if: steps.site.outputs.present == 'true'
+        uses: actions/configure-pages@v5
+      - if: steps.site.outputs.present == 'true'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site/book
+
+  deploy:
+    needs: build
+    if: needs.build.outputs.present == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

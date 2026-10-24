@@ -55,7 +55,17 @@ site/
   src/help/               troubleshooting.md, faq.md, changelog.md
   theme/                  CSS from ui-tokens, fonts, and the light and dark switch
   img/                    screenshots from the prototype, light and dark
-.github/workflows/pages.yml   builds the book, runs checks, deploys to GitHub Pages
+```
+
+## .github/
+
+```
+.github/
+  dependabot.yml                   weekly updates for cargo and for the actions used
+  workflows/ci.yml                 cargo xtask ci on Linux, tests on macOS and Windows, UI wasm build and size budget
+  workflows/pages.yml              builds the how-to site and deploys it to GitHub Pages
+  workflows/release.yml            on a version tag: verify, build four targets, draft release with checksums
+  workflows/nightly-agent-smoke.yml  opt-in run of the real agent CLIs on a self-hosted runner
 ```
 
 ## docs/

@@ -1,0 +1,93 @@
+name: ci
+
+# One authoritative job runs `cargo xtask ci`, the same command a person runs locally
+# (docs/development.md). It covers format, clippy, tests, cargo-deny, cargo-machete, and the file
+# checks (smell, dup, slop, doc, ban, contrast). The other jobs add what that job cannot: the
+# tests on macOS and Windows, and the WASM build of the UI with its size budget.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  xtask-ci:
+    name: cargo xtask ci (ubuntu)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest,cargo-deny,cargo-machete
+      - run: cargo xtask ci
+
+  test:
+    name: tests (${{ matrix.os }})
+    needs: xtask-ci
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest
+      # Real git runs in these tests. Give it an identity so commits work on a clean runner.
+      - run: |
+          git config --global user.name "ci"
+          git config --global user.email "ci@localhost"
+      - run: cargo nextest run --workspace --exclude sentinel-ui --no-tests=pass
+
+  ui:
+    name: ui (wasm build and size budget)
+    needs: xtask-ci
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check that the UI crate exists yet
+        id: ui
+        run: |
+          if [ -f crates/sentinel-ui/Cargo.toml ]; then echo "present=true" >> "$GITHUB_OUTPUT"; fi
+      - if: steps.ui.outputs.present == 'true'
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - if: steps.ui.outputs.present == 'true'
+        uses: Swatinem/rust-cache@v2
+      - if: steps.ui.outputs.present == 'true'
+        uses: taiki-e/install-action@v2
+        with:
+          tool: trunk
+      - if: steps.ui.outputs.present == 'true'
+        run: trunk build --release
+        working-directory: crates/sentinel-ui
+      # Budget from docs/architecture.md: the UI bundle stays under 1.5 MB compressed.
+      - if: steps.ui.outputs.present == 'true'
+        run: |
+          size=$(find crates/sentinel-ui/dist -name '*.wasm' -print0 | xargs -0 gzip -9c | wc -c)
+          echo "compressed wasm: ${size} bytes"
+          test "$size" -lt 1500000
+      - if: steps.ui.outputs.present == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-dist
+          path: crates/sentinel-ui/dist

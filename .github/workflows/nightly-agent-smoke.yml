@@ -1,0 +1,37 @@
+name: nightly agent smoke test
+
+# Runs the real agent CLIs through the sample backlog with a tiny cap, to catch a CLI update that
+# breaks an adapter profile (docs/development.md, "Real Services in Dev"). It is the only place a
+# real agent is ever run: CI never does. It is OFF until you turn it on, and it spends a few cents.
+#
+# It needs your own machine: a hosted runner has no signed-in agent CLIs. Use a self-hosted runner
+# where the CLIs are installed and logged in (Settings, Actions, Runners, New self-hosted runner).
+#
+# To turn it on: Settings, Secrets and variables, Actions, Variables:
+#   RUN_NIGHTLY_AGENT_SMOKE = true             turns the nightly run on
+#   NIGHTLY_RUNNER          = ["self-hosted","macOS"]   the runner labels, as JSON (the default)
+#   NIGHTLY_CAP_USD         = 0.50             the budget cap for the run (the default)
+# To turn it off: delete the RUN_NIGHTLY_AGENT_SMOKE variable or set it to false. To run it once
+# by hand: Run workflow.
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    name: agent smoke test
+    if: github.event_name == 'workflow_dispatch' || vars.RUN_NIGHTLY_AGENT_SMOKE == 'true'
+    runs-on: ${{ fromJSON(vars.NIGHTLY_RUNNER || '["self-hosted","macOS"]') }}
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo run --release -p sentinel-cli -- doctor
+      - run: cargo run --release -p sentinel-cli -- scan
+      - run: >
+          cargo run --release -p sentinel-cli -- run fixtures/sample-backlog.md
+          --repo fixtures/sample-repo --cap ${{ vars.NIGHTLY_CAP_USD || '0.50' }}
+      - run: cargo run --release -p sentinel-cli -- report

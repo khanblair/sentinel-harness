@@ -59,6 +59,7 @@ Hackathon cut line: end of P7.
 | P0-04 | `smell-check`, `doc-check`, `ban-check` | unassigned | todo |
 | P0-05 | `deny.toml` | unassigned | todo |
 | P0-06 | Extended `smell-check` and `dup-check` | unassigned | todo |
+| P0-07 | GitHub workflows and dependabot | Claude | review |
 
 Add the rows for later phases when a phase starts. Copy IDs from [build-plan.md](build-plan.md).
 
@@ -82,6 +83,7 @@ Paths listed in [project-structure.md](project-structure.md) that do not exist y
 - `.github/`
 - `fixtures/`
 - `tests/`
+- `rust-toolchain.toml`
 
 ## Decisions Log
 
@@ -131,6 +133,21 @@ Paths listed in [project-structure.md](project-structure.md) that do not exist y
 | D42 | goose and pi join the detected CLI list, each with a profile (P3-05) | Owner answer. Both run headless today |
 | D43 | Build method: free CLI workers write code (opencode, goose, pi, local Ornith model for small drafts). Claude reviews, fixes, and merges. One brief per task ID in `.build/briefs/` (git-ignored). Workers get disjoint files per wave, never commit, and are rotated across free models on quota or error. agy joins when its headless mode returns output | Owner request. Saves paid tokens. Briefs point to docs by path |
 | D44 | Q1 closed: a stray write to an unreserved file is restored at once and logged. Q2 closed: an extension for a free file becomes an approval card, or is granted and logged in Bypass permissions | Owner answer. Matches architecture and F15 |
+| D45 | (autopilot, review) Blair is away. Decisions are made without asking, take the recommended option, and are logged here. No paid models, the repo stays private, no real Telegram bot | Owner request 2026-10-24 |
+| D46 | (autopilot, review) Ship order: P0 to P7 done end to end first, then P8 on. A task is `done` only when its done-when line is true. Anything less is `review` or `todo` | Honest status is the product |
+| D47 | (autopilot, review) Workers write code in isolated copies under `.build/ws/<ID>` (git-ignored). Claude merges the owned files after review. Only Claude edits root `Cargo.toml`, `Cargo.lock`, and the lint config | Two workers in one crate break each other's builds. Same idea as reserved files |
+| D48 | (autopilot, review) doc-check lists files with `git ls-files` plus untracked and not ignored. A listed file that is missing passes only under a prefix in Planned Files below | Rule 5 of project-structure.md |
+| D49 | (autopilot, review) slop-check skips the Writing Style Rules section and fenced code. ban-check scans only `crates/` and `xtask/`, and skips its own pattern line | The lists must name the banned things |
+| D50 | (autopilot, review) Loopback dev bind: `--dev-bind` or `SENTINEL_DEV_LOOPBACK=1` allows 127.0.0.1 and ::1 for tests and the browser pane. 0.0.0.0 is always refused. Off by default | The Tailscale-only bind rule blocks local tests |
+| D51 | (autopilot, review) `sentinel-ui` is outside `default-members` and excluded from host clippy. It is checked on `wasm32-unknown-unknown` in its own step | WASM-only dependencies break host builds |
+| D52 | (autopilot, review) The prototype CSS and icon SVG paths are copied into the UI crate unchanged. Class names and DOM follow the prototype | Stops visual drift |
+| D53 | (autopilot, review) Ornith (local, 127.0.0.1:8089, about 3 tokens per second) is an opencode provider for short drafts. Stopped when idle | Unlimited and local, but slow |
+| D54 | (autopilot, review) The UI build output folder keeps a committed placeholder `index.html` so a fresh clone builds the daemon without trunk | rust-embed needs the folder at compile time |
+| D55 | (autopilot, review) Added `finding.rs`, `files.rs`, `ci.rs`, `rust_scan.rs` to xtask and `.cargo/config.toml` at the root | Shared plumbing for the checks |
+| D56 | (autopilot, review) Sentinel keeps a private index at `.sentinel/index` for the whole run and never writes the user's index. After checkpoints the user's index looks stale until `git reset` | library-docs: never touch the user's index |
+| D57 | (autopilot, review) GitHub workflows: `ci.yml` (cargo xtask ci on Linux, tests on macOS and Windows, UI wasm build with a 1.5 MB budget), `pages.yml`, `release.yml` (draft, unsigned), `nightly-agent-smoke.yml` (opt-in, self-hosted), `dependabot.yml`. Style follows the marshal repo. Real agents still never run in CI: the smoke job is off by default and runs on your own machine | Owner request |
+| D58 | (autopilot, review) `rust-toolchain.toml` is removed during the build. Parallel `rustup` installs started by workers corrupted the toolchain. Pin to the installed stable (1.99.1) at the end | Incident 2026-10-24 |
+| D59 | (autopilot, review) Workers may not run `rustup`, `cargo install`, `brew`, `npm`, or `pip` | Same incident |
 
 ## Open Questions
 

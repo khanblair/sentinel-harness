@@ -1,0 +1,101 @@
+name: release
+
+# Builds the `sentinel` binary (the UI is embedded, docs/development.md "Production Builds") on
+# GitHub-hosted runners and attaches it to a draft release, so a release build never has to run
+# on the owner's own computer.
+#
+# Triggers: pushing a tag that looks like a version ("v0.1.0"), or running this workflow by hand
+# from the Actions tab with a "tag" input. Both make a DRAFT release, which nobody sees until it
+# is published. Tag a commit only after `cargo xtask ci` has passed on it (docs/development.md,
+# Release Steps).
+#
+# Signing and notarization are not set up yet. The builds are unsigned.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Version tag for this build (for example v0.1.0). Makes a draft release."
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  verify:
+    name: verify (cargo xtask ci)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest,cargo-deny,cargo-machete
+      - run: cargo xtask ci
+
+  build:
+    name: build (${{ matrix.target }})
+    needs: verify
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, target: x86_64-unknown-linux-gnu, archive: tar.gz }
+          - { os: macos-latest, target: aarch64-apple-darwin, archive: tar.gz }
+          - { os: macos-latest, target: x86_64-apple-darwin, archive: tar.gz }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc, archive: zip }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolve the release tag
+        id: tag
+        shell: bash
+        run: echo "name=${{ github.event.inputs.tag || github.ref_name }}" >> "$GITHUB_OUTPUT"
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown,${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: trunk
+      - name: Build the UI, then the binary that embeds it
+        shell: bash
+        run: |
+          (cd crates/sentinel-ui && trunk build --release)
+          cargo build --release -p sentinel-cli --target ${{ matrix.target }}
+      - name: Package
+        id: package
+        shell: bash
+        run: |
+          name="sentinel-${{ steps.tag.outputs.name }}-${{ matrix.target }}"
+          mkdir -p "dist/$name"
+          bin=target/${{ matrix.target }}/release/sentinel
+          if [ "${{ matrix.archive }}" = "zip" ]; then bin="$bin.exe"; fi
+          cp "$bin" "dist/$name/"
+          cp -r docs "dist/$name/docs"
+          cd dist
+          if [ "${{ matrix.archive }}" = "zip" ]; then
+            7z a "$name.zip" "$name" > /dev/null
+            file="$name.zip"
+          else
+            tar -czf "$name.tar.gz" "$name"
+            file="$name.tar.gz"
+          fi
+          shasum -a 256 "$file" > "$file.sha256"
+          echo "file=dist/$file" >> "$GITHUB_OUTPUT"
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.name }}
+          draft: true
+          files: |
+            ${{ steps.package.outputs.file }}
+            ${{ steps.package.outputs.file }}.sha256

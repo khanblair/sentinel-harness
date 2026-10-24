@@ -62,7 +62,7 @@ CSS variables only for values that tokens define. Class names follow `block__ele
 | Assertions | Every test asserts something real |
 | Property tests | Scope math and wave building |
 | No sleeps | Use channels and fake clocks |
-| Real tools | Only in the dev-PC check task, never in CI |
+| Real tools | Only in the dev-PC check task and the opt-in nightly smoke workflow on a self-hosted runner. Never in `ci.yml` |
 | Brain | A test seeds a task title and fails if it reaches a lesson note. A test edits a note by hand and checks Sentinel keeps the edit |
 | Telegram | A test checks that Summary messages hold no file contents, keys, or note text, and that expired buttons fail |
 | Compaction | A test feeds a huge log and checks the retry prompt cap |
