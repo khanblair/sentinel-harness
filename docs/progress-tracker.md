@@ -60,7 +60,7 @@ Hackathon cut line: end of P7.
 | P0-05 | `deny.toml` | Claude | review |
 | P0-06 | Extended `smell-check` and `dup-check` | opencode | review |
 | P0-07 | GitHub workflows and dependabot | Claude | review |
-| P0-08 | `contrast-check` | opencode | doing |
+| P0-08 | `contrast-check` | opencode, Claude | review |
 | P1-01 | Core types | Claude | done |
 | P1-02 | Store schema, migrations, extra tables | opencode | done |
 | P1-03 | Reservation table | opencode | done |
@@ -190,6 +190,7 @@ Paths listed in [project-structure.md](project-structure.md) that do not exist y
 | D63 | (autopilot, review) A desktop browser gets its token from `sentinel open`, which opens `http://HOST:PORT/#t=TOKEN`. The UI reads the fragment, stores it on the device, and removes it from the address bar. The token is never in a query string | Fragments are not sent to the server |
 | D64 | Owner rule (2026-10-24): subagents are Haiku only, never Sonnet or Opus, and at most 2 at a time. All other work goes to the local Ornith model and the CLI tools (opencode, goose, pi, agy) when their free quota is back, or is done by Claude as reviewer and integrator | Owner instruction. Keeps token spend low |
 | D65 | (autopilot, review) Fonts: only Inter and JetBrains Mono are bundled (woff2, latin, Open Font License, from the fontsource packages). The other families in Settings fall back to system fonts. Answers Q14 | Keeps the UI bundle small. Licenses are in `crates/sentinel-ui/assets/fonts` |
+| D66 | (autopilot, review) The light theme accent is `#B35F09`, not `#B8620A`. `cargo xtask contrast-check` found white text on the old color at 4.4:1, below the 4.5:1 rule. Changed in the token doc, the prototype, and the UI crate together | The contrast check is the authority over the starting hex values |
 
 ## Open Questions
 

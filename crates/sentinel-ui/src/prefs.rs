@@ -33,7 +33,7 @@ const LIGHT: &[(&str, &str)] = &[
     ("border", "#E0DED9"),
     ("text", "#1D1D1B"),
     ("muted", "#6B6A66"),
-    ("accent", "#B8620A"),
+    ("accent", "#B35F09"),
     ("accent-fg", "#FFFFFF"),
     ("ok", "#1E7F55"),
     ("warn", "#8A6A00"),
@@ -364,7 +364,7 @@ mod tests {
     fn light_tokens_match_the_token_doc() {
         let t = tokens(&Prefs::default(), Resolved::Light);
         assert_eq!(t["bg"], "#FAFAF9");
-        assert_eq!(t["accent"], "#B8620A");
+        assert_eq!(t["accent"], "#B35F09");
     }
 
     #[test]

@@ -42,7 +42,7 @@ Color is rare and carries meaning. One amber accent marks the main action, focus
 | `--border` | `#E0DED9` |
 | `--text` | `#1D1D1B` |
 | `--muted` | `#6B6A66` |
-| `--accent` | `#B8620A` |
+| `--accent` | `#B35F09` |
 | `--accent-fg` | `#FFFFFF` |
 | `--ok` | `#1E7F55` |
 | `--warn` | `#8A6A00` |
@@ -229,7 +229,7 @@ Reset restores every value above. "Copy as CSS" exports the current tokens.
 :root {
   --bg: #FAFAF9; --sidebar: #F2F1EF; --surface: #FFFFFF; --surface2: #EDECE9;
   --border: #E0DED9; --text: #1D1D1B; --muted: #6B6A66;
-  --accent: #B8620A; --accent-fg: #FFFFFF;
+  --accent: #B35F09; --accent-fg: #FFFFFF;
   --ok: #1E7F55; --warn: #8A6A00; --danger: #B3262B; --info: #1F5FBF; --lock: #6B3FC4;
   --font-ui: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
