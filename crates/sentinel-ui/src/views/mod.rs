@@ -21,9 +21,7 @@ pub mod files;
 
 pub mod permissions;
 
-pub mod remote {
-    pub use super::panel_stubs::RemotePanel;
-}
+pub mod remote;
 
 pub mod report;
 
