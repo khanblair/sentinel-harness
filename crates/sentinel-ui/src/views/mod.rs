@@ -4,9 +4,6 @@
 pub mod agents;
 pub mod appearance;
 pub mod board;
-pub mod brain {
-    pub use super::panel_stubs::BrainPanel;
-}
 pub mod budget_step;
 pub mod changes;
 pub mod composer;
@@ -30,5 +27,10 @@ pub mod stream_model;
 pub mod telegram {
     pub use super::panel_stubs::TelegramPanel;
 }
+pub mod brain;
+pub mod brain_graph;
+pub mod brain_notes;
+pub mod brain_proposals;
+pub mod brain_settings;
 pub mod telegram_slot;
 pub mod terminal;

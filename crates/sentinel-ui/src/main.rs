@@ -5,6 +5,7 @@
 
 mod api;
 mod app;
+mod brain;
 mod chats;
 mod components;
 mod guide;

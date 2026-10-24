@@ -20,6 +20,7 @@ use crate::components::top_bar::settle;
 use crate::components::tour_menu::TourMenu;
 use crate::layout::Layout;
 use crate::state::{Modal, ToastKind, Ui, use_ui};
+use crate::views::brain_settings::BrainSettings;
 use crate::views::settings::Field;
 
 const WAKE_LOCK_KEY: &str = "sentinel.wake_lock";
@@ -223,34 +224,7 @@ fn set_wake_lock(on: RwSignal<bool>, next: bool) {
 
 #[component]
 pub fn BrainPage() -> impl IntoView {
-    let ui = use_ui();
-    view! {
-        <h2>"Brain"</h2>
-        <p class="lead">"A folder of plain markdown notes with links between them. Agents read it as memory, every run can write to it, and you can open the same folder in Obsidian."</p>
-        <div class="psec">
-            <h5>"Mode"</h5>
-            <div class="radios">
-                {BRAIN_MODES
-                    .into_iter()
-                    .map(|(mode, label, hint)| brain_mode_button(ui, mode, label, hint))
-                    .collect_view()}
-            </div>
-        </div>
-        <Field label="Vault folder" hint="Plain markdown files. Open it in Obsidian to browse or edit. Edits show up here.">
-            <span class="k">{move || setting_or(&ui.snapshot.get().settings, "brain_vault", ".sentinel/brain/")}</span>
-        </Field>
-        <h2 style="margin-top:1.3em;font-size:1.1em">"Scheduled care"</h2>
-        <p class="lead">"Runs on a schedule while Sentinel is on. It refreshes notes from the repository, merges duplicates, summarizes old runs, weakens notes nobody uses, and proposes improvements."</p>
-        <Field label="Schedule" hint="How often care runs. Off means it never runs by itself.">
-            <span class="k">{move || setting_or(&ui.snapshot.get().settings, "care_schedule", "Off")}</span>
-        </Field>
-        <Field label="Budget per care run" hint="Separate from run budgets. A care run stops at this amount.">
-            <span class="k">{move || setting_or(&ui.snapshot.get().settings, "care_budget", "Not set")}</span>
-        </Field>
-        <Field label="Apply without asking" hint="Only to notes Sentinel wrote. A note you wrote is never changed without your OK.">
-            <span class="k">{move || setting_or(&ui.snapshot.get().settings, "care_auto", "Off")}</span>
-        </Field>
-    }
+    view! { <BrainSettings /> }
 }
 
 /// A stored setting, or the fallback when the daemon has not sent that key.

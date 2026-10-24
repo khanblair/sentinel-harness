@@ -7,6 +7,7 @@ use sentinel_core::api::{PermissionsUpdate, SetBrainMode};
 use sentinel_core::{BrainMode, PermissionMode, Snapshot, ToolId};
 
 use crate::api;
+use crate::brain::phone_may_pick;
 use crate::components::agent_stack::{avatar_color, avatar_letter, ready_agents};
 use crate::components::icon::Icon;
 use crate::components::panel_host::panel_icon;
@@ -36,11 +37,14 @@ pub fn MenuItem(
     #[prop(default = "")] desc: &'static str,
     #[prop(default = false)] danger: bool,
     #[prop(default = false)] ticked: bool,
+    #[prop(default = false)] disabled: bool,
     #[prop(into)] on_pick: Callback<()>,
 ) -> impl IntoView {
     let class = if danger { "mi dng" } else { "mi" };
+    // theme.css has no disabled rule for .mi, so the dimming comes inline, as in the prototype.
+    let style = if disabled { "opacity:.4" } else { "" };
     view! {
-        <button class=class on:click=move |_| on_pick.run(())>
+        <button class=class disabled=disabled style=style on:click=move |_| on_pick.run(())>
             <Icon name=icon size=16 />
             <span>
                 <span>{label}{ticked.then(tick_mark)}</span>
@@ -232,11 +236,13 @@ const BRAIN_CHOICES: [(BrainMode, &str, &str); 3] = [
 
 fn brain_menu(ui: Ui) -> impl IntoView {
     let current = ui.snapshot.with(|snapshot| snapshot.brain_mode);
+    let layout = ui.layout.get();
     view! {
         {BRAIN_CHOICES
             .into_iter()
             .map(|(mode, label, desc)| view! {
                 <MenuItem icon="brain" label=label desc=desc ticked={current == mode}
+                    disabled={!phone_may_pick(current, mode, layout)}
                     on_pick=move |()| pick_brain(ui, mode) />
             })
             .collect_view()}
