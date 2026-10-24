@@ -289,7 +289,15 @@ fn quality_notes_do_not_affect_decide() {
 
 #[test]
 fn quality_multiple_rules_in_one_diff() {
-    let diff = "+++ b/src/lib.rs\n@@ -0,0 +1,50 @@\n+// TODO: fix\n+fn a() {}\n+fn b() {}\n+fn c() {}\n+fn d() {}\n+fn e() {}\n+fn f() {}\n+fn a() {}\n+fn b() {}\n+fn c() {}\n+fn d() {}\n+fn e() {}\n+fn f() {}\n".to_string();
+    let mut diff = String::from("+++ b/src/lib.rs\n@@ -0,0 +1,54 @@\n+// TODO: fix\n");
+    let block: String = (1..=6)
+        .map(|i| format!("+fn copied_function_{i}() {{}}\n"))
+        .collect();
+    diff.push_str(&block);
+    diff.push_str(&block);
+    for i in 1..=36 {
+        diff.push_str(&format!("+fn other_function_{i}() {{}}\n"));
+    }
 
     let notes = quality_notes(&task_id(), &diff);
     assert!(find_note(&notes, "placeholder").is_some());
