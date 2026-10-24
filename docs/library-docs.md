@@ -25,7 +25,7 @@
 
 | Crate | Version | Use | Reason |
 |---|---|---|---|
-| `rusqlite` (feature `bundled`) | 0.41.0 | State store | No system SQLite needed |
+| `rusqlite` (feature `bundled`) | 0.40.0 (the version `rusqlite_migration` 2.6.0 needs) | State store | No system SQLite needed |
 | `rusqlite_migration` | 2.6.0 | Schema migrations | Small and simple |
 | `serde`, `serde_json` | 1.0.229, 1.0.154 | Types, API, JSONL log | Standard |
 | `toml` | 1.1.8 | Config and adapter profiles | Human-editable config |

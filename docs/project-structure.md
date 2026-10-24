@@ -20,6 +20,7 @@ sentinel/
   .cargo/config.toml      cargo alias for xtask
   deny.toml               license rules and banned crates
   .gitignore              ignores target, .sentinel, dist
+  LICENSE                 MIT license text
   docs/                   the 13 project docs
   design/                 interactive prototype and the how-to site wireframe
   site/                   the GitHub Pages how-to site (mdBook project)
@@ -120,6 +121,11 @@ crates/sentinel-core/
   src/cost.rs             Cost in micro-dollars, estimate flag
   src/event.rs            Event enum shared by daemon and UI
   src/error.rs            error types
+  src/permission.rs       PermissionMode, Capability, Approval
+  src/tool.rs             ToolInfo and ToolStatus
+  src/state.rs            HarnessState, TailscaleState, ConnectionState, Decision
+  src/note.rs             NoteType, LessonState, BrainMode, ProposalKind
+  src/quality.rs          QualityNote
 ```
 
 ## crates/sentinel-store

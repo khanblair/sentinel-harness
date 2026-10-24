@@ -67,8 +67,6 @@ Add the rows for later phases when a phase starts. Copy IDs from [build-plan.md]
 
 Paths listed in [project-structure.md](project-structure.md) that do not exist yet. `cargo xtask doc-check` accepts a listed file that is missing only when its path starts with a prefix below. Remove a line when its files land.
 
-- `crates/sentinel-core/`
-- `crates/sentinel-store/`
 - `crates/sentinel-reserve/`
 - `crates/sentinel-tree/`
 - `crates/sentinel-workers/`
@@ -129,11 +127,11 @@ Paths listed in [project-structure.md](project-structure.md) that do not exist y
 | D38 | Telegram runs on an always-on host (server or spare computer). Sentinel gets a headless mode, a service install, a heartbeat, and a back-online message | Owner answer |
 | D39 | A how-to site on GitHub Pages, built with mdBook in `site/`, structure in `design/site-structure.html`. Built later in coding (Phases 15) | Owner request |
 | D40 | Settings is drawn as a cog and the theme switch as a sun or moon, so they never look alike. The accent row has round swatches plus labeled Custom and Reset to default | Owner feedback |
-| D41 | The repo root is `sentinel-harness/`. Docs live in `docs/`, the prototype in `design/`. Private GitHub repo `khanblair/sentinel-harness`, remote over HTTPS (SSH alias failed). Make it public before the hackathon submission | Owner answer. Matches project-structure.md |
+| D41 | The repo root is `sentinel-harness/`. Docs live in `docs/`, the prototype in `design/`. GitHub repo `khanblair/sentinel-harness`, remote over HTTPS (SSH alias failed). Made public by the owner on 2026-10-24 so GitHub Pages works (a secret scan of tracked files found nothing) | Owner answer. Matches project-structure.md |
 | D42 | goose and pi join the detected CLI list, each with a profile (P3-05) | Owner answer. Both run headless today |
 | D43 | Build method: free CLI workers write code (opencode, goose, pi, local Ornith model for small drafts). Claude reviews, fixes, and merges. One brief per task ID in `.build/briefs/` (git-ignored). Workers get disjoint files per wave, never commit, and are rotated across free models on quota or error. agy joins when its headless mode returns output | Owner request. Saves paid tokens. Briefs point to docs by path |
 | D44 | Q1 closed: a stray write to an unreserved file is restored at once and logged. Q2 closed: an extension for a free file becomes an approval card, or is granted and logged in Bypass permissions | Owner answer. Matches architecture and F15 |
-| D45 | (autopilot, review) Blair is away. Decisions are made without asking, take the recommended option, and are logged here. No paid models, the repo stays private, no real Telegram bot | Owner request 2026-10-24 |
+| D45 | (autopilot, review) Blair is away. Decisions are made without asking, take the recommended option, and are logged here. No paid models, no real Telegram bot, and nothing secret in git (the repo is public, see D41) | Owner request 2026-10-24 |
 | D46 | (autopilot, review) Ship order: P0 to P7 done end to end first, then P8 on. A task is `done` only when its done-when line is true. Anything less is `review` or `todo` | Honest status is the product |
 | D47 | (autopilot, review) Workers write code in isolated copies under `.build/ws/<ID>` (git-ignored). Claude merges the owned files after review. Only Claude edits root `Cargo.toml`, `Cargo.lock`, and the lint config | Two workers in one crate break each other's builds. Same idea as reserved files |
 | D48 | (autopilot, review) doc-check lists files with `git ls-files` plus untracked and not ignored. A listed file that is missing passes only under a prefix in Planned Files below | Rule 5 of project-structure.md |
@@ -148,6 +146,7 @@ Paths listed in [project-structure.md](project-structure.md) that do not exist y
 | D57 | (autopilot, review) GitHub workflows: `ci.yml` (cargo xtask ci on Linux, tests on macOS and Windows, UI wasm build with a 1.5 MB budget), `pages.yml`, `release.yml` (draft, unsigned), `nightly-agent-smoke.yml` (opt-in, self-hosted), `dependabot.yml`. Style follows the marshal repo. Real agents still never run in CI: the smoke job is off by default and runs on your own machine | Owner request |
 | D58 | (autopilot, review) `rust-toolchain.toml` is removed during the build. Parallel `rustup` installs started by workers corrupted the toolchain. Pin to the installed stable (1.99.1) at the end | Incident 2026-10-24 |
 | D59 | (autopilot, review) Workers may not run `rustup`, `cargo install`, `brew`, `npm`, or `pip` | Same incident |
+| D60 | (autopilot, review) The repo is public, so it carries an MIT `LICENSE` (owner: Khan Blair, from git config). Remove or change it if you want other terms | An open repo without a license has unclear terms. The hackathon wants an open repo |
 
 ## Open Questions
 
