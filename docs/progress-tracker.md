@@ -81,7 +81,7 @@ Hackathon cut line: end of P7.
 | P3-05 | Profiles for claude, codex, opencode, gemini, goose, pi | opencode | review |
 | P3-06 | Profiles for agy, deepseek, mcode, generic | opencode | review |
 | P3-07 | OpenRouter worker loop (`sentinel-workers`: `openrouter.rs`, `agent_tools.rs`, `agent_schema.rs`, `transcript.rs`; not yet chosen by the daemon) | Haiku (CLI) | review |
-| P3-08 | MCP file server | unassigned | todo |
+| P3-08 | MCP file server (`sentinel mcp`, crate `sentinel-mcp`: file tools that check the scope, Brain tools, skill tools). Built and tested. Not yet handed to the CLI workers (a per-task MCP config for claude is next) | Haiku (CLI) | review |
 | P3-09 | Router | opencode | done |
 | P3-10 | Context builder | opencode | done |
 | P3-11 | Per-task cost ceiling | Claude | done |
@@ -273,6 +273,7 @@ Paths listed in [project-structure.md](project-structure.md) that do not exist y
 | (undated) | Docs set drafted: README, overview, scope, architecture, structure, plan, standards, development, libraries, three UI docs, mobile, tracker |
 | 2026-10-24 | Checked docs against the prototype. Prototype matches tokens, breakpoints, panels, modes, 7-stop tour, 13-step guide, 11 settings pages. Found and fixed doc drift (see Doc Changes Log). Created the repo and pushed. Smoke-tested workers: opencode, pi, goose, and local Ornith pass; agy headless returns nothing. No code yet |
 | 2026-10-24 (late) | Merged the Brain panel (U-H), chat visuals (U-G2), duplicate cleanup (R-3), the OpenRouter worker (O-1), and Telegram in the daemon (T-2). Wrote the Brain memory and run journal (B-3b) with tests. Checked the chat UI in the browser at desktop and phone width: row menu, rename, plus menu, file picker, chips. Workspace tests: 1,243 pass before T-2. Queued U-I, U-K, and D-RUN briefs. The Agent tool is paused (D79) |
+| 2026-10-25 | Merged Telegram `/task`, `/diff`, `/daily` (T-3), the Telegram UI card and panel (U-I), the host card (U-K), the dry run daemon and UI (D-RUN, U-J), the MCP server (M-1), host checks in `doctor` and `report --writeup` (H-1), the route access matrix (S-1), the OpenRouter tool (W-OR), and Routines backend (RT-1). Added Skills (F24) and Routines (F25) to the docs, core types, store tables, prototype, and site. The site now shows live prototype views with highlights and arrows (36 views) instead of screenshots. Real-agent smoke: Claude Haiku plans and writes; nothing reaches Verified yet because no second agent could review (D84). README added. CI: Linux build fixed (rfd without wayland), nextest timeouts |
 
 ## File Changes Log
 
