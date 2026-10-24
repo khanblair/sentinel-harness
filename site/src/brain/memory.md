@@ -14,8 +14,8 @@ Before each task, Sentinel selects the notes the agent should read. In learn mod
 
 ## See it
 
-<figure class="fig" data-fig="brain-memory-stream" data-ratio="16 / 10" data-title="The Brain mode menu above the composer.">
-<figcaption>The Brain mode menu, above the composer.<ol><li>The Brain mode for the next message.</li><li>Read only: agents read notes, and nothing is written.</li><li>Learn: each run writes a journal and lesson candidates.</li></ol></figcaption>
+<figure class="fig" data-fig="brain-memory-stream" data-ratio="16 / 10" data-title="The stream says which Brain notes were loaded.">
+<figcaption>The stream, before the first task.<ol><li>The line that says how many Brain notes were loaded and why.</li></ol></figcaption>
 <noscript><p>This view needs JavaScript. Open the <a href="../prototype/sentinel-prototype.html">prototype</a> instead.</p></noscript>
 </figure>
 

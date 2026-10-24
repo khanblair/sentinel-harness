@@ -12,6 +12,13 @@ For each task, Sentinel chooses which skills go into the prompt. The choice is p
 4. All chosen skills have to fit in 1,500 tokens. A skill that does not fit is left out whole. It is never cut in half.
 5. The stream shows a line such as "Skills loaded: house-style, release-checklist."
 
+## See it
+
+<figure class="fig" data-fig="skills-loaded" data-ratio="16 / 10" data-title="The Skills loaded line in the stream.">
+<figcaption>The stream, before the first task.<ol><li>The skills that went into the task prompts.</li></ol></figcaption>
+<noscript><p>This view needs JavaScript. Open the <a href="../prototype/sentinel-prototype.html">prototype</a> instead.</p></noscript>
+</figure>
+
 ## Tip
 
 If a skill is never picked, make its description say when to use it, using the words you use in your tasks.
