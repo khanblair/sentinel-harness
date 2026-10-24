@@ -38,6 +38,9 @@ pub struct ButtonSpec {
 
 /// The message for one event, or `None` when the chat should not get it.
 pub fn render(event: &Event, ctx: &RenderContext<'_>) -> Option<Rendered> {
+    if let Event::BriefReady { text, .. } = event {
+        return render_brief(text, ctx);
+    }
     if !ctx.settings.levels.contains(&Level::Notify) {
         return None;
     }
@@ -49,6 +52,18 @@ pub fn render(event: &Event, ctx: &RenderContext<'_>) -> Option<Rendered> {
     }
     let card = card_for(&covered, ctx);
     Some(finish(card, ctx))
+}
+
+/// A brief goes to chats with Reports only. It is urgent, so quiet hours do not hold it.
+fn render_brief(text: &str, ctx: &RenderContext<'_>) -> Option<Rendered> {
+    if !ctx.settings.levels.contains(&Level::Reports) {
+        return None;
+    }
+    Some(Rendered {
+        text: cut(&redact(text)),
+        buttons: Vec::new(),
+        priority: Priority::Urgent,
+    })
 }
 
 /// Events the chat can switch on, with the fields the message needs.
@@ -333,4 +348,53 @@ fn cut(text: &str) -> String {
         .map_or(text.len(), |(index, _)| index);
     let cut_at = text[..limit].rfind('\n').unwrap_or(limit);
     format!("{}...", &text[..cut_at])
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::BTreeSet;
+
+    use sentinel_core::Event;
+    use sentinel_core::routines::RoutineKind;
+
+    use super::{Priority, RenderContext, Rendered, render};
+    use crate::levels::{ChatSettings, Level};
+
+    fn brief() -> Event {
+        Event::BriefReady {
+            routine_kind: RoutineKind::Sundown,
+            title: "Sundown wrap-up".to_owned(),
+            text: "Day wrap-up.\nKey sk-abcdefghijklmnopqrstu".to_owned(),
+        }
+    }
+
+    fn rendered_for(levels: &[Level]) -> Option<Rendered> {
+        let settings = ChatSettings {
+            levels: levels.iter().copied().collect::<BTreeSet<Level>>(),
+            ..ChatSettings::default()
+        };
+        let ctx = RenderContext {
+            settings: &settings,
+            project: "Sentinel",
+            hackathon: false,
+            cost_line: None,
+        };
+        render(&brief(), &ctx)
+    }
+
+    #[test]
+    fn a_brief_renders_only_for_a_chat_with_reports() {
+        assert!(rendered_for(&[Level::Reports]).is_some());
+        assert!(rendered_for(&[Level::Notify, Level::Control]).is_none());
+    }
+
+    #[test]
+    fn a_brief_goes_out_redacted_and_urgent_without_buttons() {
+        let rendered = rendered_for(&[Level::Reports]).unwrap();
+        assert!(rendered.text.starts_with("Day wrap-up."));
+        assert!(rendered.text.contains("[hidden]"));
+        assert!(!rendered.text.contains("sk-abcdefghijklmnopqrstu"));
+        assert_eq!(rendered.priority, Priority::Urgent);
+        assert_eq!(rendered.buttons.len(), 0);
+    }
 }

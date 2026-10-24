@@ -17,12 +17,19 @@ pub enum Command {
     Stop,
     Cap(Cost),
     Kill(ToolId),
-    Agent { tool: ToolId, text: String },
+    Agent {
+        tool: ToolId,
+        text: String,
+    },
     Diff(Option<TaskId>),
     Task(String),
     Run(Option<TaskId>),
     Report,
     Daily,
+    /// `/brief`: the morning brief.
+    Brief,
+    /// `/wrapup`: the sundown wrap-up.
+    Wrapup,
     Brain(String),
 }
 
@@ -62,6 +69,8 @@ fn parse_named(name: &str, rest: &str) -> Result<Command, ParseProblem> {
         "stop" => Ok(Command::Stop),
         "report" => Ok(Command::Report),
         "daily" => Ok(Command::Daily),
+        "brief" => Ok(Command::Brief),
+        "wrapup" => Ok(Command::Wrapup),
         "cap" => parse_cap(rest),
         "kill" => required(rest, "Usage: /kill <agent>")
             .map(|agent| Command::Kill(ToolId::new(split_first(agent).0))),
@@ -131,14 +140,14 @@ impl Command {
             Command::Task(_) => Some(Action::AddTask),
             Command::Run(_) => Some(Action::StartRun),
             Command::Report => Some(Action::Report),
-            Command::Daily => Some(Action::Daily),
+            Command::Daily | Command::Brief | Command::Wrapup => Some(Action::Daily),
             Command::Brain(_) => Some(Action::BrainSearch),
         }
     }
 }
 
 /// The commands a chat may use, with their usage and a short description.
-const HELP_ROWS: [(Action, &str, &str); 13] = [
+const HELP_ROWS: [(Action, &str, &str); 15] = [
     (Action::Status, "/status", "Show the run"),
     (Action::Pause, "/pause", "Pause the run"),
     (Action::Resume, "/resume", "Resume the run"),
@@ -155,6 +164,8 @@ const HELP_ROWS: [(Action, &str, &str); 13] = [
     (Action::StartRun, "/run [task]", "Start a run"),
     (Action::Report, "/report", "Run summary"),
     (Action::Daily, "/daily", "Daily summary"),
+    (Action::Daily, "/brief", "Morning brief"),
+    (Action::Daily, "/wrapup", "Sundown wrap-up"),
     (Action::BrainSearch, "/brain <search>", "Search note titles"),
 ];
 
