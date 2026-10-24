@@ -49,7 +49,8 @@ pub fn StreamView() -> impl IntoView {
         items.track();
         let following = pinned.get_untracked();
         if let Some(element) = anchor.get_untracked().filter(|_| following) {
-            scroll_to_end(&element);
+            // The new cards are in the page after this effect, so scroll on the next frame.
+            request_animation_frame(move || scroll_to_end(&element));
         }
     });
     view! {

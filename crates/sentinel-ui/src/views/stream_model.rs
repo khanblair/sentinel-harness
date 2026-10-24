@@ -162,7 +162,9 @@ fn run_item(event: &Event) -> Option<Item> {
         });
     }
     if let Event::Message { from, to, text } = event {
-        return Some(message_item(from, to.as_ref(), text));
+        // The agent card already says who took the task, so the routing note adds nothing.
+        let routing = from == "sentinel" && to.is_some() && text.contains(" goes to ");
+        return (!routing).then(|| message_item(from, to.as_ref(), text));
     }
     if let Event::PlanReady {
         tasks,
@@ -550,7 +552,8 @@ mod tests {
                 ..
             }
         ));
-        assert!(matches!(shown[2], Item::Checkpoint { .. }));
+        // The routing note is not shown: the agent card says it.
+        assert!(matches!(shown[1], Item::Checkpoint { .. }));
     }
 
     #[test]
