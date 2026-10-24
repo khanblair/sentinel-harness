@@ -9,50 +9,30 @@ pub mod stream;
 pub mod stream_model;
 pub mod stream_slot;
 
-pub mod agents {
-    pub use super::panel_stubs::AgentsPanel;
-}
+pub mod agents;
 
-pub mod board {
-    pub use super::panel_stubs::BoardPanel;
-}
+pub mod board;
 
 pub mod brain {
     pub use super::panel_stubs::BrainPanel;
 }
 
-pub mod changes {
-    pub use super::panel_stubs::ChangesPanel;
-}
+pub mod changes;
 
-pub mod cost {
-    pub use super::panel_stubs::CostPanel;
-}
+pub mod cost;
 
-pub mod files {
-    pub use super::panel_stubs::FilesPanel;
-}
+pub mod files;
 
-pub mod permissions {
-    pub use super::panel_stubs::PermissionsPanel;
-}
+pub mod permissions;
 
-pub mod remote {
-    pub use super::panel_stubs::RemotePanel;
-}
+pub mod remote;
 
-pub mod report {
-    pub use super::panel_stubs::ReportPanel;
-}
+pub mod report;
 
-pub mod reserved {
-    pub use super::panel_stubs::ReservedPanel;
-}
+pub mod reserved;
 
 pub mod telegram {
     pub use super::panel_stubs::TelegramPanel;
 }
 
-pub mod terminal {
-    pub use super::panel_stubs::TerminalPanel;
-}
+pub mod terminal;
