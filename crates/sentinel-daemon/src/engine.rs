@@ -19,7 +19,7 @@ use crate::brain::BrainState;
 use crate::cmd::CommandRunner;
 use crate::config::{self, Config, ConfigError};
 use crate::live::LiveRun;
-use crate::onboarding::{self, OnboardingError};
+use crate::onboarding::OnboardingError;
 use crate::pairing::PairingManager;
 use crate::secrets::SecretStore;
 
@@ -282,7 +282,7 @@ impl Engine {
         snapshot.decisions = store.list_decisions(&[])?;
         snapshot.devices = self.device_infos()?;
         snapshot.tailscale = *lock(&self.inner.tailscale);
-        snapshot.onboarding = onboarding::load(store)?;
+        snapshot.onboarding = self.onboarding()?;
         snapshot.hackathon_mode = config.hackathon_mode;
         snapshot.settings = settings_for_ui(&config);
         snapshot.chats = self.list_chats()?;

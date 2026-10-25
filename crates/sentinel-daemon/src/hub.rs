@@ -4,6 +4,7 @@
 //! header, or `?project=` for the WebSocket) goes to the router of that project. Every other
 //! request goes to the primary one. The routers are the same ones a single project always had.
 
+use std::collections::HashMap;
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
@@ -227,7 +228,12 @@ impl Hub {
         let entry = Entry::new(path, engine);
         lock(&self.inner.others).push(entry.clone());
         self.save();
-        info_of(&entry, false).map_err(|e| HubError::Open(e.to_string()))
+        let info = info_of(&entry, false).map_err(|e| HubError::Open(e.to_string()))?;
+        Ok(self
+            .list()
+            .into_iter()
+            .find(|listed| listed.id == info.id)
+            .unwrap_or(info))
     }
 
     pub fn remove(&self, id: &str) -> Result<(), HubError> {
@@ -256,10 +262,13 @@ impl Hub {
 
     pub fn list(&self) -> Vec<ProjectInfo> {
         let primary = self.inner.primary.id.clone();
-        self.entries()
+        let mut infos: Vec<ProjectInfo> = self
+            .entries()
             .iter()
             .filter_map(|entry| info_of(entry, entry.id == primary).ok())
-            .collect()
+            .collect();
+        label_shared_names(&mut infos);
+        infos
     }
 
     fn router_for(&self, id: Option<&str>) -> Result<Router, HubError> {
@@ -272,6 +281,27 @@ impl Hub {
             .map(|e| e.router.clone())
             .ok_or(HubError::NotFound)
     }
+}
+
+/// Projects can share a folder name, so the sidebar could not tell them apart. Each name that two
+/// or more projects share gets its parent folder added. A unique name stays as it is.
+fn label_shared_names(infos: &mut [ProjectInfo]) {
+    let mut counts: HashMap<String, usize> = HashMap::new();
+    for info in &*infos {
+        *counts.entry(info.name.clone()).or_default() += 1;
+    }
+    for info in infos.iter_mut().filter(|info| counts[&info.name] > 1) {
+        if let Some(parent) = parent_name(&info.path) {
+            info.name = format!("{} ({parent})", info.name);
+        }
+    }
+}
+
+fn parent_name(path: &str) -> Option<String> {
+    Path::new(path)
+        .parent()
+        .and_then(Path::file_name)
+        .map(|name| name.to_string_lossy().into_owned())
 }
 
 fn info_of(entry: &Entry, primary: bool) -> Result<ProjectInfo, crate::engine::EngineError> {

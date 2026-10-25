@@ -317,3 +317,39 @@ async fn devices_stay_in_the_first_project_when_a_project_is_named() {
         .collect();
     assert!(names.contains(&"Blair phone"), "{devices}");
 }
+
+#[tokio::test]
+async fn a_wizard_reset_in_the_first_project_shows_in_a_second_project() {
+    let served = serve_hub().await;
+    let second = add_project(&served, "second").await;
+    let (reset, reset_body) = served
+        .desktop()
+        .post("/api/onboarding/reset", &json!({}))
+        .await;
+    assert_eq!(reset, StatusCode::OK, "{reset_body}");
+    let (status, state) = served.desktop().in_project(&second).get("/api/state").await;
+    assert_eq!(status, StatusCode::OK, "{state}");
+    assert_eq!(state["onboarding"]["complete"], false, "{state}");
+}
+
+#[tokio::test]
+async fn projects_with_the_same_folder_name_get_the_parent_folder_added() {
+    let served = serve_hub().await;
+    let a = served.root.path().join("a/proj");
+    let b = served.root.path().join("b/proj");
+    make_repo(&a);
+    make_repo(&b);
+    let (a_status, a_body) = add_path(&served, &a).await;
+    assert_eq!(a_status, StatusCode::OK, "{a_body}");
+    let (b_status, b_body) = add_path(&served, &b).await;
+    assert_eq!(b_status, StatusCode::OK, "{b_body}");
+    let (status, list) = served.desktop().get("/api/projects").await;
+    assert_eq!(status, StatusCode::OK, "{list}");
+    let names: Vec<&str> = list
+        .as_array()
+        .expect("hub test setup")
+        .iter()
+        .filter_map(|project| project["name"].as_str())
+        .collect();
+    assert_eq!(names, ["first", "proj (a)", "proj (b)"], "{list}");
+}

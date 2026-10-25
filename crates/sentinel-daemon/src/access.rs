@@ -169,8 +169,14 @@ impl Engine {
         Ok(check)
     }
 
+    /// The setup wizard belongs to the app. Its routes answer from the first project, so a secondary
+    /// project reads the same state, or the wizard would hide there after a reset.
     pub fn onboarding(&self) -> Result<OnboardingState> {
-        Ok(onboarding::load(&self.inner.store)?)
+        let primary = lock(&self.inner.devices_from).clone();
+        match primary {
+            Some(primary) => primary.onboarding(),
+            None => Ok(onboarding::load(&self.inner.store)?),
+        }
     }
 
     pub fn onboarding_step(&self, step: u8) -> Result<OnboardingState> {
