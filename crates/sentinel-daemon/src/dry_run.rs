@@ -5,23 +5,30 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::{Arc, Mutex, OnceLock};
+use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use sentinel_core::api::RunRequest;
-use sentinel_core::dry_run::{DryRunStage, DryRunStageRow, DryRunStatus, StageState};
-use sentinel_core::{Cost, Event, EventRecord, HarnessState, PermissionMode, TaskStatus, ToolId};
+use sentinel_core::dry_run::{DryRunStage, DryRunStatus};
+use sentinel_core::{Cost, Event, EventRecord, HarnessState, PermissionMode, ToolId};
+use sentinel_plan::planner::Plan;
 use tokio::sync::broadcast::{self, error::RecvError};
 
 use crate::controls::usd_text;
+use crate::dry_run_book::{Book, Change, book};
+use crate::dry_run_preflight::check_agents;
 use crate::engine::{Engine, EngineError, EngineOptions, Result, lock};
 use crate::secrets::MemoryStore;
 
 /// A dry run that has not ended after this long is cut short. Its folder is still removed.
 const FOLLOW_LIMIT: Duration = Duration::from_secs(600);
+/// After a dry run gives up, its second run gets this long to stop before the folder is removed.
+const STOP_LIMIT: Duration = Duration::from_secs(30);
 /// The dry run never spends more than this, whatever the main cap is.
 const DRY_RUN_CAP: &str = "1.00";
 const SAMPLE_PREFIX: &str = "sentinel-dry-run-";
+/// The plan that ships with the sample. It covers the three tasks of `SAMPLE_BACKLOG`.
+const SAMPLE_PLAN: &str = include_str!("../../../fixtures/sample-plan.json");
 
 /// The sample repository, as it ships in the binary. One row per file, so the table stays
 /// readable: rustfmt would split each row over four lines.
@@ -50,139 +57,17 @@ Posting a negative amount returns an error and changes nothing. Done when a test
 An account may not move more than 100000 cents in one day. Done when a test proves the limit.
 ";
 
-/// What the dry run shows: whether it goes on, each stage's state, and the counts at the end.
-#[derive(Debug, Default)]
-struct Book {
-    running: bool,
-    stages: Vec<(DryRunStage, StageState)>,
-    verified: Option<u32>,
-    total: Option<u32>,
+type Rx = broadcast::Receiver<EventRecord>;
+
+/// How the wait for the second run ended.
+#[derive(Debug, PartialEq, Eq)]
+enum FollowEnd {
+    Done,
+    TimedOut,
+    Hopeless,
 }
 
-/// A stage that changed state. The engine emits one event for each.
-type Change = (DryRunStage, StageState);
-
-/// The one dry run the daemon keeps. A daemon has one dry run, so the state is not per engine.
-static BOOK: OnceLock<Mutex<Book>> = OnceLock::new();
-
-fn book() -> &'static Mutex<Book> {
-    BOOK.get_or_init(|| Mutex::new(Book::default()))
-}
-
-impl Book {
-    /// Start a dry run. Refused while one is going.
-    fn claim(&mut self) -> bool {
-        if self.running {
-            return false;
-        }
-        *self = Book {
-            running: true,
-            ..Book::default()
-        };
-        true
-    }
-
-    fn state_of(&self, stage: DryRunStage) -> Option<StageState> {
-        self.stages
-            .iter()
-            .find(|(s, _)| *s == stage)
-            .map(|(_, state)| *state)
-    }
-
-    /// Set one stage. The change is returned only when the state differs.
-    fn set(&mut self, step: DryRunStage, value: StageState) -> Option<Change> {
-        match self.stages.iter_mut().find(|(s, _)| *s == step) {
-            Some(row) if row.1 == value => return None,
-            Some(row) => row.1 = value,
-            None => self.stages.push((step, value)),
-        }
-        Some((step, value))
-    }
-
-    /// Mark every stage before `last` done, and `last` itself with `outcome`.
-    fn reach(&mut self, last: DryRunStage, outcome: StageState) -> Vec<Change> {
-        let before = DryRunStage::ALL.into_iter().take_while(|s| *s != last);
-        before
-            .chain(std::iter::once(last))
-            .filter_map(|s| {
-                let target = if s == last { outcome } else { StageState::Done };
-                self.set(s, target)
-            })
-            .collect()
-    }
-
-    /// Start a stage, unless it already has a state. A stage never goes back to running.
-    fn begin(&mut self, stage: DryRunStage) -> Vec<Change> {
-        if self.state_of(stage).is_some() {
-            return Vec::new();
-        }
-        self.reach(stage, StageState::Running)
-    }
-
-    /// Apply one event of the second engine to the stages.
-    fn handle(&mut self, event: &Event) -> Vec<Change> {
-        if let Event::RunFinished { verified, total } = event {
-            self.verified = Some(*verified);
-            self.total = Some(*total);
-        }
-        // Starting or ending a stage also settles the stages before it, so a missed event
-        // never leaves an earlier stage open.
-        if matches!(
-            event,
-            Event::TaskStatus {
-                status: TaskStatus::Running,
-                ..
-            }
-        ) {
-            return self.begin(DryRunStage::AgentsWork);
-        }
-        match event.kind().as_str() {
-            "PlanReady" => self.reach(DryRunStage::LockFiles, StageState::Done),
-            "BarrierStart" => self.begin(DryRunStage::RunTests),
-            "BarrierEnd" => self.reach(DryRunStage::RunTests, StageState::Done),
-            "Verdict" => self.reach(DryRunStage::Review, StageState::Done),
-            "ReportReady" => self.reach(DryRunStage::Report, StageState::Done),
-            _ => Vec::new(),
-        }
-    }
-
-    /// A run that ended with a stage still open failed that stage.
-    fn close_open(&mut self) -> Vec<Change> {
-        let open: Vec<DryRunStage> = self
-            .stages
-            .iter()
-            .filter(|(_, state)| *state == StageState::Running)
-            .map(|(stage, _)| *stage)
-            .collect();
-        open.into_iter()
-            .filter_map(|stage| self.set(stage, StageState::Failed))
-            .collect()
-    }
-
-    /// The dry run is over. Returns the verified and total counts.
-    fn end(&mut self) -> (u32, u32) {
-        self.running = false;
-        (self.verified.unwrap_or(0), self.total.unwrap_or(0))
-    }
-
-    fn status(&self) -> DryRunStatus {
-        let stages = DryRunStage::ALL
-            .into_iter()
-            .filter_map(|stage| {
-                self.state_of(stage)
-                    .map(|state| DryRunStageRow { stage, state })
-            })
-            .collect();
-        DryRunStatus {
-            running: self.running,
-            stages,
-            verified: self.verified,
-            total: self.total,
-        }
-    }
-}
-
-/// Apply a change to the book, then emit each changed stage on the main engine.
+/// A stage change on the book, emitted on the main engine.
 fn change_book(main: &Engine, change: impl FnOnce(&mut Book) -> Vec<Change>) {
     let changes = change(&mut lock(book()));
     for (stage, state) in changes {
@@ -230,34 +115,76 @@ async fn run_dry(main: Engine) {
     main.emit_quiet(&Event::DryRunFinished { verified, total });
 }
 
-/// Write the sample, run it on a second engine, and follow that run. The sample folder is gone
-/// when this returns, so `DryRunFinished` comes after the cleanup.
+/// Write the sample, test its agents, run it on a second engine, and follow that run. The sample
+/// folder is gone when this returns, so `DryRunFinished` comes after the cleanup.
 async fn rehearse(main: &Engine) -> Result<()> {
     let sample = SampleProject::write()?;
     let second = open_second(main, sample.path()).await?;
+    let preflight = check_agents(&second).await?;
+    change_book(main, |b| b.finish_preflight(&preflight));
+    if preflight.usable.is_empty() {
+        return Ok(());
+    }
     let mut events = second.subscribe();
     second.start_run(dry_run_request()).await?;
-    follow(main, &mut events).await;
+    follow(main, &second, &mut events).await;
     Ok(())
 }
 
-/// Map the second engine's events to stages until its run reports Done, or the wait runs out.
-async fn follow(main: &Engine, events: &mut broadcast::Receiver<EventRecord>) {
+/// Map the second engine's events to stages. When the run is hopeless, or the wait runs out, the
+/// second run is stopped and its last events are read, so its folder is not removed under a live
+/// agent.
+async fn follow(main: &Engine, second: &Engine, events: &mut Rx) {
+    let end = pump(main, events).await;
+    if end == FollowEnd::Done {
+        return;
+    }
+    if end == FollowEnd::Hopeless {
+        change_book(main, Book::give_up);
+    }
+    // A stop that finds no live run is fine: the run already ended.
+    let _ = second.stop_run();
+    wait_until_done(events).await;
+}
+
+/// Apply each event to the stages until the second run reports Done, the wait runs out, or every
+/// task is lost.
+async fn pump(main: &Engine, events: &mut Rx) -> FollowEnd {
     loop {
         let record = match tokio::time::timeout(FOLLOW_LIMIT, events.recv()).await {
             Ok(Ok(record)) => record,
             Ok(Err(RecvError::Lagged(_))) => continue,
-            Ok(Err(RecvError::Closed)) | Err(_) => return,
+            Ok(Err(RecvError::Closed)) | Err(_) => return FollowEnd::TimedOut,
         };
-        if record.event
-            == (Event::HarnessState {
-                state: HarnessState::Done,
-            })
-        {
-            return;
+        if is_done(&record.event) {
+            return FollowEnd::Done;
         }
         change_book(main, |b| b.handle(&record.event));
+        if lock(book()).hopeless() {
+            return FollowEnd::Hopeless;
+        }
     }
+}
+
+/// Read events, without applying them, until the second run reports Done or the stop wait ends.
+async fn wait_until_done(events: &mut Rx) {
+    let wait = async {
+        loop {
+            match events.recv().await {
+                Ok(record) if is_done(&record.event) => return,
+                Ok(_) | Err(RecvError::Lagged(_)) => {}
+                Err(RecvError::Closed) => return,
+            }
+        }
+    };
+    let _ = tokio::time::timeout(STOP_LIMIT, wait).await;
+}
+
+fn is_done(event: &Event) -> bool {
+    *event
+        == Event::HarnessState {
+            state: HarnessState::Done,
+        }
 }
 
 fn dry_run_request() -> RunRequest {
@@ -282,7 +209,13 @@ async fn open_second(main: &Engine, root: &Path) -> Result<Engine> {
         in_memory: true,
     })?;
     copy_setup(main, &second).await?;
+    second.set_fallback_plan(Some(sample_plan()?));
     Ok(second)
+}
+
+/// The plan the sample ships with. The planning step uses it when no agent gives a usable plan.
+fn sample_plan() -> Result<Plan> {
+    serde_json::from_str(SAMPLE_PLAN).map_err(|e| EngineError::Invalid(e.to_string()))
 }
 
 async fn copy_setup(main: &Engine, second: &Engine) -> Result<()> {
@@ -399,78 +332,27 @@ fn git(dir: &Path, args: &[&str]) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use sentinel_plan::backlog::parse_backlog;
+    use sentinel_plan::planner::PlanRequest;
+
     use super::*;
-
-    fn fresh() -> Book {
-        Book::default()
-    }
-
-    #[test]
-    fn a_second_claim_is_refused_until_the_dry_run_ends() {
-        let mut book = fresh();
-        assert!(book.claim());
-        assert!(!book.claim());
-        book.end();
-        assert!(book.claim());
-    }
-
-    #[test]
-    fn plan_ready_finishes_plan_and_lock_files() {
-        let mut book = fresh();
-        book.claim();
-        book.begin(DryRunStage::Plan);
-        let changes = book.handle(&Event::PlanReady {
-            tasks: 3,
-            contradictions: 0,
-            already_done: 0,
-        });
-        assert_eq!(
-            changes,
-            vec![
-                (DryRunStage::Plan, StageState::Done),
-                (DryRunStage::LockFiles, StageState::Done),
-            ]
-        );
-    }
-
-    #[test]
-    fn the_first_running_task_starts_agents_work_once() {
-        let mut book = fresh();
-        book.claim();
-        let running = Event::TaskStatus {
-            task: sentinel_core::TaskId::new("T-01"),
-            status: TaskStatus::Running,
-        };
-        assert_eq!(
-            book.handle(&running),
-            vec![
-                (DryRunStage::Plan, StageState::Done),
-                (DryRunStage::LockFiles, StageState::Done),
-                (DryRunStage::AgentsWork, StageState::Running),
-            ]
-        );
-        assert_eq!(book.handle(&running), Vec::new());
-    }
-
-    #[test]
-    fn a_stage_that_is_done_does_not_restart() {
-        let mut book = fresh();
-        book.claim();
-        book.reach(DryRunStage::Review, StageState::Done);
-        assert_eq!(book.begin(DryRunStage::AgentsWork), Vec::new());
-    }
-
-    #[test]
-    fn a_run_that_ends_early_fails_its_open_stage() {
-        let mut book = fresh();
-        book.claim();
-        book.begin(DryRunStage::Plan);
-        let changes = book.close_open();
-        assert_eq!(changes, vec![(DryRunStage::Plan, StageState::Failed)]);
-    }
+    use crate::agents::restrict_plan;
 
     #[test]
     fn the_sample_backlog_has_three_tasks() {
         assert_eq!(SAMPLE_BACKLOG.matches("\n## ").count(), 3);
+    }
+
+    #[test]
+    fn the_sample_plan_gives_every_sample_task_a_scope() {
+        let items = parse_backlog(SAMPLE_BACKLOG).expect("the sample backlog parses");
+        let request = PlanRequest {
+            items,
+            repo_files: Vec::new(),
+        };
+        let plan = restrict_plan(sample_plan().expect("the sample plan parses"), &request)
+            .expect("the sample plan fits the sample backlog");
+        assert_eq!(plan.tasks.len(), 3);
+        assert!(plan.tasks.iter().all(|task| !task.scope.is_empty()));
     }
 }

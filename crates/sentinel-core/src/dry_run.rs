@@ -44,13 +44,17 @@ pub struct DryRunStageRow {
     pub state: StageState,
 }
 
-/// The last dry run: whether one is going, its stages in order, and the counts once it ends.
+/// The last dry run: whether one is going, its stages in order, and the counts once it ends. The
+/// notes say what the wizard should show beside the stages, newest last.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DryRunStatus {
     pub running: bool,
     pub stages: Vec<DryRunStageRow>,
     pub verified: Option<u32>,
     pub total: Option<u32>,
+    /// Older answers have no notes, so a missing field reads as none.
+    #[serde(default)]
+    pub notes: Vec<String>,
 }
 
 #[cfg(test)]
@@ -63,6 +67,13 @@ mod tests {
         assert_eq!(json, "\"lock_files\"");
         let state = serde_json::to_string(&StageState::Failed).unwrap();
         assert_eq!(state, "\"failed\"");
+    }
+
+    #[test]
+    fn an_answer_without_notes_still_decodes() {
+        let json = r#"{"running":false,"stages":[],"verified":null,"total":null}"#;
+        let status: DryRunStatus = serde_json::from_str(json).unwrap();
+        assert!(status.notes.is_empty());
     }
 
     #[test]

@@ -29,6 +29,8 @@ pub mod controls;
 mod data_clear;
 pub mod doctor;
 mod dry_run;
+mod dry_run_book;
+mod dry_run_preflight;
 pub mod engine;
 pub mod folders;
 mod folders_git;

@@ -11,6 +11,7 @@ use sentinel_core::{
     AgentCost, ChatId, CostSnapshot, DeviceInfo, Event, EventRecord, HarnessState, RepoInfo,
     Snapshot, TailscaleState, ToolId,
 };
+use sentinel_plan::planner::Plan;
 use sentinel_store::{Store, StoreError};
 use time::OffsetDateTime;
 use tokio::sync::broadcast;
@@ -92,6 +93,8 @@ pub(crate) struct Inner {
     /// The engine that knows the paired devices, when this project is not the primary one. One
     /// sign-in then works in every project.
     pub devices_from: Mutex<Option<Engine>>,
+    /// The plan the planning step uses when no agent gives a usable one. Only a dry run sets it.
+    pub fallback_plan: Mutex<Option<Plan>>,
 }
 
 #[derive(Clone)]
@@ -129,6 +132,7 @@ impl Engine {
                 quit: tokio::sync::Notify::new(),
                 started: OffsetDateTime::now_utc(),
                 devices_from: Mutex::new(None),
+                fallback_plan: Mutex::new(None),
             }),
         };
         engine.refresh_repo();
@@ -156,6 +160,15 @@ impl Engine {
     /// True when a test double stands in for the agent CLIs.
     pub fn is_fake(&self) -> bool {
         self.inner.fake_agents.is_some()
+    }
+
+    /// The plan the planning step falls back to when no agent gives a usable plan.
+    pub fn set_fallback_plan(&self, plan: Option<Plan>) {
+        *lock(&self.inner.fallback_plan) = plan;
+    }
+
+    pub(crate) fn fallback_plan(&self) -> Option<Plan> {
+        lock(&self.inner.fallback_plan).clone()
     }
 
     pub fn subscribe(&self) -> broadcast::Receiver<EventRecord> {
