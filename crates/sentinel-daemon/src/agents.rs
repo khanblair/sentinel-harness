@@ -20,7 +20,7 @@ use sentinel_workers::{CommandLine, RunControl, RunOutcome, RunSpec, Worker};
 use tokio::sync::{mpsc, watch};
 
 use crate::agents_config::{fill_routing, route_for_tier, without_missing_tools};
-use crate::answer::ask_agent_for_plan;
+use crate::answer::{answer_text, ask_agent_for_plan};
 use crate::engine::{Engine, EngineError, FakeAgents, Result};
 use crate::keys;
 use crate::openrouter_tool::{is_openrouter_adapter, openrouter_entry, openrouter_worker};
@@ -284,13 +284,24 @@ pub(crate) async fn make_plan(ctx: &RunCtx, request: &PlanRequest) -> Result<Pla
         return restrict_plan(plan, request).map(PlanStep::Plan);
     }
     let message = ctx.source.words.is_some();
-    match ask_agent_for_plan(ctx, request).await {
-        Asked::Plan(plan) => return Ok(PlanStep::Plan(plan)),
-        Asked::Reply(text) => return Ok(PlanStep::Reply(text)),
-        Asked::Failed(reason) if message => return Ok(PlanStep::Unreached(reason)),
-        Asked::Failed(_) | Asked::Unusable => {}
+    let asked = ask_agent_for_plan(ctx, request).await;
+    match (ctx.forced.as_ref(), asked) {
+        (_, Asked::Plan(plan)) => Ok(PlanStep::Plan(plan)),
+        (_, Asked::Reply(text)) => Ok(PlanStep::Reply(text)),
+        (Some(agent), Asked::Failed(reason)) => halted(ctx, agent, &reason),
+        (Some(agent), Asked::Unusable) => halted(ctx, agent, "it gave no usable plan"),
+        (None, Asked::Failed(reason)) if message => Ok(PlanStep::Unreached(reason)),
+        (None, Asked::Failed(_) | Asked::Unusable) => offline_plan(ctx, request).await,
     }
-    offline_plan(ctx, request).await
+}
+
+/// The chat's agent gave no plan. The run stops and says why. No other agent is asked, and the
+/// offline planner does not stand in.
+fn halted(ctx: &RunCtx, agent: &ToolId, reason: &str) -> Result<PlanStep> {
+    let text = ctx
+        .engine
+        .no_answer(&ctx.source.chat, Some(agent), reason)?;
+    Ok(PlanStep::Halted(text))
 }
 
 /// The fallback plan of the dry run, else the offline heuristic. Both stand in for an agent's plan.
@@ -380,35 +391,9 @@ pub(crate) async fn run_for_outcome(
     (text, outcome)
 }
 
-/// The answer in a tool's output. A tool run with a JSON output format (claude) wraps its answer
-/// in an object with a `result` text. Anything else is the plain output.
-fn answer_text(output: &str) -> String {
-    output
-        .lines()
-        .rev()
-        .filter_map(|line| serde_json::from_str::<serde_json::Value>(line.trim()).ok())
-        .find_map(|value| value.get("result")?.as_str().map(str::to_owned))
-        .unwrap_or_else(|| output.to_owned())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn a_json_envelope_gives_its_result_text() {
-        let output = concat!(
-            r#"{"type":"result","result":"the plan","#,
-            r#""total_cost_usd":0.01}"#
-        );
-        assert_eq!(answer_text(output), "the plan");
-    }
-
-    #[test]
-    fn plain_output_stays_as_it_is() {
-        assert_eq!(answer_text("line one\nline two"), "line one\nline two");
-        assert_eq!(answer_text(r#"{"no":"result"}"#), r#"{"no":"result"}"#);
-    }
 
     #[test]
     fn existing_test_files_leave_the_scope_and_new_ones_stay() {

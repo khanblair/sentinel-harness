@@ -32,6 +32,13 @@ pub enum Event {
         reason: String,
         by: String,
     },
+    /// The chat's agent could not do the work, or it failed. The run stops and asks; no other agent
+    /// takes over.
+    AgentStopped {
+        chat: ChatId,
+        tool: ToolId,
+        reason: String,
+    },
     PlanReady {
         tasks: u32,
         contradictions: u32,
@@ -295,6 +302,18 @@ mod tests {
         assert!(json.contains("\"kind\":\"DryRunStage\""), "{json}");
         assert!(json.contains("\"stage\":\"agents_work\""), "{json}");
         assert_eq!(serde_json::from_str::<Event>(&json).unwrap(), e);
+    }
+
+    #[test]
+    fn an_agent_stopped_event_names_its_chat_and_agent() {
+        let event = Event::AgentStopped {
+            chat: ChatId::new("c1"),
+            tool: ToolId::new("claude"),
+            reason: "The agent stopped with an error (exit 1).".to_owned(),
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains(r#""kind":"AgentStopped""#), "{json}");
+        assert_eq!(serde_json::from_str::<Event>(&json).unwrap(), event);
     }
 
     #[test]

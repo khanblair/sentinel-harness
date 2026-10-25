@@ -11,6 +11,8 @@ use sentinel_workers::context::{FailureInput, failure_summary};
 use sentinel_workers::{OutputLine, RunControl, RunOutcome, RunSpec};
 use tokio::sync::{mpsc, watch};
 
+use crate::agent_health::{escalate, refuse_attempt, stop_at_agent};
+use crate::agents_config::Pick;
 use crate::engine::{EngineError, Result, lock};
 use crate::prompt::{Retry, task_prompt};
 use crate::run_ctx::{RunCtx, merge_kill};
@@ -42,9 +44,9 @@ async fn try_attempt(ctx: &Arc<RunCtx>, task_id: &TaskId) -> Result<()> {
         .get(task_id)
         .copied()
         .unwrap_or(task.tier);
-    let Some(agent) = engine.pick_agent(tier)? else {
-        fail_task(ctx, task_id, "No agent is ready for this kind of task.", "");
-        return Ok(());
+    let agent = match engine.pick_agent(ctx.forced.as_ref(), tier)? {
+        Pick::Agent(agent) => agent,
+        Pick::Unavailable(reason) => return refuse_attempt(ctx, task_id, &reason),
     };
     let tool = engine
         .store()
@@ -63,13 +65,15 @@ async fn try_attempt(ctx: &Arc<RunCtx>, task_id: &TaskId) -> Result<()> {
     let outcome = run_worker(ctx, worker.as_ref(), spec, &attempt).await;
     finish_bookkeeping(ctx, &attempt, &outcome)?;
     if outcome.end == sentinel_workers::EndKind::Completed {
-        finish_success(ctx, &task, &outcome)
-    } else {
-        crate::agent_health::pause_after_failure(engine, attempt.tool, &outcome);
-        let reason = reason_for(ctx, &outcome);
-        fail_task(ctx, task_id, &reason, &outcome.output_tail.join("\n"));
-        Ok(())
+        return finish_success(ctx, &task, &outcome);
     }
+    crate::agent_health::pause_after_failure(engine, attempt.tool, &outcome);
+    let reason = reason_for(ctx, &outcome);
+    if ctx.forced.is_some() && outcome.end == sentinel_workers::EndKind::Failed {
+        return stop_at_agent(ctx, task_id, &attempt.tool.id, &reason);
+    }
+    fail_task(ctx, task_id, &reason, &outcome.output_tail.join("\n"));
+    Ok(())
 }
 
 /// One task handed to one agent, with the id of the run that records it.
@@ -367,7 +371,7 @@ pub(crate) fn record_end(ctx: &RunCtx, task_id: &TaskId, status: TaskStatus, rea
 
 /// A failed agent may leave half-written files inside its own scope. Put them back so the next
 /// attempt and the next wave start from a clean tree.
-fn undo_partial_writes(ctx: &RunCtx, task_id: &TaskId) {
+pub(crate) fn undo_partial_writes(ctx: &RunCtx, task_id: &TaskId) {
     let Ok(Some(task)) = ctx.engine.store().get_task(task_id) else {
         return;
     };
@@ -376,25 +380,5 @@ fn undo_partial_writes(ctx: &RunCtx, task_id: &TaskId) {
     };
     for path in changed.into_iter().filter(|p| task.scope.covers(p)) {
         let _ = restore_path(&ctx.git, &path, "HEAD");
-    }
-}
-
-fn escalate(ctx: &RunCtx, task_id: &TaskId) {
-    let Ok(router) = ctx.engine.router() else {
-        return;
-    };
-    let (tier, agent) = {
-        let memory = lock(&ctx.memory);
-        let tier = memory.tiers.get(task_id).copied();
-        (tier, memory.agents.get(task_id).cloned())
-    };
-    let Ok(Some(task)) = ctx.engine.store().get_task(task_id) else {
-        return;
-    };
-    let current = tier.unwrap_or(task.tier);
-    if let Some(agent) = agent
-        && let Some((next, _)) = router.escalate(current, &agent)
-    {
-        lock(&ctx.memory).tiers.insert(task_id.clone(), next);
     }
 }

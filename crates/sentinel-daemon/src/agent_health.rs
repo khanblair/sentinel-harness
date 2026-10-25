@@ -1,18 +1,18 @@
 //! Agents that fail for a reason a retry will not fix (not signed in, a usage limit, a broken
 //! install) are paused for a while, so routing goes around them and no task waits on them.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use sentinel_core::{Event, Tier, ToolId, ToolInfo};
-use sentinel_workers::router::Router;
+use sentinel_core::{Event, TaskId, TaskStatus, Tier, ToolId, ToolInfo};
 use sentinel_workers::{EndKind, RunOutcome};
 
 use crate::agent_test::mask_secrets;
-use crate::agents::routing_map;
-use crate::agents_config::without_paused;
-use crate::engine::{Engine, Result, lock};
+use crate::agents_config::{NO_AGENT, Pick, Pool, pick_for};
+use crate::attempt::{fail_task, record_end, undo_partial_writes};
+use crate::engine::{Engine, EngineError, Result, lock};
+use crate::run_ctx::RunCtx;
 
 /// How long an agent stays out of routing after a failure that a retry will not fix.
 const PAUSE: Duration = Duration::from_mins(30);
@@ -81,12 +81,15 @@ impl Health {
         None
     }
 
-    /// The ids of every agent paused now.
-    pub(crate) fn paused_ids(&self) -> HashSet<ToolId> {
+    /// Every agent paused now, with the reason each one is paused.
+    pub(crate) fn paused_map(&self) -> HashMap<ToolId, String> {
         let mut pauses = lock(&self.pauses);
         let now = Instant::now();
         pauses.retain(|_, pause| pause.until > now);
-        pauses.keys().cloned().collect()
+        pauses
+            .iter()
+            .map(|(id, pause)| (id.clone(), pause.reason.clone()))
+            .collect()
     }
 
     /// The tool among these whose pause ends first, if any of them is paused.
@@ -120,40 +123,107 @@ fn names_a_pause(line: &str) -> bool {
 }
 
 impl Engine {
-    /// The agent for the next attempt at a tier. A paused agent is left out while another ready one
-    /// is open. When every ready agent is paused, the one that resumes first is tried anyway.
-    pub(crate) fn pick_agent(&self, tier: Tier) -> Result<Option<ToolId>> {
+    /// The agent for the next attempt at a tier, or for a question or plan. A forced agent is the
+    /// only one that may take it. Otherwise a paused agent is left out while another ready one is
+    /// open, and when every ready agent is paused, the one that resumes first is tried anyway.
+    pub(crate) fn pick_agent(&self, forced: Option<&ToolId>, tier: Tier) -> Result<Pick> {
         let ready: Vec<ToolInfo> = self
             .store()
             .list_tools()?
             .into_iter()
             .filter(|t| t.enabled && t.status.is_ready())
             .collect();
-        let paused = self.inner.health.paused_ids();
-        let open = without_paused(ready, &paused);
-        if open.is_empty() {
-            return Ok(None);
+        let paused = self.inner.health.paused_map();
+        let all_paused = !ready.is_empty() && ready.iter().all(|t| paused.contains_key(&t.id));
+        if forced.is_none() && all_paused {
+            return Ok(self.pick_when_all_paused(&ready));
         }
-        if open.iter().all(|t| paused.contains(&t.id)) {
-            return Ok(self.pick_when_all_paused(&open));
-        }
-        Ok(Router::new(routing_map(&self.config().routing), open).pick(tier))
+        let config = self.config();
+        let pool = Pool {
+            ready: &ready,
+            paused: &paused,
+            routing: &config.routing,
+        };
+        Ok(pick_for(forced, tier, &pool))
     }
 
     /// Every ready agent is paused: try the one that resumes first, and say so in the stream.
-    fn pick_when_all_paused(&self, tools: &[ToolInfo]) -> Option<ToolId> {
+    fn pick_when_all_paused(&self, tools: &[ToolInfo]) -> Pick {
         let next = self
             .inner
             .health
             .first_to_resume(tools)
-            .or_else(|| tools.first().cloned())?;
+            .or_else(|| tools.first().cloned());
+        let Some(next) = next else {
+            return Pick::Unavailable(NO_AGENT.to_owned());
+        };
         self.emit_quiet(&Event::Message {
             from: "sentinel".to_owned(),
             to: None,
             text: format!("All agents are paused. Trying {} anyway.", next.name),
         });
-        Some(next.id)
+        Pick::Agent(next.id)
     }
+}
+
+/// A failed try moves the task's next try one tier up, when the router has a ready agent there.
+pub(crate) fn escalate(ctx: &RunCtx, task_id: &TaskId) {
+    let Ok(router) = ctx.engine.router() else {
+        return;
+    };
+    let (tier, agent) = {
+        let memory = lock(&ctx.memory);
+        let tier = memory.tiers.get(task_id).copied();
+        (tier, memory.agents.get(task_id).cloned())
+    };
+    let Ok(Some(task)) = ctx.engine.store().get_task(task_id) else {
+        return;
+    };
+    let current = tier.unwrap_or(task.tier);
+    if let Some(agent) = agent
+        && let Some((next, _)) = router.escalate(current, &agent)
+    {
+        lock(&ctx.memory).tiers.insert(task_id.clone(), next);
+    }
+}
+
+/// No agent can take the task. A forced agent stops the run. Otherwise the task goes back for
+/// another try.
+pub(crate) fn refuse_attempt(ctx: &RunCtx, task_id: &TaskId, reason: &str) -> Result<()> {
+    let Some(agent) = ctx.forced.as_ref() else {
+        fail_task(ctx, task_id, reason, "");
+        return Ok(());
+    };
+    stop_at_agent(ctx, task_id, agent, reason)
+}
+
+/// A forced agent cannot take the task, or it failed. The task is blocked, the run stops, and the
+/// stream names the agent. The scheduler releases the task's files first, so nothing stays held.
+pub(crate) fn stop_at_agent(
+    ctx: &RunCtx,
+    task_id: &TaskId,
+    agent: &ToolId,
+    reason: &str,
+) -> Result<()> {
+    let engine = &ctx.engine;
+    undo_partial_writes(ctx, task_id);
+    lock(&ctx.scheduler)
+        .on_failure(task_id, engine.now())
+        .map_err(|e| EngineError::Invalid(e.to_string()))?;
+    engine.store().set_task_status(task_id, TaskStatus::Blocked)?;
+    record_end(ctx, task_id, TaskStatus::Blocked, reason);
+    engine.emit_in(
+        Some(&ctx.source.chat),
+        &Event::AgentStopped {
+            chat: ctx.source.chat.clone(),
+            tool: agent.clone(),
+            reason: reason.to_owned(),
+        },
+    )?;
+    if let Err(error) = engine.stop_run() {
+        eprintln!("sentinel: could not stop the run: {error}");
+    }
+    Ok(())
 }
 
 /// An attempt ended with an error exit. When its output names a failure a retry will not fix,
@@ -282,7 +352,7 @@ mod tests {
             },
         );
         assert_eq!(health.is_paused(&claude), None);
-        assert!(health.paused_ids().is_empty());
+        assert!(health.paused_map().is_empty());
     }
 
     #[test]
@@ -292,7 +362,18 @@ mod tests {
         health.pause(&claude, "quota");
         health.clear(&claude);
         assert_eq!(health.is_paused(&claude), None);
-        assert!(health.paused_ids().is_empty());
+        assert!(health.paused_map().is_empty());
+    }
+
+    #[test]
+    fn the_paused_map_gives_the_reason_of_each_paused_agent() {
+        let health = Health::default();
+        let claude = ToolId::new("claude");
+        health.pause(&claude, "Free usage limit reached");
+        assert_eq!(
+            health.paused_map(),
+            HashMap::from([(claude, "Free usage limit reached".to_owned())])
+        );
     }
 
     #[test]

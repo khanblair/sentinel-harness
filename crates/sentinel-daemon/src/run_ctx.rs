@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
-use sentinel_core::{PermissionMode, TaskId, Tier, ToolId};
+use sentinel_core::{ChatId, PermissionMode, TaskId, Tier, ToolId};
 use sentinel_gate::ApprovalBook;
 use sentinel_reserve::Scheduler;
 use sentinel_tree::{Checkpoint, Git, WritePolicy, WriteVerdict};
@@ -16,8 +16,16 @@ use sentinel_workers::context::ContextLimits;
 use tokio::sync::watch;
 
 use crate::config::Config;
-use crate::engine::{Engine, lock};
+use crate::engine::{Engine, Result, lock};
 use crate::run_source::RunSource;
+
+impl Engine {
+    /// The agent a chat is set to. Its runs, its questions, and its type step all use it. `None`
+    /// means auto: the routing picks.
+    pub(crate) fn chat_agent(&self, chat: &ChatId) -> Result<Option<ToolId>> {
+        Ok(self.chat_record(chat)?.agent.map(ToolId::new))
+    }
+}
 
 /// What a run remembers between attempts of one task.
 #[derive(Default)]
@@ -48,6 +56,8 @@ pub(crate) struct RunCtx {
     pub source: RunSource,
     /// True when this run picks up a run that stopped without finishing.
     pub resuming: bool,
+    /// The chat's agent, read when the run starts. Every task and plan of the run goes to it alone.
+    pub forced: Option<ToolId>,
     /// Checkpoints share one private git index, so only one may stage, write, and commit at a time.
     pub checkpoint_lock: Mutex<()>,
 }
