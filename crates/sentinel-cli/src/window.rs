@@ -22,6 +22,7 @@ use wry::{NewWindowResponse, PageLoadEvent, WebView, WebViewBuilder};
 
 use crate::app;
 use crate::commands;
+use crate::projects;
 use crate::serve;
 use crate::window_menu::{self, WindowMenu};
 
@@ -101,7 +102,8 @@ fn focus_running_app() {
 
 async fn start_daemon(repo: &Path) -> Result<StartedDaemon> {
     let engine = serve::prepare(repo, false).await?;
-    let bound = app::bind_here(&engine).await?;
+    let hub = projects::hub_of(&engine, false).await;
+    let bound = app::bind_here(&hub).await?;
     serve::publish(repo, &bound)?;
     let (addr, token) = serve::daemon_access(repo)?;
     let server_engine = engine.clone();

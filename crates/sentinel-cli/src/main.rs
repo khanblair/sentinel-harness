@@ -5,6 +5,7 @@ mod app;
 mod commands;
 mod doctor_host;
 mod login_path;
+mod projects;
 mod serve;
 mod service;
 #[cfg(all(feature = "window", target_os = "macos"))]
