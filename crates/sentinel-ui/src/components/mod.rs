@@ -27,6 +27,7 @@ pub mod css_export;
 pub mod decision_card;
 pub mod device_file;
 pub mod device_list;
+pub mod diff_view;
 pub mod dry_run_stages;
 pub mod empty_run_state;
 pub mod file_change_card;

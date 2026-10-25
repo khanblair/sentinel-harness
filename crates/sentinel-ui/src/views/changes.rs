@@ -7,6 +7,7 @@ use sentinel_core::{Event, EventRecord, QualityKind};
 use crate::components::icon::Icon;
 use crate::state::use_ui;
 use crate::views::board::owner_of;
+use crate::views::working_tree::WorkingTree;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CheckpointView {
@@ -176,6 +177,7 @@ pub fn ChangesPanel() -> impl IntoView {
     let blocked = move || ui.snapshot.with(|s| blocked_writes(&s.events));
     let quality = move || ui.snapshot.with(|s| quality_views(&s.events));
     view! {
+        <WorkingTree />
         <Show when=move || checks().is_empty() fallback=|| ()>
             <div class="note">
                 <Icon name="info" size=14 />
