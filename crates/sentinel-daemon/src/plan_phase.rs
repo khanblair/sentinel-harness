@@ -19,6 +19,8 @@ use sentinel_workers::{EndKind, RunOutcome};
 use crate::answer::{no_answer_reason, reply_from, unreached_text};
 use crate::ask::{ask_approval, ask_decision};
 use crate::engine::{Engine, EngineError, Result, lock};
+use crate::resume::resume_phase;
+use crate::run::Ending;
 use crate::run_ctx::RunCtx;
 use crate::run_source::{backlog_path, with_context, words_item};
 
@@ -354,6 +356,28 @@ async fn approve_plan(ctx: &Arc<RunCtx>) -> bool {
         });
     }
     allowed
+}
+
+/// The number of the first wave, or how the run ended before any wave.
+pub(crate) async fn first_wave(
+    ctx: &Arc<RunCtx>,
+    request: &RunRequest,
+) -> Result<std::result::Result<u32, Ending>> {
+    if ctx.resuming {
+        return Ok(Ok(resume_phase(ctx).await?));
+    }
+    Ok(match plan_phase(ctx, request).await? {
+        PlanOutcome::NoRun => Err(Ending::WithoutRun),
+        PlanOutcome::Declined => {
+            ctx.engine.emit_quiet(&Event::Message {
+                from: "sentinel".to_owned(),
+                to: None,
+                text: "The plan was not approved, so nothing ran.".to_owned(),
+            });
+            Err(Ending::Finished)
+        }
+        PlanOutcome::Approved => Ok(1),
+    })
 }
 
 #[cfg(test)]

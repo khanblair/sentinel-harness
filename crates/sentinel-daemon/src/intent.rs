@@ -3,9 +3,9 @@
 
 use std::time::Duration;
 
-use serde::Deserialize;
 use sentinel_core::api::RunRequest;
 use sentinel_core::{ChatId, Event, Intent, PermissionMode, Tier};
+use serde::Deserialize;
 
 use crate::answer::{OneShot, ask_once};
 use crate::controls::Caller;
@@ -21,8 +21,21 @@ const REASON_CHARS: usize = 200;
 
 const GREETING_WORDS: &[&str] = &["hi", "hello", "hey", "yo", "thanks"];
 const CHANGE_VERBS: &[&str] = &[
-    "fix", "add", "implement", "refactor", "rename", "remove", "delete", "update", "change",
-    "write", "create", "build", "make", "move", "migrate",
+    "fix",
+    "add",
+    "implement",
+    "refactor",
+    "rename",
+    "remove",
+    "delete",
+    "update",
+    "change",
+    "write",
+    "create",
+    "build",
+    "make",
+    "move",
+    "migrate",
 ];
 const QUESTION_WORDS: &[&str] = &[
     "what", "where", "why", "how", "which", "who", "when", "does", "is", "are", "can", "explain",
@@ -53,6 +66,12 @@ pub(crate) fn heuristic(text: &str) -> Option<(Intent, &'static str)> {
         .filter(|word| !word.is_empty())
         .collect();
     let first = *words.first()?;
+    // "hey fix it" is a request: look past a greeting or a please at the start.
+    let opening = words
+        .iter()
+        .copied()
+        .find(|word| !GREETING_WORDS.contains(word) && *word != "please")
+        .unwrap_or(first);
     let has_change_verb = words.iter().any(|word| CHANGE_VERBS.contains(word));
     if is_greeting(&words, has_change_verb) {
         return Some((Intent::Chat, "A greeting."));
@@ -60,18 +79,17 @@ pub(crate) fn heuristic(text: &str) -> Option<(Intent, &'static str)> {
     if lower.starts_with("plan ") {
         return Some((Intent::Plan, "You asked for a plan."));
     }
-    let researches = matches!(first, "research" | "compare" | "investigate")
-        || lower.starts_with("look into ");
+    let researches =
+        matches!(first, "research" | "compare" | "investigate") || lower.starts_with("look into ");
     if researches {
         return Some((Intent::Research, "You asked for research."));
     }
-    let asks = lower.ends_with('?')
-        || QUESTION_WORDS.contains(&first)
-        || lower.starts_with("show me ");
+    let asks =
+        lower.ends_with('?') || QUESTION_WORDS.contains(&first) || lower.starts_with("show me ");
     if asks && !has_change_verb {
         return Some((Intent::Ask, "A question about the project."));
     }
-    if CHANGE_VERBS.contains(&first) {
+    if CHANGE_VERBS.contains(&opening) {
         return Some((Intent::Change, "A request to change the project."));
     }
     None
@@ -207,8 +225,19 @@ mod tests {
 
     #[test]
     fn a_greeting_is_chat() {
-        for text in ["hi", "Hello!", "thanks", "thank you", "good morning", "yo there"] {
-            assert_eq!(heuristic(text).map(|found| found.0), Some(Intent::Chat), "{text}");
+        for text in [
+            "hi",
+            "Hello!",
+            "thanks",
+            "thank you",
+            "good morning",
+            "yo there",
+        ] {
+            assert_eq!(
+                heuristic(text).map(|found| found.0),
+                Some(Intent::Chat),
+                "{text}"
+            );
         }
     }
 
@@ -242,9 +271,18 @@ mod tests {
 
     #[test]
     fn a_change_verb_picks_change_even_with_a_question_mark() {
-        assert_eq!(heuristic("Add a health check").map(|f| f.0), Some(Intent::Change));
-        assert_eq!(heuristic("Refactor the ledger?").map(|f| f.0), Some(Intent::Change));
-        assert_eq!(heuristic("fix the typo in readme").map(|f| f.0), Some(Intent::Change));
+        assert_eq!(
+            heuristic("Add a health check").map(|f| f.0),
+            Some(Intent::Change)
+        );
+        assert_eq!(
+            heuristic("Refactor the ledger?").map(|f| f.0),
+            Some(Intent::Change)
+        );
+        assert_eq!(
+            heuristic("fix the typo in readme").map(|f| f.0),
+            Some(Intent::Change)
+        );
     }
 
     #[test]

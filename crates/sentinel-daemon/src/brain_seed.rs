@@ -7,8 +7,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use sentinel_brain::mode::may_write;
-use sentinel_brain::note::{Author, Note};
-use sentinel_brain::{replace_generated, strength};
+use sentinel_brain::note::Note;
+use sentinel_brain::replace_generated;
 use sentinel_core::api::SeedReport;
 use sentinel_core::{NoteId, NoteType, Tier, ToolInfo, ToolStatus};
 
@@ -258,19 +258,8 @@ fn agents_note(tools: &[ToolInfo]) -> Note {
 
 /// A generated note. Its text sits inside the sentinel markers, so user text can sit beside it.
 fn generated_note(id: NoteId, note_type: NoteType, title: String, lines: &[String]) -> Note {
-    Note {
-        id,
-        note_type,
-        title,
-        tags: Vec::new(),
-        by: Author::Run,
-        strength: strength::INITIAL,
-        confirmed: None,
-        pinned: false,
-        lesson: None,
-        body: replace_generated("", &lines.join("\n")),
-        extra: Vec::new(),
-    }
+    let body = replace_generated("", &lines.join("\n"));
+    sentinel_brain::journal::note_with_body(id, note_type, title, body)
 }
 
 fn tier_name(tier: Tier) -> &'static str {

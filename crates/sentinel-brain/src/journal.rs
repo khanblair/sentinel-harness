@@ -118,8 +118,8 @@ fn file_notes(tasks: &[TaskSummary]) -> Vec<Note> {
         .collect()
 }
 
-/// A generated note. Its text sits inside the sentinel markers, so user text can sit beside it.
-fn generated_note(id: NoteId, note_type: NoteType, title: String, lines: &[String]) -> Note {
+/// A note made by a run, with the plain fields every such note has.
+pub fn note_with_body(id: NoteId, note_type: NoteType, title: String, body: String) -> Note {
     Note {
         id,
         note_type,
@@ -130,9 +130,15 @@ fn generated_note(id: NoteId, note_type: NoteType, title: String, lines: &[Strin
         confirmed: None,
         pinned: false,
         lesson: None,
-        body: replace_generated("", &lines.join("\n")),
+        body,
         extra: Vec::new(),
     }
+}
+
+/// A generated note. Its text sits inside the sentinel markers, so user text can sit beside it.
+fn generated_note(id: NoteId, note_type: NoteType, title: String, lines: &[String]) -> Note {
+    let body = replace_generated("", &lines.join("\n"));
+    note_with_body(id, note_type, title, body)
 }
 
 #[cfg(test)]

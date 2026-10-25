@@ -6,8 +6,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use sentinel_brain::mode::may_write;
-use sentinel_brain::note::{Author, Note};
-use sentinel_brain::strength;
 use sentinel_core::{Cost, Event, HarnessState, Intent, NoteId, NoteType, Tier, ToolInfo};
 use sentinel_plan::planner::{PlanRequest, holds_plan_json, planner_prompt};
 use sentinel_workers::{Budget, EndKind, RunOutcome, Worker};
@@ -226,19 +224,12 @@ impl Engine {
     /// Keep a research question and its answer as a how-to note, written by the computer.
     fn save_research_note(&self, question: &str, answer: &str) -> Result<()> {
         let state = self.brain()?;
-        let note = Note {
-            id: NoteId::new(research_note_id(question)),
-            note_type: NoteType::HowTo,
-            title: question.chars().take(TITLE_CHARS).collect(),
-            tags: Vec::new(),
-            by: Author::Run,
-            strength: strength::INITIAL,
-            confirmed: None,
-            pinned: false,
-            lesson: None,
-            body: format!("{question}\n\n{answer}"),
-            extra: Vec::new(),
-        };
+        let note = sentinel_brain::journal::note_with_body(
+            NoteId::new(research_note_id(question)),
+            NoteType::HowTo,
+            question.chars().take(TITLE_CHARS).collect(),
+            format!("{question}\n\n{answer}"),
+        );
         write_note(&state, &note, None)?;
         note_written(self, &note.id);
         Ok(())
@@ -296,7 +287,10 @@ mod tests {
 
     #[test]
     fn a_fence_around_the_whole_answer_is_removed() {
-        assert_eq!(reply_from("```\nHi there.\n```"), Some("Hi there.".to_owned()));
+        assert_eq!(
+            reply_from("```\nHi there.\n```"),
+            Some("Hi there.".to_owned())
+        );
     }
 
     #[test]

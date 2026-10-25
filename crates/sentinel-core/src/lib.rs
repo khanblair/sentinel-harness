@@ -28,11 +28,11 @@ pub use chat::{Attachment, AttachmentKind, AttachmentRef, ChatChange, ChatInfo, 
 pub use cost::Cost;
 pub use error::CoreError;
 pub use event::{Event, EventRecord};
-pub use intent::Intent;
 pub use ids::{
     ApprovalId, AttachmentId, ChatId, DecisionId, DeviceId, NoteId, ReservationId, RoutineId,
     RunId, TaskId, ToolId,
 };
+pub use intent::Intent;
 pub use note::{BrainMode, LessonState, NoteType, ProposalKind};
 pub use permission::{Approval, ApprovalKind, ApprovalState, Capability, PermissionMode};
 pub use quality::{QualityKind, QualityNote};

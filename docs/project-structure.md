@@ -130,6 +130,7 @@ crates/sentinel-core/
   src/error.rs                         error types
   src/event.rs                         Event enum shared by daemon and UI
   src/ids.rs                           TaskId, RunId, ReservationId, DeviceId
+  src/intent.rs                        What a message asks for. The type decides what the agent may do, and the agent is told its type
   src/lib.rs                           module exports
   src/note.rs                          NoteType, LessonState, BrainMode, ProposalKind
   src/permission.rs                    PermissionMode, Capability, Approval
@@ -338,6 +339,7 @@ crates/sentinel-daemon/
   src/agent_test.rs                    Test one agent CLI for real: one tiny headless prompt through the same worker a task uses, in an
   src/agents.rs                        Finding the agent CLIs on this computer, turning them into workers, and asking one of them
   src/agents_config.rs                 Pure helpers that pick the tools and the routing from one scan. They take no engine, so the
+  src/answer.rs                        Replies that need no run: a chat reply, an answer to a question, and research. Each asks one
   src/ask.rs                           Questions the run loop puts to the user: approval cards and decisions. Each one waits for an
   src/assets.rs                        The web UI, embedded in the daemon. A path with no file gets the page, so the single page app
   src/attach.rs                        Attachments: what the composer plus button adds to a chat. A file, a folder, or a backlog is a
@@ -375,6 +377,7 @@ crates/sentinel-daemon/
   src/hub.rs                           Many projects in one app. Each project is a folder with its own engine and its own `.sentinel`
   src/hub_error.rs                     The errors of the project list. `hub.rs` re-exports `HubError`, so `hub::HubError` keeps working
   src/hub_inherit.rs                   A new project starts with the agent choices of the first project. The first scan of a fresh
+  src/intent.rs                        What a message asks for. Plain rules decide first. A message that no rule matches goes to the
   src/keys.rs                          Keys for the model providers: the provider table, the rows the UI shows, the live check of a
   src/lib.rs                           exports
   src/live.rs                          What the engine keeps while a run is live: control channels, the budget, and the questions the

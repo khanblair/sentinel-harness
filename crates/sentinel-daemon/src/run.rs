@@ -19,9 +19,9 @@ use crate::config::Config;
 use crate::controls::Caller;
 use crate::engine::{Engine, EngineError, Result, lock};
 use crate::intent::{Typing, permission_for};
-use crate::plan_phase::{PlanOutcome, plan_phase};
+use crate::plan_phase::first_wave;
 use crate::pumps::{budget_pump, forward_guard_events};
-use crate::resume::{restored_git, resume_phase};
+use crate::resume::restored_git;
 use crate::reviewer::{AgentReviewer, ScopeReviewer};
 use crate::run_ctx::{RunCtx, RunMemory, RunPolicy};
 use crate::run_source::RunSource;
@@ -342,27 +342,15 @@ async fn run_main(
 }
 
 /// How the run loop ended. A message that needed no run never reports a run to close out.
-enum Ending {
+pub(crate) enum Ending {
     Finished,
     WithoutRun,
 }
 
 async fn drive(ctx: &Arc<RunCtx>, request: &RunRequest) -> Result<Ending> {
-    let first = if ctx.resuming {
-        resume_phase(ctx).await?
-    } else {
-        match plan_phase(ctx, request).await? {
-            PlanOutcome::NoRun => return Ok(Ending::WithoutRun),
-            PlanOutcome::Declined => {
-                ctx.engine.emit_quiet(&Event::Message {
-                    from: "sentinel".to_owned(),
-                    to: None,
-                    text: "The plan was not approved, so nothing ran.".to_owned(),
-                });
-                return Ok(Ending::Finished);
-            }
-            PlanOutcome::Approved => 1,
-        }
+    let first = match first_wave(ctx, request).await? {
+        Ok(number) => number,
+        Err(ending) => return Ok(ending),
     };
     for number in first..first + MAX_WAVES {
         match run_wave(ctx, number).await? {

@@ -103,7 +103,11 @@ mod tests {
 
     #[test]
     fn a_research_rule_asks_for_evidence() {
-        assert!(Intent::Research.rule().contains("findings with the evidence"));
+        assert!(
+            Intent::Research
+                .rule()
+                .contains("findings with the evidence")
+        );
     }
 
     #[test]
