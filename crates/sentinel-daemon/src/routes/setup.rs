@@ -11,7 +11,7 @@ use sentinel_core::OnboardingState;
 use sentinel_core::api::{KeyBody, RepoCheckRequest, RepoCheckResponse, RepoTree};
 
 use super::state::ConnectionBody;
-use super::{ApiResult, blocking, okay};
+use super::{ApiJson, ApiResult, blocking, okay};
 use crate::auth::Computer;
 use crate::controls::usd_text;
 use crate::engine::{Engine, EngineError};
@@ -46,7 +46,7 @@ async fn repo_check(
 async fn starter_backlog(
     State(engine): State<Engine>,
     Computer(_): Computer,
-    Json(body): Json<RepoCheckRequest>,
+    ApiJson(body): ApiJson<RepoCheckRequest>,
 ) -> ApiResult<Value> {
     blocking(engine, move |e| {
         e.create_starter_backlog(&body.path).map(|()| okay())

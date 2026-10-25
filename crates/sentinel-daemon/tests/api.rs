@@ -250,6 +250,17 @@ async fn the_cap_can_be_lowered_but_never_raised() {
 }
 
 #[tokio::test]
+async fn a_starter_backlog_without_a_path_answers_422_with_a_json_error() {
+    let dir = tempfile::tempdir().unwrap();
+    let engine = engine_in(dir.path());
+    let desktop = desktop_token(&engine);
+    let base = start(engine).await;
+    let (status, body) = post_json(&base, "/api/repo/starter-backlog", &desktop, &json!({})).await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    assert!(body["error"].is_string(), "{body}");
+}
+
+#[tokio::test]
 async fn a_body_over_one_megabyte_gets_413() {
     let dir = tempfile::tempdir().unwrap();
     let engine = engine_in(dir.path());

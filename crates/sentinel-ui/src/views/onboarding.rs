@@ -241,9 +241,14 @@ impl Wizard {
     }
 }
 
-/// Sends one request. A failure becomes a toast. Returns whether the request worked.
+/// Sends one request with no body. A failure becomes a toast. Returns whether the request worked.
 pub async fn post_or_toast(ui: Ui, path: &str) -> bool {
-    match api::post_empty::<serde_json::Value>(path).await {
+    post_body_or_toast(ui, path, &serde_json::json!({})).await
+}
+
+/// Sends one request with `body`. A failure becomes a toast. Returns whether the request worked.
+pub async fn post_body_or_toast<B: Serialize>(ui: Ui, path: &str, body: &B) -> bool {
+    match api::post::<_, serde_json::Value>(path, body).await {
         Ok(_) => true,
         Err(error) => {
             ui.show_toast(error.to_string(), ToastKind::Danger);

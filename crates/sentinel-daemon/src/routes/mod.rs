@@ -17,10 +17,12 @@ mod telegram;
 
 use axum::Json;
 use axum::Router;
+use axum::extract::{FromRequest, Request};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use serde::Serialize;
+use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
 
 use sentinel_core::api::ApiError;
@@ -109,6 +111,28 @@ impl From<PairError> for ApiFailure {
             return Self::internal();
         }
         Self::new(status, error.to_string())
+    }
+}
+
+/// A JSON body. A body that does not parse answers with the JSON `error` of every other failure.
+/// The plain-text rejection from `axum::Json` would name no field.
+pub struct ApiJson<T>(pub T);
+
+impl<S, T> FromRequest<S> for ApiJson<T>
+where
+    S: Send + Sync,
+    T: DeserializeOwned,
+{
+    type Rejection = ApiFailure;
+
+    async fn from_request(request: Request, state: &S) -> Result<Self, Self::Rejection> {
+        match Json::<T>::from_request(request, state).await {
+            Ok(Json(value)) => Ok(Self(value)),
+            Err(_) => Err(ApiFailure::new(
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "The request is missing a field or has a wrong one.",
+            )),
+        }
     }
 }
 

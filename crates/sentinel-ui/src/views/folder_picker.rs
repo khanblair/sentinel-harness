@@ -11,7 +11,7 @@ use crate::components::add_project::{PickOutcome, ask_dialog};
 use crate::components::icon::Icon;
 use crate::components::repo_checks::{FixAction, RepoChecks, fix_action};
 use crate::state::ToastKind;
-use crate::views::onboarding::{Wizard, post_or_toast, use_wizard};
+use crate::views::onboarding::{Wizard, post_body_or_toast, use_wizard};
 
 /// The last part of a folder path, which is the repository's name.
 pub fn fs_name(path: &str) -> &str {
@@ -60,6 +60,13 @@ pub fn check_repo(wizard: &Wizard, path: String) {
     });
 }
 
+/// The body of the starter backlog request: the folder the backlog file goes into.
+fn starter_backlog_body(path: &str) -> RepoCheckRequest {
+    RepoCheckRequest {
+        path: path.to_string(),
+    }
+}
+
 /// A fix button. The backlog row creates the starter file first; then the check runs again.
 fn run_fix(wizard: &Wizard, name: String) {
     let wizard = *wizard;
@@ -68,7 +75,12 @@ fn run_fix(wizard: &Wizard, name: String) {
     };
     spawn_local(async move {
         if fix_action(&name) == FixAction::CreateBacklog
-            && !post_or_toast(wizard.ui, "/api/repo/starter-backlog").await
+            && !post_body_or_toast(
+                wizard.ui,
+                "/api/repo/starter-backlog",
+                &starter_backlog_body(&path),
+            )
+            .await
         {
             return;
         }
@@ -231,5 +243,14 @@ mod tests {
     fn spaces_are_encoded_and_slashes_are_kept() {
         assert_eq!(encode_query("~/my code"), "~/my%20code");
         assert_eq!(list_url("~/code"), "/api/fs/list?path=~/code");
+    }
+
+    #[test]
+    fn the_starter_backlog_body_names_the_chosen_folder() {
+        let body = serde_json::to_value(starter_backlog_body("~/code/wallet-app"));
+        assert_eq!(
+            body.ok(),
+            Some(serde_json::json!({ "path": "~/code/wallet-app" }))
+        );
     }
 }
