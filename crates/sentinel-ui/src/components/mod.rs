@@ -30,6 +30,7 @@ pub mod device_list;
 pub mod dry_run_stages;
 pub mod empty_run_state;
 pub mod file_change_card;
+pub mod folder_browser;
 pub mod font_select;
 pub mod graph_view;
 pub mod guide_modal;

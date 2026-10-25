@@ -39,7 +39,7 @@ fn entries(backlog: String) -> Vec<AttachEntry> {
         AttachEntry {
             icon: "folder",
             label: "Add a folder",
-            desc: "A folder of this project".to_owned(),
+            desc: "Browse the project and pick one folder".to_owned(),
             modal: Modal::AddFolder,
         },
         AttachEntry {

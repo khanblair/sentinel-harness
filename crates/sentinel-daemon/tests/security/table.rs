@@ -170,6 +170,7 @@ pub const ROUTES: &[Route] = &[
     Route::put("/api/secrets/openrouter", Access::Computer).json(r#"{"key":"test-key"}"#),
     Route::post("/api/connections/nope/test", Access::Computer),
     Route::get("/api/files", Access::Any),
+    Route::get("/api/repo/tree", Access::Any),
     Route::post("/api/repo/check", Access::Any).json(r#"{"path":"{repo}"}"#),
     Route::post("/api/repo/starter-backlog", Access::Computer).json(r#"{"path":"{repo}"}"#),
     Route::put("/api/repo", Access::Any).json(r#"{"path":"{repo}"}"#),
