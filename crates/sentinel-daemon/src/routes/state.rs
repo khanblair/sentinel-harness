@@ -3,12 +3,13 @@
 use axum::Json;
 use axum::Router;
 use axum::extract::{Path, Query, State};
+use axum::http::StatusCode;
 use axum::routing::{get, post, put};
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 
 use sentinel_core::EventRecord;
-use sentinel_core::api::{DoctorReport, PermissionsUpdate, RoutingUpdate, ToolToggle};
+use sentinel_core::api::{DoctorReport, PermissionsUpdate, RoutingUpdate, ToolTest, ToolToggle};
 use sentinel_core::context::ContextUsage;
 use sentinel_core::ids::{TaskId, ToolId};
 use sentinel_core::permission::Approval;
@@ -16,7 +17,7 @@ use sentinel_core::snapshot::Snapshot;
 use sentinel_core::state::ConnectionState;
 use sentinel_core::tool::ToolInfo;
 
-use super::{ApiResult, blocking, okay, require_computer};
+use super::{ApiFailure, ApiResult, blocking, okay, require_computer};
 use crate::auth::Computer;
 use crate::connections::ConnectionStatus;
 use crate::controls::Caller;
@@ -66,6 +67,7 @@ pub(super) fn routes() -> Router<Engine> {
         .route("/api/tools", get(tools))
         .route("/api/tools/scan", post(scan_tools))
         .route("/api/tools/{id}", put(toggle_tool))
+        .route("/api/tools/{id}/test", post(test_tool))
         .route("/api/doctor", post(doctor))
         .route("/api/connections", get(connections))
 }
@@ -195,6 +197,18 @@ async fn toggle_tool(
             .map(|()| okay())
     })
     .await
+}
+
+/// Runs one tiny prompt through the agent. It starts a program and spends a few tokens, so only the
+/// computer may ask for it.
+async fn test_tool(
+    State(engine): State<Engine>,
+    Computer(_): Computer,
+    Path(id): Path<String>,
+) -> ApiResult<ToolTest> {
+    let test = engine.test_agent(&ToolId::new(id)).await?;
+    test.map(Json)
+        .ok_or_else(|| ApiFailure::new(StatusCode::NOT_FOUND, "No such agent."))
 }
 
 async fn doctor(State(engine): State<Engine>, Computer(_): Computer) -> ApiResult<DoctorReport> {
