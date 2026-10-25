@@ -287,17 +287,20 @@ pub fn SetupWizard() -> impl IntoView {
         wizard.step.set(WizardStep::from_number(step));
         wizard.cap_text.set(dollars_text(cap));
     });
+    // Every snapshot sets the step again, even to the same value. The memo tells the view only
+    // when the step really changes, so a step is not built again and does not fetch again.
+    let current = Memo::new(move |_| wizard.step.get());
     view! {
         <div class="wiz-hd">
             <span class="lg">
                 <Icon name="shield" size=18 />
                 "Sentinel setup"
             </span>
-            <OnboardingStepper current=move || wizard.step.get() />
+            <OnboardingStepper current=move || current.get() />
             <button class="btn sm" on:click=move |_| wizard.finish()>"Skip setup"</button>
         </div>
         <div class="wiz-body">
-            <div class="wiz-in">{move || step_view(wizard.step.get())}</div>
+            <div class="wiz-in">{move || step_view(current.get())}</div>
         </div>
         <WizardFooter />
     }

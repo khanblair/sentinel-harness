@@ -9,6 +9,8 @@ use sentinel_core::{DeviceInfo, DeviceKind, TailscaleState};
 use crate::components::icon::Icon;
 use crate::components::install_log::copy_text;
 use crate::components::pair_checklist::{StepList, pair_steps};
+use crate::components::pair_phone_card::magic_dns_link;
+use crate::components::pair_qr::PairQr;
 use crate::state::use_ui;
 use crate::views::pairing::{PendingPair, PhoneSignals, approve_pair};
 
@@ -47,8 +49,8 @@ pub fn PairSteps(
         <div class="card" style="margin-top:.8em">
             <b>"Part 2. On your phone"</b>
             <StepList steps=pair_steps(TailscaleState::Running) />
-            <div class="row wrap" style="gap:1em;align-items:flex-start">
-                <div style="width:9em;max-width:40%" inner_html=start.qr_svg.clone()></div>
+            <div class="row wrap" style="display:flex;flex-wrap:wrap;gap:1em;align-items:flex-start;margin-top:.8em">
+                <PairQr svg=start.qr_svg.clone() />
                 <PairCode start=start remaining=signals.remaining on_new_code=on_new_code />
             </div>
             <PairStatus signals=signals />
@@ -56,7 +58,7 @@ pub fn PairSteps(
     }
 }
 
-/// The link, the machine name, and the one-time code with its countdown.
+/// The link, the same link by machine name, and the one-time code with its countdown.
 #[component]
 fn PairCode(
     start: PairStart,
@@ -65,22 +67,21 @@ fn PairCode(
 ) -> impl IntoView {
     let ui = use_ui();
     let url = start.url.clone();
-    let machine = start
-        .tailscale
-        .machine_name
-        .clone()
-        .unwrap_or_else(|| "Not set".to_string());
+    let machine = start.tailscale.machine_name.clone().unwrap_or_default();
+    let dns_link = magic_dns_link(&start.url, &machine);
     view! {
-        <div style="min-width:0;flex:1">
+        <div style="flex:1 1 240px;min-width:0;overflow-wrap:anywhere">
             <div class="sub">"Link"</div>
             <div class="cmd" style="margin:.2em 0 .6em">
-                <span>{url.clone()}</span>
+                <span style="white-space:normal">{url.clone()}</span>
                 <button class="ibtn" aria-label="Copy link" on:click=move |_| copy_text(ui, url.clone())>
                     <Icon name="copy" size=14 />
                 </button>
             </div>
-            <div class="sub">"Machine name, if MagicDNS is on"</div>
-            <div class="mono" style="margin:.2em 0 .6em">{machine}</div>
+            {dns_link.map(|text| view! {
+                <div class="sub">"Same link by name, if MagicDNS is on"</div>
+                <div class="cmd" style="margin:.2em 0 .6em"><span style="white-space:normal">{text}</span></div>
+            })}
             <div class="sub">"One-time code"</div>
             <div class="mono" style="font-size:1.7em;font-weight:600;letter-spacing:.08em">{start.code}</div>
             <div class="row wrap">
