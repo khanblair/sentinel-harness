@@ -9,7 +9,7 @@ use sentinel_core::api::{DoctorReport, ToolToggle};
 use sentinel_core::{ToolInfo, ToolStatus};
 
 use crate::api;
-use crate::components::agent_test_button::{AgentTestButton, AgentTestLine, TestSlot};
+use crate::components::agent_test_button::{AgentTestButton, AgentTestLine};
 use crate::components::icon::Icon;
 use crate::components::install_checklist::{InstallChecklist, all_found, missing_commands};
 use crate::components::install_log::{InstallLog, LogLine, copy_text, install_lines};
@@ -346,11 +346,8 @@ fn AgentToggleRow(tool: ToolInfo) -> impl IntoView {
     let toggle_id = tool.id.as_str().to_string();
     let next = !tool.enabled;
     let on_toggle = move |_| toggle_tool(ui, toggle_id.clone(), next);
-    let test = TestSlot {
-        running: RwSignal::new(false),
-        outcome: RwSignal::new(None),
-    };
     let status = tool.status;
+    let line_id = tool.id.clone();
     view! {
         <div class="chk">
             <CheckShape class=class />
@@ -359,7 +356,7 @@ fn AgentToggleRow(tool: ToolInfo) -> impl IntoView {
                 <small class="mono">{path}</small>
             </div>
             <span class="sub">{tool_status_label(tool.status)}</span>
-            <AgentTestButton tool=tool.clone() test=test />
+            <AgentTestButton id=tool.id.clone() status=status />
             <button
                 class="tog"
                 role="switch"
@@ -369,7 +366,7 @@ fn AgentToggleRow(tool: ToolInfo) -> impl IntoView {
                 on:click=on_toggle
             ></button>
         </div>
-        <AgentTestLine test=test status=status />
+        <AgentTestLine id=line_id status=status />
     }
 }
 
