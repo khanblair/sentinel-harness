@@ -241,19 +241,19 @@ fn CodeDetails(start: PairStart, state: PairState) -> impl IntoView {
     let dns_link = magic_dns_link(&start.url, &machine);
     let url = start.url.clone();
     view! {
-        <div class="row wrap" style="gap:1em;align-items:flex-start;margin-top:.8em">
+        <div class="row wrap" style="display:flex;flex-wrap:wrap;gap:1em;align-items:flex-start;margin-top:.8em">
             <PairQr svg=start.qr_svg />
-            <div style="min-width:0;flex:1">
+            <div style="flex:1 1 240px;min-width:0;overflow-wrap:anywhere">
                 <div class="sub">"Link"</div>
                 <div class="cmd" style="margin:.2em 0 .6em">
-                    <span>{url.clone()}</span>
+                    <span style="white-space:normal">{url.clone()}</span>
                     <button class="ibtn" aria-label="Copy link" on:click=move |_| copy_text(state.ui, url.clone())>
                         <Icon name="copy" size=14 />
                     </button>
                 </div>
                 {dns_link.map(|text| view! {
                     <div class="sub">"Same link by name, if MagicDNS is on"</div>
-                    <div class="cmd" style="margin:.2em 0 .6em"><span>{text}</span></div>
+                    <div class="cmd" style="margin:.2em 0 .6em"><span style="white-space:normal">{text}</span></div>
                 })}
                 <div class="sub">"One-time code"</div>
                 <div class="mono" style="font-size:1.7em;font-weight:600;letter-spacing:.08em">{start.code}</div>
