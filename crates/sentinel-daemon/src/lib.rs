@@ -13,6 +13,7 @@ mod brain_edit;
 mod brain_notes;
 mod brain_proposals;
 mod brain_run;
+mod brain_seed;
 mod briefs;
 mod chats;
 mod close_out;

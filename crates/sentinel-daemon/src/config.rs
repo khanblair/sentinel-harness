@@ -41,6 +41,7 @@ pub struct Config {
     pub backlog: String,
     pub cap_usd: String,
     pub permission_mode: PermissionMode,
+    #[serde(default = "read_only_brain_mode")]
     pub brain_mode: BrainMode,
     pub routing: Routing,
     pub enabled_tools: Vec<ToolId>,
@@ -95,6 +96,12 @@ impl Config {
     }
 }
 
+/// A config file written before the Brain default changed has no `brain_mode` line. It keeps the
+/// old read-only mode, so only a new config gets `learn`.
+fn read_only_brain_mode() -> BrainMode {
+    BrainMode::ReadOnly
+}
+
 impl Default for Config {
     fn default() -> Self {
         Self {
@@ -102,7 +109,7 @@ impl Default for Config {
             backlog: "backlog.md".to_owned(),
             cap_usd: "2.00".to_owned(),
             permission_mode: PermissionMode::default(),
-            brain_mode: BrainMode::ReadOnly,
+            brain_mode: BrainMode::Learn,
             routing: Routing::default(),
             enabled_tools: Vec::new(),
             models: std::collections::BTreeMap::new(),
@@ -223,10 +230,19 @@ mod tests {
         assert_eq!(config.task_timeout_seconds, 900);
         assert_eq!(config.test_command, vec!["cargo", "test"]);
         assert_eq!(config.permission_mode, PermissionMode::AutoInsideReserved);
-        assert_eq!(config.brain_mode, BrainMode::ReadOnly);
+        assert_eq!(config.brain_mode, BrainMode::Learn);
         assert!(!config.hackathon_mode);
         assert!(!config.dev_loopback);
         assert!(!config.telegram.enabled);
+    }
+
+    #[test]
+    fn a_config_without_a_brain_mode_line_keeps_read_only() {
+        let folder = tempfile::tempdir().unwrap();
+        let path = config_path(folder.path());
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, "cap_usd = \"1.00\"\n").unwrap();
+        assert_eq!(load(&path).unwrap().brain_mode, BrainMode::ReadOnly);
     }
 
     #[test]
