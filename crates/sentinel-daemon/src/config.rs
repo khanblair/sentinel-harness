@@ -5,6 +5,7 @@ use std::io::{ErrorKind, Write};
 use std::path::{Path, PathBuf};
 
 use sentinel_core::{BrainMode, CoreError, Cost, PermissionMode, Routing, ToolId};
+use sentinel_workers::profile::is_free_name;
 use serde::{Deserialize, Serialize};
 
 const CONFIG_FILE: &str = "config.toml";
@@ -90,9 +91,7 @@ impl Config {
             .models
             .get(tool.as_str())
             .map_or(profile_default, String::as_str);
-        self.free_models.iter().any(|free| free == model)
-            || model.ends_with("-free")
-            || model.ends_with(":free")
+        self.free_models.iter().any(|free| free == model) || is_free_name(model)
     }
 }
 

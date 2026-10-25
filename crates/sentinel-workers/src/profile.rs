@@ -5,7 +5,7 @@
 use std::collections::BTreeMap;
 use std::path::Path;
 
-use sentinel_core::Tier;
+use sentinel_core::{Cost, Tier};
 use serde::Deserialize;
 use thiserror::Error;
 
@@ -103,14 +103,19 @@ impl Profile {
         Ok(profile)
     }
 
-    /// Build the program to start for one task. `binary` is the path detection found.
-    pub fn command_line(&self, spec: &RunSpec, binary: &Path) -> CommandLine {
-        let model = if spec.model.is_empty() {
+    /// The model a run uses: the spec's model, or the profile default when the spec has none.
+    #[must_use]
+    pub fn model_for<'a>(&'a self, spec: &'a RunSpec) -> &'a str {
+        if spec.model.is_empty() {
             self.default_model.as_str()
         } else {
             spec.model.as_str()
-        };
-        let args = drop_empty_model(&self.args, model, spec);
+        }
+    }
+
+    /// Build the program to start for one task. `binary` is the path detection found.
+    pub fn command_line(&self, spec: &RunSpec, binary: &Path) -> CommandLine {
+        let args = drop_empty_model(&self.args, self.model_for(spec), spec);
         let stdin = match self.prompt_via {
             PromptVia::Arg => None,
             PromptVia::Stdin => Some(spec.prompt.clone()),
@@ -172,6 +177,44 @@ impl Profile {
         env.push((AGENT_ENV.to_string(), spec.agent.to_string()));
         env
     }
+}
+
+/// True when a model name marks a free model. OpenRouter and OpenCode add `:free` or `-free`.
+#[must_use]
+pub fn is_free_name(model: &str) -> bool {
+    model.ends_with("-free") || model.ends_with(":free")
+}
+
+/// A price per million tokens, in micro-dollars.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TokenPrice {
+    pub input_per_million: u64,
+    pub output_per_million: u64,
+}
+
+const TOKENS_PER_MILLION: u128 = 1_000_000;
+
+/// Prices per million tokens for the default models. Empty until each price is read from its
+/// provider's price page. A model with no entry keeps the time-based guess.
+const TOKEN_PRICES: &[(&str, TokenPrice)] = &[];
+
+/// The price of a model, if the table lists it.
+#[must_use]
+pub fn price_for(model: &str) -> Option<TokenPrice> {
+    TOKEN_PRICES
+        .iter()
+        .find(|(name, _)| *name == model)
+        .map(|(_, price)| *price)
+}
+
+/// The cost of a token count at a price. Marked estimated, because the tokens were counted and
+/// the dollars were worked out. Math is `u128` and rounds down. A huge count saturates.
+#[must_use]
+pub fn cost_from_tokens(price: TokenPrice, input_tokens: u64, output_tokens: u64) -> Cost {
+    let input = u128::from(price.input_per_million) * u128::from(input_tokens);
+    let output = u128::from(price.output_per_million) * u128::from(output_tokens);
+    let micro = input.saturating_add(output) / TOKENS_PER_MILLION;
+    Cost::from_micro_usd(u64::try_from(micro).unwrap_or(u64::MAX), true)
 }
 
 /// Fill the placeholders. With no model at all, an argument that is only `{model}` goes away with
@@ -383,5 +426,56 @@ mod tests {
             .unwrap();
         assert_eq!(generic.binary, "");
         assert!(generic.needs_template);
+    }
+
+    #[test]
+    fn a_name_ending_in_free_suffix_is_free() {
+        assert!(is_free_name("opencode/glm-5.3-flash-free"));
+        assert!(is_free_name("poolside/laguna-s-2.1:free"));
+        assert!(is_free_name("meta/llama:free"));
+    }
+
+    #[test]
+    fn a_name_that_only_starts_with_free_is_not_free() {
+        assert!(!is_free_name("free-model"));
+        assert!(!is_free_name("claude-sonnet"));
+        assert!(!is_free_name(""));
+    }
+
+    #[test]
+    fn the_spec_model_wins_over_the_profile_default() {
+        let profile = Profile::parse(&profile_text(
+            "binary = \"fake\"\ndefault_model = \"fake/default-1\"\nargs = [\"{prompt}\"]",
+        ))
+        .unwrap();
+        assert_eq!(profile.model_for(&run_spec("fake/chosen")), "fake/chosen");
+        assert_eq!(profile.model_for(&run_spec("")), "fake/default-1");
+    }
+
+    #[test]
+    fn tokens_are_priced_per_million_and_rounded_down() {
+        let price = TokenPrice {
+            input_per_million: 1_000_000,
+            output_per_million: 2_000_000,
+        };
+        let cost = cost_from_tokens(price, 500_000, 250_000);
+        assert_eq!(cost.micro_usd(), 1_000_000);
+        assert!(cost.is_estimated());
+        assert_eq!(cost_from_tokens(price, 1, 0).micro_usd(), 0);
+    }
+
+    #[test]
+    fn huge_token_counts_saturate_instead_of_overflowing() {
+        let price = TokenPrice {
+            input_per_million: u64::MAX,
+            output_per_million: u64::MAX,
+        };
+        let cost = cost_from_tokens(price, u64::MAX, u64::MAX);
+        assert_eq!(cost.micro_usd(), u64::MAX);
+    }
+
+    #[test]
+    fn a_model_missing_from_the_price_table_has_no_price() {
+        assert_eq!(price_for("opencode/glm-5.3-flash-free"), None);
     }
 }

@@ -2,9 +2,68 @@ use std::path::PathBuf;
 
 use futures::future::BoxFuture;
 
-use crate::profile::Profile;
+use crate::profile::{Profile, is_free_name};
 use crate::supervisor::{CostSource, run_command};
 use crate::worker::{RunControl, RunOutcome, RunSpec, Worker};
+
+/// Where a run's spend comes from. Only some sources may end a run at the task ceiling.
+///
+/// Named apart from `supervisor::CostSource`, which is the struct the runner takes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SpendSource {
+    /// The agent printed its own dollar figure.
+    Reported,
+    /// The agent printed token counts, priced from the price table.
+    FromTokens,
+    /// Only elapsed time is known.
+    TimeGuess,
+    /// The model is free. Spend stays zero.
+    Free,
+}
+
+/// True when the task ceiling may stop a run with this source. A time guess never does: the task
+/// timeout still ends a stuck agent, and a guess must not kill a run that may cost nothing.
+#[must_use]
+pub fn ceiling_applies(source: SpendSource) -> bool {
+    match source {
+        SpendSource::Reported | SpendSource::FromTokens => true,
+        SpendSource::TimeGuess | SpendSource::Free => false,
+    }
+}
+
+/// The model an agent names in one output line, if the line names one. Each adapter prints it in
+/// its own format. Other adapters and other lines give `None`.
+#[must_use]
+pub fn model_from_line(adapter: &str, line: &str) -> Option<String> {
+    match adapter {
+        "goose" => goose_model(line),
+        "opencode" => opencode_model(line),
+        _ => None,
+    }
+}
+
+/// Goose prints `new session · openrouter <model>` or `new session · <model>`.
+fn goose_model(line: &str) -> Option<String> {
+    if !line.contains("new session") {
+        return None;
+    }
+    let (_, rest) = line
+        .split_once("openrouter ")
+        .or_else(|| line.split_once("new session · "))?;
+    first_word(rest)
+}
+
+/// OpenCode prints `build · <model>` or `plan · <model>`.
+fn opencode_model(line: &str) -> Option<String> {
+    let (_, rest) = line
+        .split_once("build · ")
+        .or_else(|| line.split_once("plan · "))?;
+    first_word(rest)
+}
+
+fn first_word(text: &str) -> Option<String> {
+    text.split_whitespace().next().map(str::to_owned)
+}
 
 /// A CLI worker that runs a command through the supervisor.
 pub struct CliWorker {
@@ -25,7 +84,8 @@ impl CliWorker {
         }
     }
 
-    /// Mark the model as free: running time adds no estimated cost.
+    /// Mark the model as free: running time adds no estimated cost. A run also counts as free when
+    /// its own model name ends in `:free` or `-free`, even if this flag is off.
     #[must_use]
     pub fn with_free_cost(mut self, free: bool) -> Self {
         self.free = free;
@@ -44,7 +104,7 @@ impl Worker for CliWorker {
     fn run(&self, spec: RunSpec, ctrl: RunControl) -> BoxFuture<'_, RunOutcome> {
         let profile = self.profile.clone();
         let binary = self.binary.clone();
-        let free = self.free;
+        let free = self.free || is_free_name(profile.model_for(&spec));
         let extra_env = self.extra_env.clone();
 
         Box::pin(async move {
@@ -76,7 +136,7 @@ mod tests {
 
     use sentinel_core::{TaskId, Tier, ToolId};
 
-    use crate::adapter_cli::CliWorker;
+    use crate::adapter_cli::{CliWorker, SpendSource, ceiling_applies, model_from_line};
     use crate::budget::Budget;
     use crate::profile::{LoginCheck, Profile, PromptVia};
     use crate::worker::{RunControl, RunSpec, Worker};
@@ -122,6 +182,63 @@ mod tests {
             lines: tx,
             budget,
         }
+    }
+
+    #[test]
+    fn goose_names_the_openrouter_model_in_its_session_line() {
+        let line = "new session · openrouter poolside/laguna-s-2.1:free";
+        assert_eq!(
+            model_from_line("goose", line).as_deref(),
+            Some("poolside/laguna-s-2.1:free")
+        );
+    }
+
+    #[test]
+    fn goose_names_a_plain_model_in_its_session_line() {
+        let line = "new session · claude-sonnet-5-5";
+        assert_eq!(
+            model_from_line("goose", line).as_deref(),
+            Some("claude-sonnet-5-5")
+        );
+    }
+
+    #[test]
+    fn goose_ignores_an_openrouter_mention_outside_a_session_line() {
+        assert_eq!(model_from_line("goose", "using openrouter for this call"), None);
+    }
+
+    #[test]
+    fn opencode_names_the_build_model() {
+        assert_eq!(
+            model_from_line("opencode", "build · glm-5.3-flash-free").as_deref(),
+            Some("glm-5.3-flash-free")
+        );
+    }
+
+    #[test]
+    fn opencode_names_the_plan_model() {
+        assert_eq!(
+            model_from_line("opencode", "plan · glm-5.3-flash-free  ").as_deref(),
+            Some("glm-5.3-flash-free")
+        );
+    }
+
+    #[test]
+    fn a_line_from_another_adapter_names_no_model() {
+        assert_eq!(model_from_line("claude", "build · glm-5.3-flash-free"), None);
+        assert_eq!(model_from_line("opencode", "new session · openrouter x:free"), None);
+    }
+
+    #[test]
+    fn a_time_guess_alone_never_ends_a_run_at_the_ceiling() {
+        assert!(!ceiling_applies(SpendSource::TimeGuess));
+        assert!(!ceiling_applies(SpendSource::Free));
+    }
+
+    #[test]
+    fn reported_and_token_spend_can_end_a_run_at_the_ceiling() {
+        assert!(ceiling_applies(SpendSource::Reported));
+        assert!(ceiling_applies(SpendSource::FromTokens));
     }
 
     #[tokio::test]
