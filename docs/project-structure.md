@@ -334,6 +334,7 @@ crates/sentinel-daemon/
   Cargo.toml                           manifest
   build.rs                             The daemon embeds the built UI from `crates/sentinel-ui/dist/`. On a fresh clone that folder
   src/access.rs                        Engine methods for getting at the daemon: Tailscale, pairing, devices, the install check,
+  src/agent_health.rs                  Agents that fail for a reason a retry will not fix (not signed in, a usage limit, a broken
   src/agent_test.rs                    Test one agent CLI for real: one tiny headless prompt through the same worker a task uses, in an
   src/agents.rs                        Finding the agent CLIs on this computer, turning them into workers, and asking one of them
   src/agents_config.rs                 Pure helpers that pick the tools and the routing from one scan. They take no engine, so the
@@ -373,6 +374,7 @@ crates/sentinel-daemon/
   src/host.rs                          The always-on host (`docs/product-scope.md`, F21). The daemon writes a heartbeat every few
   src/hub.rs                           Many projects in one app. Each project is a folder with its own engine and its own `.sentinel`
   src/hub_error.rs                     The errors of the project list. `hub.rs` re-exports `HubError`, so `hub::HubError` keeps working
+  src/hub_inherit.rs                   A new project starts with the agent choices of the first project. The first scan of a fresh
   src/keys.rs                          Keys for the model providers: the provider table, the rows the UI shows, the live check of a
   src/lib.rs                           exports
   src/live.rs                          What the engine keeps while a run is live: control channels, the budget, and the questions the
