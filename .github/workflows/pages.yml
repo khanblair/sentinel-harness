@@ -30,7 +30,7 @@ jobs:
     outputs:
       present: ${{ steps.site.outputs.present }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check that the site exists yet
         id: site
         run: |
