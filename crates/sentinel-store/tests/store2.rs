@@ -415,6 +415,17 @@ fn upsert_tool_keeps_enabled_across_rescan() {
 }
 
 #[test]
+fn delete_tool_removes_only_that_tool() {
+    let store = Store::open_in_memory().unwrap();
+    store.upsert_tool(&sample_tool("claude")).unwrap();
+    store.upsert_tool(&sample_tool("codex")).unwrap();
+    store.delete_tool(&ToolId::new("claude")).unwrap();
+    let listed = store.list_tools().unwrap();
+    assert_eq!(listed.len(), 1);
+    assert_eq!(listed[0].id, ToolId::new("codex"));
+}
+
+#[test]
 fn set_tool_enabled_changes_flag() {
     let store = Store::open_in_memory().unwrap();
     let tool = sample_tool("codex");
