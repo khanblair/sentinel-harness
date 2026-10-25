@@ -54,6 +54,13 @@ impl Store {
         rows.into_iter().map(tool_from_row).collect()
     }
 
+    /// Remove a tool row. A scan uses it for tools that are no longer on this computer.
+    pub fn delete_tool(&self, id: &ToolId) -> Result<()> {
+        let connection = self.connection()?;
+        connection.execute("DELETE FROM tools WHERE id = ?1", params![id.as_str()])?;
+        Ok(())
+    }
+
     pub fn set_tool_enabled(&self, id: &ToolId, enabled: bool) -> Result<()> {
         let connection = self.connection()?;
         let changed = connection.execute(

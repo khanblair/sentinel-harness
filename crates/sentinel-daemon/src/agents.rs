@@ -100,8 +100,8 @@ impl Engine {
         Ok(self.store().list_tools()?)
     }
 
-    /// Remove the tools this scan did not find from the config, and mark their store rows off. Old
-    /// rows stay in the store (it has no delete), so the scan alone decides what is on this computer.
+    /// Remove the tools this scan did not find from the config and from the store, so the scan alone
+    /// decides what is on this computer.
     fn drop_missing_tools(&self, found: &[ToolInfo]) -> Result<()> {
         let config = self.config();
         let (enabled, routing) =
@@ -114,8 +114,8 @@ impl Engine {
         }
         for tool in self.store().list_tools()? {
             let is_found = found.iter().any(|f| f.id == tool.id);
-            if !is_found && tool.enabled {
-                self.store().set_tool_enabled(&tool.id, false)?;
+            if !is_found {
+                self.store().delete_tool(&tool.id)?;
             }
         }
         Ok(())
