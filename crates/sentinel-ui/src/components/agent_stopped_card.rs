@@ -32,7 +32,7 @@ pub fn AgentStoppedCard(
         <div class="card dangc">
             <h4 style="color:var(--danger)"><Icon name="stop" size=16 />" "{stop_title(&name)}</h4>
             <div>{reason}</div>
-            {retry.map(|text| view! { <StopActions tool=tool.clone() text=text /> })}
+            {retry.map(|text| view! { <StopActions tool=tool text=text /> })}
         </div>
     }
 }

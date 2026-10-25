@@ -98,17 +98,30 @@ pub fn row_mark(tool: &ToolInfo) -> Option<&'static str> {
     }
 }
 
-/// What `/agent` asks for. The outer `None` means the word is empty. `Some(None)` is auto-route,
-/// and `Some(Some(id))` names one agent. The daemon checks that the agent exists and is ready.
-pub fn parse_agent_command(arg: &str) -> Option<Option<ToolId>> {
+/// What `/agent` asks for. The daemon checks that a named agent exists and is ready.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum AgentCommand {
+    /// The word is empty.
+    Missing,
+    /// Route by tier.
+    Auto,
+    /// One agent.
+    Named(ToolId),
+}
+
+pub fn parse_agent_command(arg: &str) -> AgentCommand {
     match arg.trim() {
-        "" => None,
-        "auto" => Some(None),
-        name => Some(Some(ToolId::new(name))),
+        "" => AgentCommand::Missing,
+        "auto" => AgentCommand::Auto,
+        name => AgentCommand::Named(ToolId::new(name)),
     }
 }
 
 /// The text of a refusal. The daemon's own message is shown, not the status line.
+#[expect(
+    clippy::wildcard_enum_match_arm,
+    reason = "only a status failure carries the daemon's message; any other failure shows its own text"
+)]
 pub fn refusal_text(failure: &ApiFailure) -> String {
     match failure {
         ApiFailure::Status { message, .. } => message.clone(),
@@ -247,10 +260,7 @@ mod tests {
 
     #[test]
     fn unknown_agent_reads_its_id() {
-        assert_eq!(
-            chip_label(Some(&ToolId::new("codex")), &[]),
-            "Agent: codex"
-        );
+        assert_eq!(chip_label(Some(&ToolId::new("codex")), &[]), "Agent: codex");
     }
 
     #[test]
@@ -300,19 +310,19 @@ mod tests {
 
     #[test]
     fn an_empty_word_is_not_an_agent_choice() {
-        assert_eq!(parse_agent_command("   "), None);
+        assert_eq!(parse_agent_command("   "), AgentCommand::Missing);
     }
 
     #[test]
     fn auto_means_auto_route() {
-        assert_eq!(parse_agent_command("auto"), Some(None));
+        assert_eq!(parse_agent_command("auto"), AgentCommand::Auto);
     }
 
     #[test]
     fn a_name_means_that_agent() {
         assert_eq!(
             parse_agent_command("claude"),
-            Some(Some(ToolId::new("claude")))
+            AgentCommand::Named(ToolId::new("claude"))
         );
     }
 

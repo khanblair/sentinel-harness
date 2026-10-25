@@ -73,7 +73,9 @@ Every UI component. If it is not here, it does not exist yet.
 | SlashMenu | Command list under the composer | commands, query | hidden, open | P6 | planned |
 | PermissionChip | Shows and changes the permission mode | mode | each mode, free (warn) | P6 | planned |
 | BrainChip | Shows and changes the Brain mode | mode, device | each mode, locked on phone | P11 | planned |
-| TargetChip | Send to Sentinel or one agent | target, agents | sentinel, agent | P6 | planned |
+| AgentChip | Shows the agent of the open chat (Auto or one tool) and opens the menu that changes it. Off during a live run | chat, tools | auto, agent, disabled | P6 | done |
+| IntentChip | The type line of a message (`Type: ask. REASON`). The chip opens the five types and sends the last message again with the pick | intent, reason | chat, ask, research, plan, change | P6 | done |
+| AgentStoppedCard | The chat's agent stopped. Names the agent and the reason, with Retry and Switch agent | tool, reason, last message | with buttons, without buttons | P6 | done |
 | CommandPalette | Search commands | items, query | open, empty | P6 | planned |
 
 ## Agents and Panels

@@ -12,7 +12,7 @@ use serde::Serialize;
 
 use crate::api::{self, ApiFailure};
 use crate::chats::busy_notice;
-use crate::components::agent_chip::{choose_chat_agent, parse_agent_command};
+use crate::components::agent_chip::{AgentCommand, choose_chat_agent, parse_agent_command};
 use crate::components::top_bar::{post_action, settle};
 use crate::layout::PanelId;
 use crate::skills::unknown_skill_text;
@@ -335,8 +335,9 @@ pub fn set_brain(ui: Ui, mode: BrainMode) {
 /// `/agent claude` and `/agent auto` set the open chat's agent.
 pub fn run_agent_command(ui: Ui, name: &str) {
     match parse_agent_command(name) {
-        Some(agent) => choose_chat_agent(ui, agent.as_ref(), None),
-        None => ui.show_toast(
+        AgentCommand::Auto => choose_chat_agent(ui, None, None),
+        AgentCommand::Named(agent) => choose_chat_agent(ui, Some(&agent), None),
+        AgentCommand::Missing => ui.show_toast(
             "Name an agent, for example /agent claude or /agent auto.",
             ToastKind::Warn,
         ),

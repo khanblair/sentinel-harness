@@ -1,8 +1,10 @@
 //! One file per component in `docs/ui-registry.md`.
 pub mod accent_picker;
 pub mod add_project;
+pub mod agent_chip;
 pub mod agent_stack;
 pub mod agent_step_card;
+pub mod agent_stopped_card;
 pub mod agent_test_button;
 pub mod appearance_form;
 pub mod approval_card;
@@ -87,7 +89,6 @@ pub mod slash_menu;
 pub mod status_badge;
 pub mod strength_bar;
 pub mod tab_bar;
-pub mod target_chip;
 pub mod task_card;
 pub mod telegram_card;
 pub mod telegram_levels;
@@ -101,5 +102,3 @@ pub mod tour_coach;
 pub mod tour_menu;
 pub mod verdict_card;
 pub mod wave_card;
-pub mod agent_chip;
-pub mod agent_stopped_card;

@@ -166,6 +166,7 @@ crates/sentinel-store/
   src/migrations/0002_extras.sql       schema
   src/migrations/0003_chats.sql        schema
   src/migrations/0004_skills_routines.sql schema
+  src/migrations/0005_chat_agent.sql   schema
   src/quality.rs                       QualityNote
   src/reservations.rs                  reservation queries
   src/reset.rs                         Clear what belongs to one run, so the next run starts from an empty board. Events, runs, cost
@@ -356,6 +357,7 @@ crates/sentinel-daemon/
   src/briefs.rs                        The facts a brief reports, and the plain words it is written in. The text builders take counts,
   src/changes.rs                       Live project state for the Changes and Board panels: the git working tree, the diff of one
   src/changes/diff.rs                  The diff of one file against HEAD, for the Changes panel. An untracked file shows every line as
+  src/chat_agent.rs                    The agent a chat uses. A new chat takes the project default when that tool is ready. A chat
   src/chats.rs                         Chats: create, list, rename, pin, archive, delete. A chat is one conversation in the project
   src/close_out.rs                     Closing a run: every task that has not reached an end gets one, the report is written, and the
   src/cmd.rs                           Run external programs behind one trait
@@ -502,8 +504,10 @@ crates/sentinel-ui/
   src/chats/tests.rs                   file
   src/components/accent_picker.rs      `AccentPicker`: the six accent swatches, a custom color, and Reset to default
   src/components/add_project.rs        `AddProjectButton` and the project dialogs: the New project flow, the folder browser for a host
+  src/components/agent_chip.rs         The agent chip: shows which agent the open chat uses, and opens the menu that changes it. The
   src/components/agent_stack.rs        `AgentStack`: avatars of the ready agents in the top bar, each with a state dot. Opens the
   src/components/agent_step_card.rs    One agent's card for one attempt at one task. The steps are not in the events, so the card
+  src/components/agent_stopped_card.rs The card for an agent that stopped. The chat's run ends with it, and no other agent takes over
   src/components/agent_test_button.rs  The Test button of an agent row and the line that shows its answer. A test sends one tiny
   src/components/appearance_form.rs    The controls of Settings, Appearance, from theme down to corner radius. The density choices
   src/components/approval_card.rs      An approval card: an agent asks for one more file, or the user approves a wave or the plan
@@ -589,7 +593,6 @@ crates/sentinel-ui/
   src/components/status_badge.rs       `StatusBadge`: a shape, a color, and a label together, so state is never color alone
   src/components/strength_bar.rs       `StrengthBar`: how strong a note is, as a thin bar with the prototype's `sbar` classes
   src/components/tab_bar.rs            `TabBar`: the phone tabs Stream, Board, Reserved, Changes, More, and the swipe between them
-  src/components/target_chip.rs        The send-to chip: shows where the next message goes, and opens the target menu
   src/components/task_card.rs          `TaskCard`: one task on the Board. Click opens the detail inline under the card
   src/components/telegram_card.rs      The Telegram card of Settings, Integrations. It saves the bot, waits for `/start`, and once the
   src/components/telegram_levels.rs    The Telegram rows that choose what the chat gets: levels, detail, events, and quiet hours
@@ -656,6 +659,7 @@ crates/sentinel-ui/
   src/views/settings_pages.rs          Settings pages: General (repository and wake lock) and Brain. The other pages live in
   src/views/skills_page.rs             `SkillsPage`: the Skills page of Settings (`docs/ui-rules.md`, Settings; `docs/ui-registry.md`,
   src/views/stream.rs                  The stream: the run's items in order, built from the snapshot. The view follows the newest
+  src/views/stream_agent.rs            Which agent runs a task and how its attempt ended, read from the events. Pure, like the stream
   src/views/stream_model.rs            Turns the daemon's events into stream items. Pure: no signals, no DOM, so every mapping has a
   src/views/telegram_panel.rs          The Telegram panel. Once the chat is paired it shows the bot, the detail, the levels that are
   src/views/telegram_slot.rs           Empty slots in Settings, Integrations. The Telegram card and the always-on host card are built

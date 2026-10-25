@@ -865,10 +865,7 @@ mod tests {
 
     #[test]
     fn a_stopped_agent_card_retries_the_last_owner_message() {
-        let shown = items(
-            vec![owner("fix the fee ledger"), stopped("claude")],
-            None,
-        );
+        let shown = items(vec![owner("fix the fee ledger"), stopped("claude")], None);
         assert_eq!(
             shown[1],
             Item::AgentStopped {
