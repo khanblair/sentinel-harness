@@ -89,10 +89,12 @@ Sentinel is the **outer loop** around agents. Each worker CLI runs its own inner
 - F24. Skills
 - F25. Routines (timed jobs and briefs)
 - F26. Desktop Window (macOS)
+- F27. Projects
+- F28. Reset
 
 ## v1 Scope
 
-In: features F1 to F26 in product-scope.md, Linux/macOS/Windows daemon, web UI served as an installable PWA.
+In: features F1 to F28 in product-scope.md, Linux/macOS/Windows daemon, web UI served as an installable PWA.
 
 Out: native mobile app, cloud hosting, multi-user teams, non-git repos, fine-tuning, any use of git worktrees.
 
