@@ -14,6 +14,8 @@ const COMMIT_MESSAGE: &str = "Add the Sentinel backlog";
 const SENTINEL_FOLDER: &str = ".sentinel";
 /// The most file names one row lists.
 const NAMES_SHOWN: usize = 3;
+/// Opening a folder is allowed with changes. The run start is what refuses them.
+const DIRTY_NOTE: &str = "You can open the project. Commit or stash them before a run starts.";
 
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
 pub enum CommitError {
@@ -61,7 +63,10 @@ fn clean_row_for(porcelain: &str) -> CheckRow {
     }
     let (names, more) = dirty_summary(porcelain);
     let fix = only_backlog_changed(&paths).then(|| COMMIT_FIX.to_owned());
-    let detail = format!("Uncommitted changes: {}", list_text(&names, more));
+    let detail = format!(
+        "Uncommitted changes: {}. {DIRTY_NOTE}",
+        list_text(&names, more)
+    );
     row(CheckStatus::NeedsAction, &detail, fix)
 }
 
@@ -267,14 +272,34 @@ mod tests {
         let row = clean_row_for(" M backlog.md\n");
         assert_eq!(row.status, CheckStatus::NeedsAction);
         assert_eq!(row.fix.as_deref(), Some("Commit backlog.md"));
-        assert_eq!(row.detail, "Uncommitted changes: backlog.md");
+        assert_eq!(
+            row.detail,
+            "Uncommitted changes: backlog.md. You can open the project. Commit or stash them before a run starts."
+        );
     }
 
     #[test]
     fn a_backlog_with_other_changes_offers_no_fix() {
         let row = clean_row_for("?? backlog.md\n?? other.txt\n");
         assert_eq!(row.fix, None);
-        assert_eq!(row.detail, "Uncommitted changes: backlog.md, other.txt");
+        assert_eq!(
+            row.detail,
+            "Uncommitted changes: backlog.md, other.txt. You can open the project. Commit or stash them before a run starts."
+        );
+    }
+
+    #[test]
+    fn a_dirty_tree_row_says_the_project_can_still_open() {
+        let row = clean_row_for("?? a.md\n?? b.rs\n?? c.md\n?? d.md\n?? e.md\n");
+        assert_eq!(row.status, CheckStatus::NeedsAction);
+        assert!(
+            row.detail
+                .starts_with("Uncommitted changes: a.md, b.rs, c.md and 2 more. ")
+        );
+        assert!(
+            row.detail
+                .ends_with("You can open the project. Commit or stash them before a run starts.")
+        );
     }
 
     #[test]

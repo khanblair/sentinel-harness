@@ -106,12 +106,12 @@ fn check_repo_missing_backlog_offers_the_fix_label() -> TestResult {
     let backlog = row(&report, "backlog.md")?;
     assert_eq!(backlog.status, CheckStatus::NeedsAction);
     assert_eq!(backlog.fix.as_deref(), Some("Create a starter backlog"));
-    assert!(!report.usable);
+    assert!(report.usable, "a missing backlog does not block opening");
     Ok(())
 }
 
 #[test]
-fn check_repo_dirty_tree_is_not_usable() -> TestResult {
+fn check_repo_dirty_tree_stays_usable() -> TestResult {
     let folder = tempfile::tempdir()?;
     init_repo_with_backlog(folder.path())?;
     fs::write(folder.path().join("new-file.txt"), "work")?;
@@ -120,7 +120,23 @@ fn check_repo_dirty_tree_is_not_usable() -> TestResult {
         row(&report, "Clean working tree")?.status,
         CheckStatus::NeedsAction
     );
-    assert!(!report.usable);
+    assert!(report.usable, "a dirty tree does not block opening");
+    Ok(())
+}
+
+#[test]
+fn check_repo_untracked_file_without_backlog_is_usable_with_two_open_rows() -> TestResult {
+    let folder = tempfile::tempdir()?;
+    git(folder.path(), &["init"])?;
+    fs::write(folder.path().join("notes.txt"), "work")?;
+    let report = check_repo(folder.path());
+    assert!(report.usable, "{report:?}");
+    assert_eq!(row(&report, "Git repository")?.status, CheckStatus::Ok);
+    assert_eq!(row(&report, "backlog.md")?.status, CheckStatus::NeedsAction);
+    assert_eq!(
+        row(&report, "Clean working tree")?.status,
+        CheckStatus::NeedsAction
+    );
     Ok(())
 }
 

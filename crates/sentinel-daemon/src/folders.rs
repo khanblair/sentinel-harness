@@ -128,9 +128,8 @@ pub fn check_repo(path: &Path) -> RepoCheckResponse {
     let git = git_row(path);
     let backlog = backlog_row(path);
     let clean = clean_row(path, git.status == CheckStatus::Ok);
-    let usable = [git.status, backlog.status, clean.status]
-        .iter()
-        .all(|status| *status == CheckStatus::Ok);
+    // Only git is a hard requirement. A dirty tree blocks a run, not opening the folder.
+    let usable = git.status == CheckStatus::Ok;
     RepoCheckResponse {
         path: shown,
         rows: vec![git, backlog, clean],
@@ -168,7 +167,7 @@ fn backlog_row(path: &Path) -> CheckRow {
         CheckRow {
             name: "backlog.md".to_owned(),
             status: CheckStatus::NeedsAction,
-            detail: "No backlog.md in this folder".to_owned(),
+            detail: "No backlog.md. You can still describe the work in a chat.".to_owned(),
             fix: Some("Create a starter backlog".to_owned()),
         }
     }
