@@ -15,6 +15,9 @@ use crate::engine::{Engine, EngineError, Result, lock};
 /// The longest title a user may give a chat.
 const MAX_TITLE_CHARS: usize = 120;
 
+/// Events read per page when a chat is checked for anything but its own changes.
+const EVENT_PAGE: u32 = 100;
+
 impl Engine {
     /// The name of the project: the repository folder.
     pub(crate) fn project_name(&self) -> String {
@@ -126,9 +129,15 @@ impl Engine {
         Ok(!approvals.is_empty() || !decisions.is_empty())
     }
 
-    /// Make an empty chat in this project.
+    /// Make an empty chat in this project. A request with no title reuses the newest empty chat
+    /// instead, so the New chat button never adds a second blank row.
     pub fn create_chat(&self, title: Option<&str>, caller: &Caller) -> Result<ChatInfo> {
         let named = title.map(str::trim).filter(|t| !t.is_empty());
+        if named.is_none()
+            && let Some(empty) = self.empty_chats()?.pop()
+        {
+            return self.get_chat(&empty.id);
+        }
         let now = self.now();
         let record = ChatRecord {
             id: ChatId::generate(),
@@ -180,11 +189,70 @@ impl Engine {
         self.check_not_live(id, "deleted")?;
         self.emit_chat_change(id, ChatChange::Deleted)?;
         self.store().delete_chat(id)?;
-        let uploads = self.repo_root().join(".sentinel/chats").join(id.as_str());
-        // A missing upload folder only means the chat never had one.
-        let _ = fs::remove_dir_all(uploads);
+        self.remove_uploads(id);
         self.note_device_action(caller, &format!("deleted chat {}", record.title));
         self.ensure_a_chat()
+    }
+
+    /// Remove the upload folder of a chat. A missing folder only means the chat never had one.
+    fn remove_uploads(&self, id: &ChatId) {
+        let uploads = self.repo_root().join(".sentinel/chats").join(id.as_str());
+        let _ = fs::remove_dir_all(uploads);
+    }
+
+    /// The chats with nothing in them, oldest first.
+    fn empty_chats(&self) -> Result<Vec<ChatRecord>> {
+        let mut empties = Vec::new();
+        for record in self.store().list_chats()? {
+            if self.is_empty_chat(&record)? {
+                empties.push(record);
+            }
+        }
+        empties.sort_by_key(|record| record.created_at);
+        Ok(empties)
+    }
+
+    /// A chat is empty when nobody named it, nothing is attached, it is not archived, and its only
+    /// events are its own `ChatChanged` events.
+    fn is_empty_chat(&self, record: &ChatRecord) -> Result<bool> {
+        let named = record.title_set || record.title != NEW_CHAT_TITLE;
+        if named || record.archived_at.is_some() {
+            return Ok(false);
+        }
+        if !self.store().list_attachments(&record.id, false)?.is_empty() {
+            return Ok(false);
+        }
+        self.has_only_chat_changes(&record.id)
+    }
+
+    /// True when the chat has no stored event other than `ChatChanged`. Reads a page at a time and
+    /// stops at the first other event.
+    fn has_only_chat_changes(&self, id: &ChatId) -> Result<bool> {
+        let mut after = 0;
+        loop {
+            let page = self.store().chat_events_after(id, after, EVENT_PAGE)?;
+            if page
+                .iter()
+                .any(|record| !matches!(record.event, Event::ChatChanged { .. }))
+            {
+                return Ok(false);
+            }
+            match page.last() {
+                Some(last) => after = last.id,
+                None => return Ok(true),
+            }
+        }
+    }
+
+    /// Delete every empty chat except the newest one. Runs once when the engine opens.
+    pub(crate) fn prune_empty_chats(&self) -> Result<()> {
+        let mut empties = self.empty_chats()?;
+        empties.pop();
+        for record in empties {
+            self.store().delete_chat(&record.id)?;
+            self.remove_uploads(&record.id);
+        }
+        Ok(())
     }
 
     /// The stored events of one chat, oldest first.
@@ -285,6 +353,11 @@ fn changes_of(update: &UpdateChat, record: &ChatRecord) -> Vec<ChatChange> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cmd::SystemRunner;
+    use crate::engine::EngineOptions;
+    use crate::secrets::MemoryStore;
+    use std::sync::Arc;
+    use time::OffsetDateTime;
 
     #[test]
     fn an_empty_title_is_refused() {
@@ -299,5 +372,61 @@ mod tests {
     #[test]
     fn a_very_long_title_is_refused() {
         assert!(clean_title(&"a".repeat(MAX_TITLE_CHARS + 1)).is_err());
+    }
+
+    fn open_in_memory(repo: &std::path::Path) -> Engine {
+        Engine::open(EngineOptions {
+            repo_root: repo.to_path_buf(),
+            home: repo.to_path_buf(),
+            runner: Arc::new(SystemRunner),
+            secrets: Arc::new(MemoryStore::new()),
+            fake_agents: None,
+            in_memory: true,
+        })
+        .unwrap()
+    }
+
+    /// A chat row with no events, as an older build could leave behind.
+    fn insert_blank_chat(engine: &Engine, id: &str, unix_seconds: i64) {
+        let moment = OffsetDateTime::from_unix_timestamp(unix_seconds).unwrap();
+        let record = ChatRecord {
+            id: ChatId::new(id),
+            project: "repo".to_owned(),
+            title: NEW_CHAT_TITLE.to_owned(),
+            title_set: false,
+            pinned: false,
+            archived_at: None,
+            created_at: moment,
+            updated_at: moment,
+        };
+        engine.store().insert_chat(&record).unwrap();
+    }
+
+    #[test]
+    fn prune_keeps_the_newest_empty_chat_and_every_named_chat() {
+        let dir = tempfile::tempdir().unwrap();
+        let engine = open_in_memory(dir.path());
+        let newest_blank = engine.list_chats().unwrap().remove(0).id;
+        insert_blank_chat(&engine, "older-blank", 1_000);
+        insert_blank_chat(&engine, "middle-blank", 2_000);
+        let named = engine
+            .create_chat(Some("Rate limit"), &Caller::pc("You"))
+            .unwrap();
+
+        engine.prune_empty_chats().unwrap();
+
+        let mut kept: Vec<String> = engine
+            .list_chats()
+            .unwrap()
+            .into_iter()
+            .map(|chat| chat.id.as_str().to_owned())
+            .collect();
+        kept.sort();
+        let mut expected = vec![
+            newest_blank.as_str().to_owned(),
+            named.id.as_str().to_owned(),
+        ];
+        expected.sort();
+        assert_eq!(kept, expected);
     }
 }

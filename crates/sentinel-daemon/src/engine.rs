@@ -127,6 +127,9 @@ impl Engine {
         };
         engine.refresh_repo();
         engine.adopt_old_events()?;
+        if let Err(error) = engine.prune_empty_chats() {
+            eprintln!("Could not remove empty chats: {error}");
+        }
         engine.ensure_a_chat()?;
         engine.note_crash_on_open();
         Ok(engine)

@@ -3,7 +3,7 @@
 
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use sentinel_core::{HarnessState, Snapshot};
+use sentinel_core::{ChatId, HarnessState, Snapshot};
 
 use crate::api;
 use crate::chats::{ARCHIVED_GROUP, ProjectGroup, group_chats};
@@ -82,12 +82,22 @@ fn NewChatButton() -> impl IntoView {
     }
 }
 
+/// True when the daemon returned the chat the owner already has open. The daemon reuses an empty
+/// chat, so this means the owner is already on the empty one.
+pub fn is_already_open(open: Option<&ChatId>, returned: &ChatId) -> bool {
+    open == Some(returned)
+}
+
 /// Makes an empty chat, opens it, and reloads. A failure shows as a toast. The New chat button,
 /// its shortcut, and each project's plus button all run this.
 pub fn new_chat(ui: Ui) {
     spawn_local(async move {
         match api::create_chat(None).await {
             Ok(chat) => {
+                if is_already_open(ui.open_chat.get_untracked().as_ref(), &chat.id) {
+                    ui.show_toast("This chat is already empty.", ToastKind::Info);
+                    return;
+                }
                 ui.open(chat.id);
                 state::refresh(ui);
             }
@@ -249,8 +259,21 @@ fn toggle_theme(ui: Ui) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sentinel_core::{ChatId, RunId, RunInfo};
+    use sentinel_core::{RunId, RunInfo};
     use time::OffsetDateTime;
+
+    #[test]
+    fn a_returned_chat_that_is_already_open_is_detected() {
+        let open = ChatId::new("c1");
+        assert!(is_already_open(Some(&open), &ChatId::new("c1")));
+    }
+
+    #[test]
+    fn a_returned_chat_that_is_not_open_is_opened() {
+        let open = ChatId::new("c1");
+        assert!(!is_already_open(Some(&open), &ChatId::new("c2")));
+        assert!(!is_already_open(None, &ChatId::new("c2")));
+    }
 
     #[test]
     fn an_idle_harness_is_not_live() {
