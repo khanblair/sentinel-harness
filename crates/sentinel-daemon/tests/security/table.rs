@@ -172,6 +172,7 @@ pub const ROUTES: &[Route] = &[
     Route::post("/api/routines/nope/run", Access::Any),
     Route::get("/api/briefs", Access::Any),
     Route::put("/api/config/cap", Access::Computer).json(r#"{"cap":"5.00"}"#),
+    Route::put("/api/config/agent", Access::Computer).json(r#"{"agent":"auto"}"#),
     Route::put("/api/secrets/openrouter", Access::Computer).json(r#"{"key":"test-key"}"#),
     Route::get("/api/keys", Access::Computer),
     Route::put("/api/keys/nope", Access::Computer).json(r#"{"key":"test-key"}"#),

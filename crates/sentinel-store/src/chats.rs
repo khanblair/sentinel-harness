@@ -18,9 +18,12 @@ pub struct ChatRecord {
     pub archived_at: Option<OffsetDateTime>,
     pub created_at: OffsetDateTime,
     pub updated_at: OffsetDateTime,
+    /// The tool id the chat always uses. `None` means auto: each task picks its agent.
+    pub agent: Option<String>,
 }
 
-const COLUMNS: &str = "id, project, title, title_set, pinned, archived_at, created_at, updated_at";
+const COLUMNS: &str =
+    "id, project, title, title_set, pinned, archived_at, created_at, updated_at, agent";
 
 type ChatRow = (
     String,
@@ -31,13 +34,16 @@ type ChatRow = (
     Option<String>,
     String,
     String,
+    Option<String>,
 );
 
 impl Store {
     pub fn insert_chat(&self, chat: &ChatRecord) -> Result<()> {
         let connection = self.connection()?;
         connection.execute(
-            &format!("INSERT INTO chats ({COLUMNS}) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)"),
+            &format!(
+                "INSERT INTO chats ({COLUMNS}) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)"
+            ),
             params![
                 chat.id.as_str(),
                 chat.project,
@@ -47,6 +53,7 @@ impl Store {
                 chat.archived_at.map(time_text).transpose()?,
                 time_text(chat.created_at)?,
                 time_text(chat.updated_at)?,
+                chat.agent,
             ],
         )?;
         Ok(())
@@ -77,12 +84,12 @@ impl Store {
         rows.into_iter().map(chat_from_row).collect()
     }
 
-    /// Replace the title, the flags, and the archive time of a chat.
+    /// Replace the title, the flags, the archive time, and the agent of a chat.
     pub fn update_chat(&self, chat: &ChatRecord) -> Result<()> {
         let connection = self.connection()?;
         let changed = connection.execute(
             "UPDATE chats SET title = ?2, title_set = ?3, pinned = ?4, archived_at = ?5, \
-             updated_at = ?6 WHERE id = ?1",
+             updated_at = ?6, agent = ?7 WHERE id = ?1",
             params![
                 chat.id.as_str(),
                 chat.title,
@@ -90,6 +97,7 @@ impl Store {
                 chat.pinned,
                 chat.archived_at.map(time_text).transpose()?,
                 time_text(chat.updated_at)?,
+                chat.agent,
             ],
         )?;
         if changed == 0 {
@@ -169,11 +177,11 @@ impl Store {
 }
 
 fn read_row(row: &Row<'_>) -> rusqlite::Result<ChatRow> {
-    columns!(row; 0, 1, 2, 3, 4, 5, 6, 7)
+    columns!(row; 0, 1, 2, 3, 4, 5, 6, 7, 8)
 }
 
 fn chat_from_row(row: ChatRow) -> Result<ChatRecord> {
-    let (id, project, title, title_set, pinned, archived_at, created_at, updated_at) = row;
+    let (id, project, title, title_set, pinned, archived_at, created_at, updated_at, agent) = row;
     Ok(ChatRecord {
         id: ChatId::new(id),
         project,
@@ -183,6 +191,7 @@ fn chat_from_row(row: ChatRow) -> Result<ChatRecord> {
         archived_at: archived_at.as_deref().map(time_from_text).transpose()?,
         created_at: time_from_text(&created_at)?,
         updated_at: time_from_text(&updated_at)?,
+        agent,
     })
 }
 
@@ -201,6 +210,7 @@ mod tests {
             archived_at: None,
             created_at: moment,
             updated_at: moment,
+            agent: None,
         }
     }
 
@@ -243,6 +253,37 @@ mod tests {
         record.archived_at = Some(OffsetDateTime::from_unix_timestamp(1_700_000_500).unwrap());
         store.update_chat(&record).unwrap();
         assert_eq!(store.get_chat(&record.id).unwrap(), Some(record));
+    }
+
+    #[test]
+    fn the_agent_of_a_chat_is_stored_and_cleared_again() {
+        let store = Store::open_in_memory().unwrap();
+        let mut record = chat("c1", false, 1_700_000_000);
+        record.agent = Some("claude".to_owned());
+        store.insert_chat(&record).unwrap();
+        assert_eq!(
+            store.get_chat(&record.id).unwrap().unwrap().agent.as_deref(),
+            Some("claude")
+        );
+        record.agent = None;
+        store.update_chat(&record).unwrap();
+        assert_eq!(store.get_chat(&record.id).unwrap().unwrap().agent, None);
+    }
+
+    #[test]
+    fn a_chat_row_from_before_the_agent_column_reads_as_auto() {
+        let store = Store::open_in_memory().unwrap();
+        store
+            .connection()
+            .unwrap()
+            .execute(
+                "INSERT INTO chats (id, project, title, title_set, pinned, created_at, updated_at) \
+                 VALUES ('old', 'repo', 'Old', 1, 0, '2023-11-14T22:13:20Z', '2023-11-14T22:13:20Z')",
+                [],
+            )
+            .unwrap();
+        let record = store.get_chat(&ChatId::new("old")).unwrap().unwrap();
+        assert_eq!(record.agent, None);
     }
 
     #[test]

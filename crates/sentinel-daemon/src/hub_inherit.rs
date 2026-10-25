@@ -2,7 +2,7 @@
 //! project turns on every ready agent, so the choices made in the setup wizard would be lost. The
 //! pure part works on plain values. The engine part writes the result into the new project.
 
-use sentinel_core::ToolInfo;
+use sentinel_core::{ToolId, ToolInfo};
 
 use crate::agents_config::{fill_routing, without_missing_tools};
 use crate::config::Config;
@@ -23,8 +23,10 @@ pub(crate) fn inherited_config(primary: &Config, found: &[ToolInfo]) -> Config {
         .iter()
         .filter(|tool| enabled.contains(&tool.id))
         .collect();
+    let default_agent = inherited_default_agent(primary, &enabled);
     Config {
         routing: fill_routing(routing, &usable),
+        default_agent,
         enabled_tools: enabled,
         models: primary.models.clone(),
         free_models: primary.free_models.clone(),
@@ -36,6 +38,15 @@ pub(crate) fn inherited_config(primary: &Config, found: &[ToolInfo]) -> Config {
         approval_timeout_seconds: primary.approval_timeout_seconds,
         ..Config::default()
     }
+}
+
+/// The primary's default agent, kept only when its tool is still enabled in the new project.
+fn inherited_default_agent(primary: &Config, enabled: &[ToolId]) -> Option<String> {
+    primary
+        .default_agent
+        .as_ref()
+        .filter(|agent| enabled.iter().any(|tool| tool.as_str() == agent.as_str()))
+        .cloned()
 }
 
 /// Writes the inherited choices into a new project. The router reads the stored tool flags, not the
@@ -172,6 +183,27 @@ mod tests {
         assert_eq!(inherited.approval_timeout_seconds, 90);
         assert_eq!(inherited.models, primary.models);
         assert_eq!(inherited.free_models, primary.free_models);
+    }
+
+    #[test]
+    fn the_default_agent_is_copied_when_its_tool_stays_enabled() {
+        let primary = Config {
+            default_agent: Some("b".to_owned()),
+            ..primary_with(&["a", "b"], Routing::default())
+        };
+        let found = [tool("a", Tier::Cheap), tool("b", Tier::Mid)];
+        let inherited = inherited_config(&primary, &found);
+        assert_eq!(inherited.default_agent.as_deref(), Some("b"));
+    }
+
+    #[test]
+    fn the_default_agent_is_dropped_when_its_tool_is_missing_here() {
+        let primary = Config {
+            default_agent: Some("gemini".to_owned()),
+            ..primary_with(&["a"], Routing::default())
+        };
+        let inherited = inherited_config(&primary, &[tool("a", Tier::Cheap)]);
+        assert_eq!(inherited.default_agent, None);
     }
 
     #[test]

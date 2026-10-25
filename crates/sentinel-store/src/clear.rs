@@ -103,6 +103,7 @@ mod tests {
                 archived_at: None,
                 created_at: moment,
                 updated_at: moment,
+                agent: None,
             })
             .unwrap();
     }
