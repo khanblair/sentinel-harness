@@ -376,8 +376,14 @@ async fn a_new_project_starts_with_the_primary_agent_choices() {
     let (status, body) = add_path(&served, &folder).await;
     assert_eq!(status, StatusCode::OK, "{body}");
     let inherited = config::load(&config::config_path(&folder)).expect("hub test setup");
-    assert_eq!(inherited.enabled_tools, served.primary.config().enabled_tools);
-    assert_eq!(inherited.enabled_tools, [ToolId::new("fake-a"), ToolId::new("fake-c")]);
+    assert_eq!(
+        inherited.enabled_tools,
+        served.primary.config().enabled_tools
+    );
+    assert_eq!(
+        inherited.enabled_tools,
+        [ToolId::new("fake-a"), ToolId::new("fake-c")]
+    );
 }
 
 #[tokio::test]

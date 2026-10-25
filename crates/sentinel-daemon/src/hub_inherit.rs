@@ -2,7 +2,7 @@
 //! project turns on every ready agent, so the choices made in the setup wizard would be lost. The
 //! pure part works on plain values. The engine part writes the result into the new project.
 
-use sentinel_core::{ToolId, ToolInfo};
+use sentinel_core::ToolInfo;
 
 use crate::agents_config::{fill_routing, without_missing_tools};
 use crate::config::Config;
@@ -57,7 +57,7 @@ pub(crate) fn inherit_choices(engine: &Engine, primary: &Config) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use sentinel_core::{BrainMode, PermissionMode, Routing, Tier, ToolStatus};
+    use sentinel_core::{BrainMode, PermissionMode, Routing, Tier, ToolId, ToolStatus};
 
     use super::*;
 
@@ -178,7 +178,7 @@ mod tests {
     fn a_primary_with_no_enabled_tool_gives_none_to_inherit() {
         let primary = primary_with(&[], Routing::default());
         let inherited = inherited_config(&primary, &[tool("a", Tier::Cheap)]);
-        assert!(inherited.enabled_tools.is_empty());
+        assert_eq!(inherited.enabled_tools, Vec::new());
         assert_eq!(inherited.routing, Routing::default());
     }
 }
