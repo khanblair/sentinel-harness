@@ -409,3 +409,27 @@ impl DataScope {
 pub struct ClearData {
     pub scopes: Vec<DataScope>,
 }
+
+/// One row of `GET /api/keys`. The hint is the last four characters of a saved key, and only
+/// for a key of at least twelve characters. No other part of a key leaves the daemon.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct KeyInfo {
+    pub provider: String,
+    pub label: String,
+    pub has_key: bool,
+    pub hint: Option<String>,
+}
+
+/// `PUT /api/keys/{provider}`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct KeyBody {
+    pub key: String,
+}
+
+/// `POST /api/keys/{provider}/test`. The message is one plain sentence and never holds the key.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct KeyTest {
+    pub provider: String,
+    pub ok: bool,
+    pub message: String,
+}

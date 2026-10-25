@@ -7,6 +7,7 @@ mod changes;
 mod chats;
 pub(crate) mod clearing;
 mod dry_run;
+mod keys;
 mod routines;
 mod run;
 mod setup;
@@ -158,6 +159,7 @@ pub fn protected_routes() -> Router<Engine> {
         .merge(dry_run::routes())
         .merge(access::routes())
         .merge(setup::routes())
+        .merge(keys::routes())
         .merge(brain::routes())
         .merge(skills::routes())
         .merge(telegram::routes())

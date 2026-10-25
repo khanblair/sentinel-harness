@@ -5,12 +5,13 @@ use std::process::Command;
 
 use sentinel_core::Cost;
 
+use sentinel_core::api::{KeyInfo, KeyTest};
+
 use crate::connections::ConnectionStatus;
 use crate::controls::{Caller, usd_text};
 use crate::engine::{Engine, EngineError, Result};
+use crate::keys::{self, KeyCheck, LIVE_TIMEOUT};
 
-/// The longest key the store accepts. Real keys are far shorter.
-const MAX_KEY_BYTES: usize = 512;
 /// The longest file list sent to the UI.
 const MAX_FILES: usize = 5000;
 
@@ -37,18 +38,44 @@ impl Engine {
         Ok(cap)
     }
 
-    /// Keep the `OpenRouter` key in the system keychain. The key is never read back to a client.
+    /// Keep the `OpenRouter` key in the system keychain.
     pub fn set_openrouter_key(&self, key: &str) -> Result<()> {
-        let key = key.trim();
-        if key.is_empty() || key.len() > MAX_KEY_BYTES {
-            return Err(EngineError::Invalid(
-                "The key is empty or too long.".to_owned(),
-            ));
-        }
+        self.save_key("openrouter", key)
+    }
+
+    /// The row of every model provider. A key is never read back to a client.
+    pub fn key_rows(&self) -> Vec<KeyInfo> {
+        keys::key_rows(self.inner.secrets.as_ref())
+    }
+
+    /// Keep one provider's key in the system keychain.
+    pub fn save_key(&self, provider: &str, text: &str) -> Result<()> {
+        let provider = find_provider(provider)?;
+        let key = keys::clean_key(text)
+            .ok_or_else(|| EngineError::Invalid("That does not look like a key.".to_owned()))?;
         self.inner
             .secrets
-            .set("openrouter", key)
+            .set(provider.id, &key)
             .map_err(|_| EngineError::Refused("The keychain refused the key.".to_owned()))
+    }
+
+    /// Remove one provider's key from the system keychain.
+    pub fn delete_key(&self, provider: &str) -> Result<()> {
+        let provider = find_provider(provider)?;
+        self.inner
+            .secrets
+            .delete(provider.id)
+            .map_err(|_| EngineError::Refused("The keychain refused the change.".to_owned()))
+    }
+
+    /// Check the saved key of one provider against the provider itself.
+    pub async fn test_key(&self, provider: &str) -> Result<KeyTest> {
+        let provider = find_provider(provider)?;
+        let check = KeyCheck {
+            base_url: provider.base_url,
+            timeout: LIVE_TIMEOUT,
+        };
+        keys::test_saved_key(provider, self.inner.secrets.as_ref(), check).await
     }
 
     /// Check one connection again and return its fresh state.
@@ -88,4 +115,8 @@ impl Engine {
         files.truncate(MAX_FILES);
         Ok(files)
     }
+}
+
+fn find_provider(id: &str) -> Result<&'static keys::Provider> {
+    keys::provider(id).ok_or_else(|| EngineError::NotFound(format!("provider {id}")))
 }

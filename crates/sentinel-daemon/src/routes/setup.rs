@@ -8,7 +8,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 
 use sentinel_core::OnboardingState;
-use sentinel_core::api::{RepoCheckRequest, RepoCheckResponse, RepoTree};
+use sentinel_core::api::{KeyBody, RepoCheckRequest, RepoCheckResponse, RepoTree};
 
 use super::state::ConnectionBody;
 use super::{ApiResult, blocking, okay};
@@ -100,11 +100,6 @@ struct CapBody {
     cap: String,
 }
 
-#[derive(Debug, Deserialize)]
-struct KeyBody {
-    key: String,
-}
-
 /// Set the cap before a run. Once a run is live the cap can only be lowered.
 async fn set_cap(
     State(engine): State<Engine>,
@@ -118,13 +113,14 @@ async fn set_cap(
     .await
 }
 
+/// The older route for the `OpenRouter` key. It stays as an alias of `PUT /api/keys/openrouter`.
 async fn set_openrouter_key(
     State(engine): State<Engine>,
     Computer(_): Computer,
     Json(body): Json<KeyBody>,
 ) -> ApiResult<Value> {
     blocking(engine, move |e| {
-        e.set_openrouter_key(&body.key).map(|()| okay())
+        e.save_key("openrouter", &body.key).map(|()| okay())
     })
     .await
 }
