@@ -139,6 +139,7 @@ pub fn active_page_id(modal: Option<&Modal>) -> &'static str {
             | Modal::Palette
             | Modal::BypassConfirm
             | Modal::ConfirmDelete { .. }
+            | Modal::ConfirmClear { .. }
             | Modal::AddFiles
             | Modal::AddFolder
             | Modal::AddBacklog
