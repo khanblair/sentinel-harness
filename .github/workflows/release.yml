@@ -9,8 +9,10 @@ name: release
 # (`sentinel app`, docs/development.md "Release Steps").
 #
 # Triggers: pushing a tag that looks like a version ("v0.1.0"), or running this workflow by hand
-# from the Actions tab with a "tag" input. Both make a DRAFT release with the .dmg attached, and
-# the .dmg is also an artifact of the run. Tag a commit only after the ci workflow is green on it.
+# from the Actions tab with a "tag" input. Both publish a release with the .dmg attached, and the
+# .dmg is also an artifact of the run. The release step is the last one, so a failed build, a failed
+# notarization, or a failed launch check stops the run and publishes nothing. A published release
+# becomes what the install script and the "latest" link serve at once.
 #
 # Signing. With the secrets below the app and the image are signed with a Developer ID
 # certificate and notarized, so macOS opens them without a warning. Without them the build still
@@ -28,7 +30,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Version tag for this build (for example v0.1.0). Makes a draft release."
+        description: "Version tag for this build (for example v0.1.2). Publishes a release when every step passes."
         required: true
 
 permissions:
@@ -129,7 +131,7 @@ jobs:
 
       # A real launch catches a broken window or web view that a compile cannot. The daemon is
       # stopped through the same quit path a person uses. The step needs the page to load AND a clean
-      # exit (code 0), so a crash on quit fails the run. The release stays a draft until you publish.
+      # exit (code 0), so a crash on quit fails the run and nothing is published.
       - name: Launch the app once
         run: |
           dmg="dist/Sentinel-${{ steps.tag.outputs.version }}.dmg"
@@ -185,7 +187,8 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.tag.outputs.name }}
-          draft: true
+          draft: false
+          make_latest: true
           files: |
             dist/Sentinel-${{ steps.tag.outputs.version }}.dmg
             dist/Sentinel-${{ steps.tag.outputs.version }}.dmg.sha256

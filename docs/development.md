@@ -111,9 +111,9 @@ CI and releases run on GitHub, not on your computer. Do not run `cargo xtask ci`
 1. Update `progress-tracker.md` and the changelog section there.
 2. Push to `main`. The `ci` workflow (lint, test, checks, and ui jobs side by side) turns green. The release workflow does not wait for it: run it when you need a build now.
 3. Tag the commit (`git tag v0.1.0 && git push origin v0.1.0`), or run the `release` workflow by hand from the Actions tab and type the tag.
-4. The `release` workflow builds `Sentinel-VERSION.dmg` on a GitHub Mac: a universal app (Apple silicon and Intel) with the UI embedded. It is attached to a draft release and to the run as an artifact.
+4. The `release` workflow builds `Sentinel-VERSION.dmg` on a GitHub Mac: a universal app (Apple silicon and Intel) with the UI embedded. The release is published when every step passes, including the launch check, and the .dmg is also an artifact of the run. A failed step publishes nothing.
 5. Download the .dmg, open it, and drag Sentinel to Applications. Opening the app picks a project (the last one, or a folder dialog), serves it on this Mac, and opens the UI in its own window. Closing the window does not quit. Click the Dock icon to show it again. Quit with Cmd+Q, in Settings, General, or run `sentinel stop`.
-6. Publish the draft release when it looks right.
+6. Check the published release page. To take a bad release back, delete it with `gh release delete TAG --cleanup-tag`.
 
 ### Signing the .dmg
 
