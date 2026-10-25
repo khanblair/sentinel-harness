@@ -181,7 +181,27 @@ pub fn build_notes(ctx: BrainCtx) {
     });
 }
 
+/// The first open of a new vault seeds it in the background, so the first reads can run before the
+/// notes exist. One more read after this long settles the counts and the link numbers.
+const SETTLE_MS: u32 = 2_000;
+
 fn load_header(ctx: BrainCtx) {
+    load_notes_header(ctx);
+    spawn_local(async move {
+        match api::get::<Vec<ProposalView>>("/api/brain/proposals").await {
+            Ok(proposals) => ctx.open_proposals.set(proposals.len()),
+            Err(failure) => report_failure(ctx.ui, ctx.missing, &failure),
+        }
+    });
+    load_graph(ctx);
+    spawn_local(async move {
+        gloo_timers::future::TimeoutFuture::new(SETTLE_MS).await;
+        load_notes_header(ctx);
+        load_graph(ctx);
+    });
+}
+
+fn load_notes_header(ctx: BrainCtx) {
     spawn_local(async move {
         match api::get::<NoteList>("/api/brain/notes").await {
             Ok(list) => {
@@ -191,12 +211,9 @@ fn load_header(ctx: BrainCtx) {
             Err(failure) => report_failure(ctx.ui, ctx.missing, &failure),
         }
     });
-    spawn_local(async move {
-        match api::get::<Vec<ProposalView>>("/api/brain/proposals").await {
-            Ok(proposals) => ctx.open_proposals.set(proposals.len()),
-            Err(failure) => report_failure(ctx.ui, ctx.missing, &failure),
-        }
-    });
+}
+
+fn load_graph(ctx: BrainCtx) {
     spawn_local(async move {
         match api::get::<GraphData>("/api/brain/graph").await {
             Ok(graph) => ctx.graph.set(LoadState::Ready(graph)),
