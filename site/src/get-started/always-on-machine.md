@@ -2,7 +2,7 @@
 
 ## What it is
 
-An always-on machine runs Sentinel, the repository, and the agents while your own computer sleeps.
+An always-on machine runs Sentinel, the repository, and the agents while your own computer sleeps. Closing the Sentinel window on a Mac does not stop the daemon, so the phone and Telegram keep working.
 
 ## Steps
 

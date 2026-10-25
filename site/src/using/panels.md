@@ -11,6 +11,7 @@ Panels open as tabs beside the stream. The top bar has icons for the main panels
 3. Expand a panel to make it wider, or close it from its tab.
 4. On a tablet or phone, panels slide over the stream.
 5. On a phone, the bottom tabs are Stream, Board, Reserved, Changes, and More. The More tab holds the other panels.
+6. To stop the app, open Settings, General, and choose Quit.
 
 ## See it
 

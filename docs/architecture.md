@@ -373,6 +373,22 @@ Defined once in `sentinel-core` and used by both daemon and UI (same Rust types,
 | Delivery | A `briefs` row, then the `BriefReady` event. The Telegram notifier sends it when the chat has the Reports level, with redaction and the length cut, and quiet hours do not hold it |
 | Telegram | `/brief` and `/wrapup`. `/daily` stays the short day summary (verified today, spend today) |
 
+## Desktop Window
+
+The macOS app shows Sentinel in its own window. The window is built only with the `window` cargo feature, which is gated to macOS.
+
+| Part | Detail |
+|---|---|
+| Threads | The main thread owns the window and the event loop. A tokio runtime on other threads runs the daemon, the same code as `sentinel daemon` |
+| Load | The window loads `http://ADDR/#t=TOKEN`. `ADDR` is the daemon's own address, and the token signs the window in as this computer |
+| Close and quit | Closing the window hides it. The daemon keeps running, so the phone and Telegram keep working. A Dock click shows the window again. Cmd+Q, the Sentinel menu, Settings, General, Quit, `POST /api/quit`, or `sentinel stop` quits the app and stops the daemon |
+| Navigation | Only the daemon's own address loads in the window. Any other link opens in the default browser |
+| Downloads | Export report saves to the Downloads folder |
+| Menu bar | Sentinel, Edit, View, and Window menus. Edit holds copy, paste, and select all, so text fields work |
+| File drop | Files dragged into the window reach the UI |
+| Developer tools | Off |
+| No custom protocol | The daemon's origin check and the phone already use the same http address. A custom protocol would need a second origin and a second rule |
+
 ## Always-On Host
 
 | Part | Detail |
@@ -463,6 +479,7 @@ Defined once in `sentinel-core` and used by both daemon and UI (same Rust types,
 | Appearance stored per device | Phone and desktop can differ, no daemon state | Settings do not follow the user between devices |
 | Native folder dialog through the daemon | No typed paths, full path kept | The dialog opens on the PC, so a phone needs a folder browser |
 | Telegram by long polling | Nothing exposed, works behind any network | Needs the PC on and online. Latency of a second or two |
+| wry window around the local web UI (chosen) versus Tauri or Electron | Small and ours. The UI and the daemon stay as they are, and the window is a thin shell over them | Only macOS for now. The window uses the macOS web view, so its behavior follows the system version. Tauri or Electron would bring a second framework, build, and runtime, which the project does not need |
 
 ## Automated Quality Checks
 

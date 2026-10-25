@@ -113,7 +113,7 @@ CI and releases run on GitHub, not on your computer. Do not run `cargo xtask ci`
 2. Push to `main`. The `ci` workflow (lint, test, checks, and ui jobs side by side) turns green. The release workflow does not wait for it: run it when you need a build now.
 3. Tag the commit (`git tag v0.1.0 && git push origin v0.1.0`), or run the `release` workflow by hand from the Actions tab and type the tag.
 4. The `release` workflow builds `Sentinel-VERSION.dmg` on a GitHub Mac: a universal app (Apple silicon and Intel) with the UI embedded. It is attached to a draft release and to the run as an artifact.
-5. Download the .dmg, open it, and drag Sentinel to Applications. Opening the app picks a project (the last one, or a folder dialog), serves it on this Mac, and opens the UI in the browser. Open it again to get the browser tab back. Quit it in Settings, General, or run `sentinel stop`.
+5. Download the .dmg, open it, and drag Sentinel to Applications. Opening the app picks a project (the last one, or a folder dialog), serves it on this Mac, and opens the UI in its own window. Closing the window does not quit. Click the Dock icon to show it again. Quit with Cmd+Q, in Settings, General, or run `sentinel stop`.
 6. Publish the draft release when it looks right.
 
 ### Signing the .dmg
@@ -131,6 +131,22 @@ With no setup the .dmg is signed ad hoc: it works, but macOS blocks the first op
 With the first two the app and image are signed with the hardened runtime. With all five the image is also notarized and stapled. The files are in `packaging/macos/`: `build-app.sh` (app bundle and signature), `make-dmg.sh` (disk image), `notarize.sh` (sends the app and the image to Apple, staples the ticket, and fails the build if Gatekeeper would still reject the result), and `set-signing-secrets.sh` (run it in your own terminal: it checks the .p12 file and stores the five secrets with `gh secret set`, without printing them).
 
 To get the Developer ID certificate: in your Apple Developer account open Certificates, add a "Developer ID Application" certificate, open the downloaded .cer in Keychain Access, export it with its private key as a .p12 file, then run `packaging/macos/set-signing-secrets.sh path/to/file.p12` and `gh workflow run release.yml -f tag=v0.1.1`. Linux and Windows builds are not part of the release yet.
+
+## The macOS App
+
+The app opens Sentinel in its own window. The window shows the same UI as the browser, from the daemon on this Mac. The window is built only with the `window` cargo feature, so a plain `cargo build` has no window, and `sentinel app` opens the browser instead.
+
+To run the window from source on a Mac:
+
+```bash
+cargo run -p sentinel-cli --features window -- app
+```
+
+This compiles the window crates (`tao`, `wry`, `muda`). Use it for your own runs on a Mac. CI and the release workflow build the window on GitHub, so you do not need to build it locally.
+
+- Closing the window hides it. The daemon keeps running, so the phone and Telegram keep working and routines still fire. Click the Dock icon to show it again.
+- Quit with Cmd+Q, the Sentinel menu's Quit, Settings, General, Quit, or `sentinel stop`.
+- The app keeps the last project in `~/.sentinel/last_repo` and opens it next time. Each project keeps its data in its own `.sentinel/` folder.
 
 ## Telegram Setup
 

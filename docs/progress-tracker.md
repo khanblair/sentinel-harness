@@ -48,6 +48,7 @@ The live status of the project. Update at the start and end of every work sessio
 | P15 | How-To Site | review |
 | P16 | Skills | doing |
 | P17 | Routines | doing |
+| P18 | Desktop Window | doing |
 
 Hackathon cut line: end of P7.
 
@@ -112,6 +113,7 @@ Hackathon cut line: end of P7.
 | P13-01 to P13-08 | Telegram: crate, poller, router, notifier, settings routes (UI card and panel are U-I) | Haiku, Claude | review |
 | P16-01 to P16-06 | Skills: files, switches and API, prompts, import, Settings page and chip, MCP tools | Haiku (CLI), Claude | doing |
 | P17-01 to P17-06 | Routines: scheduler, brief builders, delivery, reminder and backlog run, Routines page, phone rules | Haiku (CLI), Claude | doing |
+| P18-01 to P18-06 | Desktop window: feature flag, window and event loop, menu bar, navigation and downloads, close and quit, release smoke test | Free worker, Claude | doing |
 | P14-01 to P14-05 | Always-on host: heartbeat, back online, `sentinel service`, headless (card is U-K) | Haiku, Claude | review |
 
 Add the rows for later phases when a phase starts. Copy IDs from [build-plan.md](build-plan.md).
@@ -232,6 +234,7 @@ Paths listed in [project-structure.md](project-structure.md) that do not exist y
 | D90 | (autopilot, review, owner request) **macOS app and signed disk image.** The `release` workflow builds `Sentinel-VERSION.dmg` on a GitHub Mac: a universal binary (arm64 and x86_64) with the UI embedded, in `Sentinel.app`. With the five `APPLE_*` secrets it is signed with a Developer ID certificate (hardened runtime) and notarized and stapled. Without them it is signed ad hoc, and macOS asks to confirm the first open. Linux and Windows are left out for now. The app runs the new `sentinel app`: it takes the project from `--repo`, the last one (`~/.sentinel/last_repo`), or a folder dialog, serves on the Tailscale address when Tailscale is up and on 127.0.0.1 otherwise, and opens the UI. Opening it again only opens the browser. Quit with Settings, General, `POST /api/quit`, or `sentinel stop` | Owner message. Files: `packaging/macos/`, `.github/workflows/release.yml` |
 | D91 | (autopilot, review) The UI no longer guesses "phone" from the window width for rights checks: `GET /api/whoami` says whether the caller is the computer, and `ui.on_phone()` uses it (U-WHO). `GET /api/skills/found` is computer only because it names paths on the computer. The Revoke button is hidden on the computer's own device row | Found while checking the UI in a real browser: a narrow desktop window had controls disabled |
 | D92 | (autopilot, review) Fixed in the UI after a real-browser check at 1280, 820, and 390 pixels: phone overlay rules targeted a `.frame` element that the real app does not have (Settings kept its side column and squeezed its content), the plus menu measured itself with `max-height` 0 and opened off screen, and the dialog footer rule was missing from the stylesheet. A check script drives headless Chrome (`.build/cdp.mjs`, not in the repo) | P6 polish |
+| D93 | (owner request, 2026-10-25) **Desktop window for the macOS app.** Sentinel.app opens its own window (title "Sentinel", 1280 by 820, menus Sentinel, Edit, View, Window) instead of a browser tab. It loads the daemon's UI at `http://ADDR/#t=TOKEN`. macOS only. Approved crates `tao`, `wry`, and `muda` sit behind the `window` feature and are gated to macOS, so Linux, Windows, the always-on host, and `sentinel daemon` never build them. Closing the window hides it and the daemon keeps running. Cmd+Q, the Sentinel menu, Settings, General, Quit, or `sentinel stop` quits. Links to other sites open in the default browser. A custom protocol is rejected: the daemon's origin check and the phone already use the http address. Tauri is rejected: a full app framework for the same visible result. Supersedes the browser step in D90. Docs: F26, architecture (Desktop Window), P18 | Owner request. Library decision in `library-docs.md` |
 
 ## Open Questions
 
@@ -298,6 +301,7 @@ Paths listed in [project-structure.md](project-structure.md) that do not exist y
 | (add) | README, overview, scope, architecture, structure, plan, standards, development, libraries, ui-tokens (rewritten), ui-rules, ui-registry, mobile, tracker | Synced with the interactive prototype: stream-first workspace (F14), permissions (F15), agent switching (F16), appearance settings (F17), install and connections (F18), user flow, new tokens and breakpoints |
 
 | 2026-10-24 | overview, scope, architecture, structure, development, build-plan, ui-rules, ui-registry, tracker | Drift fixes against the prototype and decisions: feature list numbers match F1 to F22, Telegram default detail is Detail, Telegram setup has no pairing code, structure doc fence and heading, `--r` radius, eleven settings pages, open questions live only here. Added goose and pi (D42). Closed Q1 and Q2 (D44) |
+| 2026-10-25 | scope, architecture, build-plan, development, tracker, README, site install, always-on machine, troubleshooting, panels | Desktop window docs: F26, Desktop Window section, Phase 18, D93. `project-overview.md` still says F1 to F25 and needs F26 |
 | 2026-10-24 | `docs/*.md and README.md` | Chat wording pass (D71) |
 
 ## Notes for Later

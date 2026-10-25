@@ -355,6 +355,18 @@ Plan: 2 files (src/limits/rate.ts, src/api/transfer.ts). No conflicts.
   10. **Phone.** A phone may read routines, press Send now, and turn a routine off. Creating, editing times, turning on, and deleting need the computer. Telegram cannot change routines.
 - **Why:** The days a person works with agents have a shape: plan in the morning, check in the evening. A routine hands you that shape without opening the app, and a scheduled run lets work start before you sit down.
 
+### F26. Desktop Window (macOS)
+
+- **What:** On a Mac, the Sentinel app opens Sentinel in its own window instead of a browser tab. The window shows the same UI that the browser and the phone get, from the daemon on this Mac.
+- **How:**
+  1. Open Sentinel.app. It opens a window titled "Sentinel", 1280 by 820 pixels, with a menu bar: Sentinel, Edit, View, and Window.
+  2. Closing the window does not quit. The daemon keeps running, so the phone and Telegram keep working, and routines keep firing. Click the Dock icon to show the window again.
+  3. Quit with Cmd+Q, the Sentinel menu's Quit, Settings, General, Quit, or `sentinel stop`.
+  4. Links to other sites open in the default browser. Export report saves the file to the Downloads folder. You can drag files into the window.
+  5. Linux and Windows do not get a window. They use the browser: `sentinel app` or `sentinel daemon` plus `sentinel open`.
+- **Why:** A desktop app is a tool you run, not a tab you can lose. Closing the window should not stop the work that runs in the background.
+- **Limits:** macOS only for now. Developer tools are off. The voice input button does not work in the window. A plain `cargo build` has no window and opens the browser: the window is built only into the release app. The first open of an ad hoc signed app is still blocked by macOS until you choose Open Anyway, or use the one-line installer.
+
 ## User Flow
 
 How to use Sentinel properly. The in-app guide walks through the same steps with a try-it button on each.
@@ -465,4 +477,5 @@ Open questions live in [progress-tracker.md](progress-tracker.md).
 | Skill | A folder with a `SKILL.md` that teaches agents one thing. Off, Auto, or Always |
 | Routine | A job that runs at a set time: a brief, a reminder, or a backlog run |
 | Brief | The text a routine builds from the store: the Morning brief or the Sundown wrap-up |
+| Desktop window | The native window of the macOS app. It shows the Sentinel UI from the daemon on this Mac. Closing it does not quit the daemon |
 | Easy, normal, hard tasks | The words the UI uses for the cheap, mid, and smart tiers |

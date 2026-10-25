@@ -307,6 +307,21 @@ Goal: timed jobs and briefs, in the app and in Telegram.
 
 Dependencies: P5, P13. See F25 in [product-scope.md](product-scope.md).
 
+## Phase 18: Desktop Window
+
+Goal: on a Mac, Sentinel opens in its own window, and closing it leaves the daemon running.
+
+| ID | Task | Done when |
+|---|---|---|
+| P18-01 | Feature flag `window` and the three crates behind it (`tao`, `wry`, `muda`), macOS only | A build without the feature has no window crates. Linux and Windows builds never compile them |
+| P18-02 | Window on the main thread, event loop there, daemon on a tokio runtime thread, window loads `http://ADDR/#t=TOKEN` | The window opens at 1280 by 820 and shows the UI from the local daemon |
+| P18-03 | Menu bar: Sentinel, Edit, View, Window | Copy, paste, and select all work in a text field |
+| P18-04 | Navigation allow-list, external links in the default browser, Export report to Downloads, file drop | The window never leaves the daemon's address. A link to another site opens in the browser. A report lands in Downloads. A dragged file reaches the UI |
+| P18-05 | Close hides the window, Dock click shows it, Quit stops the daemon | Closing leaves the daemon answering. Cmd+Q and `sentinel stop` both stop it |
+| P18-06 | Release build with the feature, and a launch smoke test in the release workflow | The release workflow builds the app with the feature and launches it once |
+
+Dependencies: P5, P6, P14. See F26 in [product-scope.md](product-scope.md) and Desktop Window in [architecture.md](architecture.md).
+
 ## Testing Approach per Phase
 
 | Phase | Method |
@@ -326,6 +341,7 @@ Dependencies: P5, P13. See F25 in [product-scope.md](product-scope.md).
 | 15 | Build the book. Check slop and links |
 | 16 | Fixture skills: limits, selection under the cap, import leaves the original alone |
 | 17 | Fake clock: one fire per day, missed-run rule, brief text from fixture state, no private text in a brief |
+| 18 | Pure functions unit tested. The release workflow launches the app once and checks the page loaded |
 
 ## Quality and Slop Tooling Tasks
 

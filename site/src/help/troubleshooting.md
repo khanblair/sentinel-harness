@@ -17,6 +17,7 @@ This page matches common symptoms to their causes and fixes.
 9. Edits made in Obsidian are missing. The cause is that the watcher is off, or the file sits in a hidden folder. Run `brain reindex`.
 10. The retry prompt looks short. Compaction is working. Open the full output from the log reference.
 11. A task was killed at its ceiling. The cause is that its cost passed 2 times its tier estimate. Check the estimate, or let the task escalate.
+12. The Sentinel window is blank or says it cannot connect. Quit with Cmd+Q and open Sentinel again, or run `sentinel stop` and then open the app. To use the browser instead, run `sentinel daemon`, then `sentinel open`.
 
 ## Tip
 

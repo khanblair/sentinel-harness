@@ -13,7 +13,7 @@ On a Mac, one command installs the app. On other systems, or to work on Sentinel
    curl -fsSL https://raw.githubusercontent.com/khanblair/sentinel-harness/main/install.sh | sh
    ```
    It downloads the latest release, checks its SHA-256, and puts Sentinel in Applications. macOS opens it with no warning.
-2. Open Sentinel from Launchpad or Spotlight. It asks for a project folder the first time.
+2. Open Sentinel from Launchpad or Spotlight. It opens in its own window and asks for a project folder the first time.
 3. Prefer the disk image? Download `Sentinel-VERSION.dmg` from the [releases page](https://github.com/khanblair/sentinel-harness/releases/latest). A downloaded image is blocked once until the build is signed with a Developer ID certificate: click Done, open System Settings, Privacy and Security, and choose Open Anyway.
 
 **From source, on any system:**

@@ -12,7 +12,7 @@ One command in Terminal:
 curl -fsSL https://raw.githubusercontent.com/khanblair/sentinel-harness/main/install.sh | sh
 ```
 
-It downloads the latest release, checks its SHA-256, and puts Sentinel in Applications. macOS opens it with no warning, because a file fetched with `curl` carries no quarantine flag. The script is short; read it first at [install.sh](install.sh) if you like.
+It downloads the latest release, checks its SHA-256, and puts Sentinel in Applications. macOS opens it with no warning, because a file fetched with `curl` carries no quarantine flag. The app opens Sentinel in its own window instead of a browser tab. The script is short; read it first at [install.sh](install.sh) if you like.
 
 Or download the disk image by hand: [Sentinel .dmg](https://github.com/khanblair/sentinel-harness/releases/latest) (Apple silicon and Intel). A downloaded image is blocked the first time until the build is signed with a Developer ID certificate: click Done, open System Settings, Privacy & Security, and choose Open Anyway.
 
