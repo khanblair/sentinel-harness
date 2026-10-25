@@ -1,5 +1,6 @@
 //! The Brain routes under `/api/brain`. A phone may read notes and the graph, review lessons, and
-//! answer proposals. Writing or pinning a note, the care settings, and a care run need the computer.
+//! answer proposals. Writing or pinning a note, the care settings, a care run, and the seed need the
+//! computer.
 //! `POST /api/brain/mode` lives in `run.rs`.
 
 use axum::Json;
@@ -9,6 +10,7 @@ use axum::routing::{get, post};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
+use sentinel_core::api::SeedReport;
 use sentinel_core::brain_api::{
     AnswerProposal, CareSettings, GraphView, NewNote, NoteDetail, NoteList, PinNote, ProposalView,
     ReviewLesson, SaveNote,
@@ -30,6 +32,7 @@ pub(super) fn routes() -> Router<Engine> {
         .route("/api/brain/proposals/{id}", post(answer_proposal))
         .route("/api/brain/care", get(read_care).put(save_care))
         .route("/api/brain/care/run", post(run_care))
+        .route("/api/brain/seed", post(seed))
 }
 
 #[derive(Debug, Deserialize)]
@@ -123,6 +126,11 @@ async fn save_care(
 ) -> ApiResult<CareSettings> {
     require_computer(&caller)?;
     blocking(engine, move |e| e.set_care_settings(body, &caller)).await
+}
+
+async fn seed(State(engine): State<Engine>, caller: Caller) -> ApiResult<SeedReport> {
+    require_computer(&caller)?;
+    blocking(engine, Engine::seed_brain).await
 }
 
 async fn run_care(State(engine): State<Engine>, caller: Caller) -> ApiResult<Value> {

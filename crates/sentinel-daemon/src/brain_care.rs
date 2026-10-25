@@ -2,18 +2,20 @@
 //! notes, proposes retirements and merges, and in learn mode writes a digest note.
 
 use std::collections::HashSet;
+use std::path::Path;
 
 use sentinel_brain::mode::may_write;
 use sentinel_brain::note::{Author, Note};
 use sentinel_brain::proposal::{Proposal, ProposalState, read_proposals, write_proposal};
-use sentinel_brain::replace_generated;
 use sentinel_brain::schedule::{Date, days_between};
 use sentinel_brain::strength;
+use sentinel_brain::{generated_block, replace_generated, wikilinks};
 use sentinel_core::brain_api::CareSettings;
 use sentinel_core::{BrainMode, Cost, Event, NoteId, NoteType, ProposalKind};
 
 use crate::brain::{BrainState, parse_date, require_pc, today, write_note};
 use crate::brain_proposals::proposal_created;
+use crate::brain_seed::{Project, area_id, area_note};
 use crate::controls::Caller;
 use crate::engine::{Engine, EngineError, Result};
 
@@ -65,7 +67,7 @@ impl Engine {
         if may_write(mode) {
             decay_notes(&state, &mut notes, today)?;
         }
-        let found = care_proposals(&state, &notes, today)?;
+        let found = care_proposals(&state, &notes, &self.repo_path(), today)?;
         for proposal in &found {
             write_proposal(state.vault.root(), proposal)?;
             proposal_created(self, &proposal.id);
@@ -130,15 +132,77 @@ fn days_since_confirmed(note: &Note, today: Date) -> u32 {
 
 /// The new proposals of this run. A proposal id that already has a file is left out, so a
 /// dismissed proposal does not come back.
-fn care_proposals(state: &BrainState, notes: &[Note], today: Date) -> Result<Vec<Proposal>> {
+fn care_proposals(
+    state: &BrainState,
+    notes: &[Note],
+    repo: &Path,
+    today: Date,
+) -> Result<Vec<Proposal>> {
     let existing: HashSet<NoteId> = read_proposals(state.vault.root())?
         .into_iter()
         .map(|proposal| proposal.id)
         .collect();
+    let project = Project::read(repo);
     let mut found = retirement_proposals(notes, today);
     found.extend(merge_proposals(notes));
+    found.extend(link_proposals(notes, &project.id));
+    found.extend(area_proposals(notes, &project));
     found.retain(|proposal| !existing.contains(&proposal.id));
     Ok(found)
+}
+
+/// Proposals to link each note that nothing links to or from. Needs the project note to exist.
+fn link_proposals(notes: &[Note], project: &NoteId) -> Vec<Proposal> {
+    if !notes.iter().any(|note| note.id == *project) {
+        return Vec::new();
+    }
+    let mut linked: HashSet<String> = HashSet::new();
+    for note in notes {
+        linked.extend(wikilinks(&note.body));
+    }
+    notes
+        .iter()
+        .filter(|note| note.id != *project)
+        .filter(|note| !linked.contains(note.id.as_str()) && wikilinks(&note.body).is_empty())
+        .map(|note| link_proposal(note, project))
+        .collect()
+}
+
+/// Keeps the generated text the note has and adds one link line. Accepting the proposal replaces
+/// only the generated block, so the text outside the markers stays.
+fn link_proposal(note: &Note, project: &NoteId) -> Proposal {
+    let link = format!("Part of [[{project}]].");
+    let text = match generated_block(&note.body).map(str::trim_end) {
+        Some(existing) if !existing.is_empty() => format!("{existing}\n\n{link}"),
+        _ => link,
+    };
+    let mut updated = note.clone();
+    updated.body = replace_generated(&note.body, &text);
+    Proposal {
+        id: NoteId::new(format!("care-link-{}", note.id)),
+        kind: ProposalKind::Update,
+        target: Some(note.id.clone()),
+        why: format!("Link {} to the project note", note.title),
+        note: Some(updated),
+        state: ProposalState::Open,
+    }
+}
+
+/// Proposals to add a note for each top-level folder that has none.
+fn area_proposals(notes: &[Note], project: &Project) -> Vec<Proposal> {
+    project
+        .areas
+        .iter()
+        .filter(|folder| !notes.iter().any(|note| note.id == area_id(folder)))
+        .map(|folder| Proposal {
+            id: NoteId::new(format!("care-{}", area_id(folder))),
+            kind: ProposalKind::Add,
+            target: None,
+            why: format!("Add a note for {folder}"),
+            note: Some(area_note(project, folder)),
+            state: ProposalState::Open,
+        })
+        .collect()
 }
 
 fn retirement_proposals(notes: &[Note], today: Date) -> Vec<Proposal> {
@@ -203,7 +267,7 @@ fn merge_proposal(first: &Note, second: &Note) -> Proposal {
         id: NoteId::new(format!("care-merge-{}-{}", first.id, second.id)),
         kind: ProposalKind::Merge,
         target: Some(target.id.clone()),
-        why: "Two notes share a type and a title.".to_owned(),
+        why: format!("Merge the notes titled {}", first.title),
         note: Some(merged),
         state: ProposalState::Open,
     }
@@ -240,6 +304,8 @@ fn care_summary(proposals: usize) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::brain_seed::fixtures::{engine_for, sample_repo};
+    use sentinel_core::brain_api::{AnswerProposal, ProposalView};
 
     #[test]
     fn the_summary_counts_proposals_in_plain_words() {
@@ -259,5 +325,91 @@ mod tests {
         assert_eq!(settings.budget, "0.10");
         assert!(!settings.auto_apply);
         assert_eq!(settings.last_run, None);
+    }
+
+    fn loose(id: &str, title: &str) -> Note {
+        Note {
+            id: NoteId::new(id),
+            note_type: NoteType::Convention,
+            title: title.to_owned(),
+            tags: Vec::new(),
+            by: Author::Run,
+            strength: strength::INITIAL,
+            confirmed: None,
+            pinned: false,
+            lesson: None,
+            body: replace_generated("", "Nothing links here."),
+            extra: Vec::new(),
+        }
+    }
+
+    fn care_then_find(engine: &Engine, why: &str) -> ProposalView {
+        engine.run_care(&Caller::pc("test")).unwrap();
+        engine
+            .brain_proposals()
+            .unwrap()
+            .into_iter()
+            .find(|proposal| proposal.why == why)
+            .unwrap_or_else(|| panic!("no proposal says {why:?}"))
+    }
+
+    #[test]
+    fn an_orphan_note_gets_a_link_proposal_and_accepting_adds_the_link() {
+        let (_dir, repo) = sample_repo();
+        let engine = engine_for(&repo);
+        engine.seed_brain().unwrap();
+        let state = engine.brain().unwrap();
+        write_note(&state, &loose("loose-note", "Loose note"), None).unwrap();
+
+        let proposal = care_then_find(&engine, "Link Loose note to the project note");
+        assert_eq!(proposal.target, Some(NoteId::new("loose-note")));
+        engine
+            .answer_proposal(&proposal.id, AnswerProposal { accept: true })
+            .unwrap();
+        let linked = state
+            .vault
+            .read(&NoteId::new("loose-note"))
+            .unwrap()
+            .unwrap();
+        assert!(
+            linked.body.contains("[[project-sample]]"),
+            "{}",
+            linked.body
+        );
+    }
+
+    #[test]
+    fn a_folder_without_an_area_note_gets_an_add_proposal() {
+        let (_dir, repo) = sample_repo();
+        let engine = engine_for(&repo);
+        engine.seed_brain().unwrap();
+        let state = engine.brain().unwrap();
+        state.vault.delete(&NoteId::new("area-docs")).unwrap();
+
+        let proposal = care_then_find(&engine, "Add a note for docs");
+        assert!(matches!(proposal.kind, ProposalKind::Add));
+        engine
+            .answer_proposal(&proposal.id, AnswerProposal { accept: true })
+            .unwrap();
+        assert!(
+            state
+                .vault
+                .read(&NoteId::new("area-docs"))
+                .unwrap()
+                .is_some()
+        );
+    }
+
+    #[test]
+    fn two_notes_with_one_title_get_a_merge_proposal() {
+        let (_dir, repo) = sample_repo();
+        let engine = engine_for(&repo);
+        engine.seed_brain().unwrap();
+        let state = engine.brain().unwrap();
+        write_note(&state, &loose("first-copy", "Same title"), None).unwrap();
+        write_note(&state, &loose("second-copy", "Same title"), None).unwrap();
+
+        let proposal = care_then_find(&engine, "Merge the notes titled Same title");
+        assert!(matches!(proposal.kind, ProposalKind::Merge));
     }
 }

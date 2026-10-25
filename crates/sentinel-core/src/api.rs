@@ -117,6 +117,13 @@ pub struct SetBrainMode {
     pub mode: BrainMode,
 }
 
+/// `POST /api/brain/seed`: how many project notes the seed wrote, and how many already existed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SeedReport {
+    pub created: u32,
+    pub existing: u32,
+}
+
 /// `GET /api/tailscale/status`.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TailscaleStatus {

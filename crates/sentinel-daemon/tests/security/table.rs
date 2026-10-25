@@ -147,6 +147,7 @@ pub const ROUTES: &[Route] = &[
         r#"{"frequency":{"every":"off"},"budget":"1.00","auto_apply":false,"last_run":null}"#,
     ),
     Route::post("/api/brain/care/run", Access::Computer),
+    Route::post("/api/brain/seed", Access::Computer),
     Route::get("/api/skills", Access::Any),
     Route::post("/api/skills", Access::Computer)
         .json(r#"{"name":"house-style","description":"Rules for this repository.","body":"Be short.","scope":"project"}"#),

@@ -24,6 +24,8 @@ pub struct BrainState {
     pub(crate) vault: Vault,
     pub(crate) index: Mutex<Index>,
     watcher: Mutex<Option<VaultWatcher>>,
+    /// Held while the seed writes, so two seeds never write the same notes at once.
+    pub(crate) seed_lock: Mutex<()>,
 }
 
 impl BrainState {
@@ -35,6 +37,7 @@ impl BrainState {
             vault,
             index: Mutex::new(index),
             watcher: Mutex::new(None),
+            seed_lock: Mutex::new(()),
         })
     }
 }
@@ -42,13 +45,26 @@ impl BrainState {
 impl Engine {
     /// The Brain, opened on first use: the vault, then the index rebuilt from the vault files.
     pub fn brain(&self) -> Result<Arc<BrainState>> {
+        let (state, first_open) = self.open_brain()?;
+        if first_open {
+            self.seed_when_empty(&state);
+        }
+        Ok(state)
+    }
+
+    /// The open Brain, and whether this call opened it. The seed uses this so its own open does
+    /// not start a second seed.
+    pub(crate) fn open_brain(&self) -> Result<(Arc<BrainState>, bool)> {
         if let Some(state) = lock(&self.inner.brain).clone() {
-            return Ok(state);
+            return Ok((state, false));
         }
         let opened = Arc::new(BrainState::open(&self.repo_path())?);
-        let kept = lock(&self.inner.brain).get_or_insert(opened).clone();
+        let kept = lock(&self.inner.brain)
+            .get_or_insert(Arc::clone(&opened))
+            .clone();
+        let first_open = Arc::ptr_eq(&kept, &opened);
         self.start_brain_watcher();
-        Ok(kept)
+        Ok((kept, first_open))
     }
 
     /// Watch the vault so an edit made outside Sentinel reaches the index. Starts once. A failure
