@@ -142,7 +142,7 @@ pub fn PairPage() -> impl IntoView {
             <div class="wiz-hd"><span class="lg">"Sentinel"</span></div>
             <div class="wiz-body"><div class="wiz-in">
                 <h2>"Pair this phone"</h2>
-                <p class="lead">"Type the one-time code from the computer. The computer then asks its owner to approve this phone."</p>
+                <p class="lead">"Type the one-time code from the computer. A code works once and runs out after five minutes. Then the computer asks its owner to approve this phone."</p>
                 <label class="sub" for="pair-code">"One-time code"</label>
                 <input id="pair-code" autocomplete="off" autocapitalize="characters" inputmode="text"
                     prop:value=move || code.get() prop:disabled=busy

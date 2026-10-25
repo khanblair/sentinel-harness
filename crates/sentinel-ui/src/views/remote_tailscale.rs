@@ -8,6 +8,7 @@ use sentinel_core::api::TailscaleStatus;
 
 use crate::api;
 use crate::components::icon::Icon;
+use crate::components::pair_checklist::{StepList, pair_steps};
 use crate::components::status_badge::shape_markup;
 use crate::state::{ToastKind, Ui, use_ui};
 
@@ -173,27 +174,19 @@ fn setup_steps(
     ui: Ui,
     status: RwSignal<Option<TailscaleStatus>>,
 ) -> impl IntoView {
-    match state {
-        TailscaleState::NotInstalled => view! {
-            <div style="margin-top:.7em">
-                <div class="sub" style="margin-bottom:.3em">"Install Tailscale, then press Check again."</div>
-                <ol class="ol">
-                    <li><span>"macOS or Windows: download the app from tailscale.com/download, open it, and sign in."</span></li>
-                    <li><span>"Linux: install Tailscale with the official steps from tailscale.com, then run sudo tailscale up."</span></li>
-                    <li><span>"Come back here and press Check again."</span></li>
-                </ol>
-            </div>
-        }
-        .into_any(),
-        TailscaleState::SignedOut => view! {
-            <div style="margin-top:.7em">
-                <div class="sub" style="margin-bottom:.5em">"Tailscale is installed but signed out. Signing in opens your browser."</div>
-                <button class="btn pri" on:click=move |_| sign_in(ui, status)>"Sign in to Tailscale"</button>
-            </div>
-        }
-        .into_any(),
-        TailscaleState::Running => ().into_any(),
+    if state == TailscaleState::Running {
+        return ().into_any();
     }
+    let signed_out = state == TailscaleState::SignedOut;
+    view! {
+        <div style="margin-top:.7em">
+            <StepList steps=pair_steps(state) />
+            <Show when=move || signed_out fallback=|| ()>
+                <button class="btn pri" on:click=move |_| sign_in(ui, status)>"Sign in to Tailscale"</button>
+            </Show>
+        </div>
+    }
+    .into_any()
 }
 
 #[cfg(test)]

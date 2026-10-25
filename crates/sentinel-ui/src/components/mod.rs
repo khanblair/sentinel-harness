@@ -49,6 +49,7 @@ pub mod note_view;
 pub mod onboarding_stepper;
 pub mod output_view;
 pub mod pair_checklist;
+pub mod pair_phone_card;
 pub mod pair_qr;
 pub mod pair_steps;
 pub mod panel_host;

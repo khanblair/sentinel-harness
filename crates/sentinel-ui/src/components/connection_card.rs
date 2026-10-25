@@ -4,21 +4,43 @@
 
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use sentinel_core::{ConnectionState, DeviceInfo, DeviceKind};
+use sentinel_core::{DeviceInfo, DeviceKind};
 use serde::Deserialize;
 
 use crate::api;
 use crate::components::icon::Icon;
+use crate::components::pair_phone_card::PairPhoneCard;
 use crate::components::status_badge::shape_markup;
 use crate::components::top_bar::settle;
 use crate::state::{ToastKind, Ui, use_ui};
+
+/// The state of one connection as the page reads it. An unknown word decodes as `Unknown`, so one
+/// new state in the daemon cannot blank the whole list.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum RowState {
+    Connected,
+    NeedsLogin,
+    Missing,
+    Failed,
+    #[serde(other)]
+    Unknown,
+}
 
 /// One row of `GET /api/connections`. The daemon owns the type; this copy reads the same fields.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct ConnectionRow {
     pub name: String,
-    pub state: ConnectionState,
+    pub state: RowState,
     pub detail: String,
+}
+
+/// What the Connections page shows: the list is loading, loaded, or failed with a reason.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Load {
+    Loading,
+    Ready(Vec<ConnectionRow>),
+    Failed(String),
 }
 
 /// The color, shape, and words for a connection state. Color is never the only signal.
@@ -29,12 +51,13 @@ pub struct StateLook {
     pub shape: &'static str,
 }
 
-pub fn state_look(state: ConnectionState) -> StateLook {
+pub fn state_look(state: RowState) -> StateLook {
     let (label, color, shape) = match state {
-        ConnectionState::Connected => ("Connected", "ok", "dot"),
-        ConnectionState::NeedsLogin => ("Needs login", "warn", "ring"),
-        ConnectionState::Missing => ("Not installed", "warn", "ring"),
-        ConnectionState::Failed => ("Failed", "danger", "oct"),
+        RowState::Connected => ("Connected", "ok", "dot"),
+        RowState::NeedsLogin => ("Needs login", "warn", "ring"),
+        RowState::Missing => ("Not installed", "warn", "ring"),
+        RowState::Failed => ("Failed", "danger", "oct"),
+        RowState::Unknown => ("Unknown state", "warn", "ring"),
     };
     StateLook {
         label,
@@ -97,34 +120,38 @@ pub fn paired_on(device: &DeviceInfo) -> String {
 #[component]
 pub fn ConnectionsPage() -> impl IntoView {
     let ui = use_ui();
-    let rows = RwSignal::new(Vec::<ConnectionRow>::new());
-    Effect::new(move |_| load_connections(ui, rows));
+    let load = RwSignal::new(Load::Loading);
+    Effect::new(move |_| load_connections(load));
     view! {
         <h2>"Connections"</h2>
         <p class="lead">"What Sentinel needs to reach, and its state right now."</p>
-        {move || {
-            rows.get()
-                .into_iter()
-                .map(|row| connection_card(ui, rows, row))
-                .collect_view()
-        }}
+        {move || connections_body(ui, load)}
     }
 }
 
-fn load_connections(ui: Ui, rows: RwSignal<Vec<ConnectionRow>>) {
+/// The loading line, the failure with its real text, or the rows.
+fn connections_body(ui: Ui, load: RwSignal<Load>) -> AnyView {
+    match load.get() {
+        Load::Loading => view! { <div class="sub">"Loading connections."</div> }.into_any(),
+        Load::Failed(text) => view! { <div class="note" role="alert">{text}</div> }.into_any(),
+        Load::Ready(rows) => rows
+            .into_iter()
+            .map(|row| connection_card(ui, load, row))
+            .collect_view()
+            .into_any(),
+    }
+}
+
+fn load_connections(load: RwSignal<Load>) {
     spawn_local(async move {
         match api::get::<Vec<ConnectionRow>>("/api/connections").await {
-            Ok(list) => rows.set(list),
-            Err(failure) => ui.show_toast(failure.to_string(), ToastKind::Danger),
+            Ok(rows) => load.set(Load::Ready(rows)),
+            Err(failure) => load.set(Load::Failed(failure.to_string())),
         }
     });
 }
 
-fn connection_card(
-    ui: Ui,
-    rows: RwSignal<Vec<ConnectionRow>>,
-    row: ConnectionRow,
-) -> impl IntoView {
+fn connection_card(ui: Ui, load: RwSignal<Load>, row: ConnectionRow) -> impl IntoView {
     let look = state_look(row.state);
     let label = connection_label(&row.name);
     let icon = connection_icon(&row.name);
@@ -143,7 +170,7 @@ fn connection_card(
             <div class="sub" style="margin:.35em 0">{row.detail}</div>
             {is_openrouter.then(|| view! { <OpenRouterKey /> })}
             <div class="row">
-                <button class="btn" on:click=move |_| test_connection(ui, rows, test_path.clone())>
+                <button class="btn" on:click=move |_| test_connection(ui, load, test_path.clone())>
                     "Test"
                 </button>
             </div>
@@ -151,12 +178,12 @@ fn connection_card(
     }
 }
 
-fn test_connection(ui: Ui, rows: RwSignal<Vec<ConnectionRow>>, path: String) {
+fn test_connection(ui: Ui, load: RwSignal<Load>, path: String) {
     spawn_local(async move {
         match api::post_empty::<serde_json::Value>(&path).await {
             Ok(_) => {
                 ui.show_toast("Test finished.", ToastKind::Info);
-                load_connections(ui, rows);
+                load_connections(load);
             }
             Err(failure) => ui.show_toast(failure.to_string(), ToastKind::Danger),
         }
@@ -210,6 +237,7 @@ pub fn DevicesPage() -> impl IntoView {
     view! {
         <h2>"Devices"</h2>
         <p class="lead">"Phones and tablets paired over Tailscale."</p>
+        <PairPhoneCard />
         {move || device_section(ui)}
         <PhoneAccess />
     }
@@ -327,9 +355,30 @@ mod tests {
 
     #[test]
     fn a_connected_state_is_ok_and_a_failure_is_danger() {
-        assert_eq!(state_look(ConnectionState::Connected).color, "ok");
-        assert_eq!(state_look(ConnectionState::Failed).color, "danger");
-        assert_eq!(state_look(ConnectionState::Missing).label, "Not installed");
+        assert_eq!(state_look(RowState::Connected).color, "ok");
+        assert_eq!(state_look(RowState::Failed).color, "danger");
+        assert_eq!(state_look(RowState::Missing).label, "Not installed");
+    }
+
+    #[test]
+    fn a_connection_row_decodes_from_the_daemon_json() {
+        let row: ConnectionRow =
+            serde_json::from_str(r#"{"name":"git","state":"connected","detail":"git answers"}"#)
+                .unwrap();
+        assert_eq!(row.name, "git");
+        assert_eq!(row.state, RowState::Connected);
+        assert_eq!(row.detail, "git answers");
+    }
+
+    #[test]
+    fn an_unknown_state_word_does_not_fail_the_whole_list() {
+        let json = r#"[
+            {"name":"git","state":"connected","detail":"git answers"},
+            {"name":"Sync","state":"syncing","detail":"new state"}
+        ]"#;
+        let rows: Vec<ConnectionRow> = serde_json::from_str(json).unwrap();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[1].state, RowState::Unknown);
     }
 
     #[test]

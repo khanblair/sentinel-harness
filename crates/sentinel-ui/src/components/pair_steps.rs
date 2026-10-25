@@ -8,7 +8,7 @@ use sentinel_core::{DeviceInfo, DeviceKind, TailscaleState};
 
 use crate::components::icon::Icon;
 use crate::components::install_log::copy_text;
-use crate::components::pair_checklist::phone_steps;
+use crate::components::pair_checklist::{StepList, pair_steps};
 use crate::state::use_ui;
 use crate::views::pairing::{PendingPair, PhoneSignals, approve_pair};
 
@@ -46,12 +46,7 @@ pub fn PairSteps(
     view! {
         <div class="card" style="margin-top:.8em">
             <b>"Part 2. On your phone"</b>
-            <ol class="ol">
-                {phone_steps(TailscaleState::Running)
-                    .into_iter()
-                    .map(|step| view! { <li><span>{step}</span></li> })
-                    .collect_view()}
-            </ol>
+            <StepList steps=pair_steps(TailscaleState::Running) />
             <div class="row wrap" style="gap:1em;align-items:flex-start">
                 <div style="width:9em;max-width:40%" inner_html=start.qr_svg.clone()></div>
                 <PairCode start=start remaining=signals.remaining on_new_code=on_new_code />
