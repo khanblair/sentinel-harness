@@ -5,7 +5,9 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use sentinel_core::api::{AddAttachment, LowerCap, PermissionsUpdate, RunRequest, SetBrainMode};
 use sentinel_core::skills::SkillInfo;
-use sentinel_core::{AttachmentId, AttachmentKind, BrainMode, ChatId, PermissionMode, ToolId};
+use sentinel_core::{
+    AttachmentId, AttachmentKind, BrainMode, ChatId, Intent, PermissionMode, ToolId,
+};
 use serde::Serialize;
 
 use crate::api::{self, ApiFailure};
@@ -19,6 +21,9 @@ use crate::state::{Connection, Target, ToastKind, Ui, refresh};
 use crate::views::composer::{Draft, SendRoute, reload_attachments, send_route};
 
 const AGENT_NOTE: &str = "Applied on the agent's next step. Reserved files do not change.";
+/// A type rides on a run's request. A note to the live run has no request, so it refuses a type.
+const TYPE_NOTE: &str = "The type goes with a new run. Send it when the run ends.";
+const RESEND_WAIT: &str = "A run is live. Send the message again when it ends.";
 
 /// The body of `POST /api/message`.
 #[derive(Serialize)]
@@ -41,12 +46,27 @@ pub fn submit(ui: Ui, draft: Draft) {
         );
         return;
     }
+    if let Some((intent, text)) = slash::parse_intent_command(&message) {
+        typed_command(ui, draft, intent, text);
+        return;
+    }
     if slash::parse(&message).is_some() {
         clear_draft(draft);
         run_slash(ui, &message);
         return;
     }
-    send_message(ui, draft, message);
+    let intent = ui.next_intent.get_untracked();
+    send_message(ui, draft, message, intent);
+}
+
+/// `/ask` alone sets the type of the next message. `/ask text` sends the text with that type.
+fn typed_command(ui: Ui, draft: Draft, intent: Intent, text: String) {
+    if text.is_empty() {
+        ui.next_intent.set(Some(intent));
+        clear_draft(draft);
+    } else {
+        send_message(ui, draft, text, Some(intent));
+    }
 }
 
 pub fn clear_draft(draft: Draft) {
@@ -63,20 +83,22 @@ pub fn run_slash(ui: Ui, message: &str) {
     }
 }
 
-/// Sends a plain message. The draft and the chips stay when the send is refused or fails.
-pub fn send_message(ui: Ui, draft: Draft, text: String) {
+/// Sends a plain message, or one with a type. The draft and the chips stay when the send is
+/// refused or fails.
+pub fn send_message(ui: Ui, draft: Draft, text: String, intent: Option<Intent>) {
     let open = ui.open_chat.get_untracked();
     let (harness, live) = ui
         .snapshot
         .with_untracked(|s| (s.harness, s.run.as_ref().map(|run| run.chat.clone())));
     match send_route(harness, live.as_ref(), open.as_ref()) {
-        SendRoute::StartRun => start_with_chips(ui, draft, text),
+        SendRoute::StartRun => start_with_chips(ui, draft, text, intent),
         SendRoute::Busy => {
             let notice = ui
                 .snapshot
                 .with_untracked(|s| busy_notice(s, live.as_ref()));
             ui.show_toast(notice, ToastKind::Warn);
         }
+        SendRoute::NoteToAgents if intent.is_some() => ui.show_toast(TYPE_NOTE, ToastKind::Warn),
         SendRoute::NoteToAgents => send_note(ui, draft, &text),
     }
 }
@@ -90,12 +112,14 @@ pub fn pending_ids(ui: Ui) -> Vec<AttachmentId> {
 }
 
 /// Starts a run in the open chat with the pending chips. A backlog chip with no text is a run
-/// with no instruction. After the daemon accepts, the draft and the chips clear.
-pub fn start_with_chips(ui: Ui, draft: Draft, text: String) {
+/// with no instruction. After the daemon accepts, the draft, the chips, and the one-shot type
+/// clear.
+pub fn start_with_chips(ui: Ui, draft: Draft, text: String, intent: Option<Intent>) {
     let request = RunRequest {
         chat: ui.open_chat.get_untracked(),
         text: (!text.is_empty()).then_some(text),
         attachments: pending_ids(ui),
+        intent,
         ..RunRequest::default()
     };
     spawn_local(async move {
@@ -103,8 +127,34 @@ pub fn start_with_chips(ui: Ui, draft: Draft, text: String) {
             Ok(_) => {
                 clear_draft(draft);
                 ui.attachments.set(Vec::new());
+                ui.next_intent.set(None);
                 refresh(ui);
             }
+            Err(failure) => ui.show_toast(failure.to_string(), ToastKind::Danger),
+        }
+    });
+}
+
+/// Sends `text` again as a new run with `intent`. Only a free daemon takes it, so a live run
+/// refuses. The pending chips stay with the composer.
+pub fn resend_as(ui: Ui, intent: Intent, text: String) {
+    let open = ui.open_chat.get_untracked();
+    let (harness, live) = ui
+        .snapshot
+        .with_untracked(|s| (s.harness, s.run.as_ref().map(|run| run.chat.clone())));
+    if send_route(harness, live.as_ref(), open.as_ref()) != SendRoute::StartRun {
+        ui.show_toast(RESEND_WAIT, ToastKind::Warn);
+        return;
+    }
+    let request = RunRequest {
+        chat: open,
+        text: Some(text),
+        intent: Some(intent),
+        ..RunRequest::default()
+    };
+    spawn_local(async move {
+        match api::start_run(&request).await {
+            Ok(_) => refresh(ui),
             Err(failure) => ui.show_toast(failure.to_string(), ToastKind::Danger),
         }
     });
@@ -154,12 +204,15 @@ pub async fn start_flow(
     mode: Option<PermissionMode>,
     instruction: Option<String>,
 ) -> Result<(), ApiFailure> {
+    // The plan-only start is the Plan type, so the run carries it too.
+    let intent = (mode == Some(PermissionMode::PlanOnly)).then_some(Intent::Plan);
     if let Some(mode) = mode {
         set_mode(mode).await?;
     }
     let request = RunRequest {
         chat,
         text: instruction,
+        intent,
         ..RunRequest::default()
     };
     api::start_run(&request).await.map(|_| ())
@@ -180,9 +233,6 @@ pub fn run_command(ui: Ui, command: SlashCommand) {
         SlashCommand::Stop => post_action(ui, "/api/stop".to_owned()),
         SlashCommand::Kill(name) => kill_agent(ui, &name),
         SlashCommand::Cap(amount) => lower_cap(ui, amount),
-        SlashCommand::Plan => spawn_local(async move {
-            settle(ui, set_mode(PermissionMode::PlanOnly).await);
-        }),
         SlashCommand::Brain(mode) => set_brain(ui, mode),
         SlashCommand::Agent(name) => choose_agent(ui, &name),
         SlashCommand::Focus(name) => focus_agent(ui, &name),

@@ -100,3 +100,4 @@ pub mod tour_coach;
 pub mod tour_menu;
 pub mod verdict_card;
 pub mod wave_card;
+pub mod intent_chip;

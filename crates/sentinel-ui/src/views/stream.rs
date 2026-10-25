@@ -15,13 +15,14 @@ use crate::components::budget_banner::BudgetBanner;
 use crate::components::decision_card::DecisionCard;
 use crate::components::empty_run_state::EmptyChatState;
 use crate::components::file_change_card::FileChangeCard;
+use crate::components::intent_chip::IntentChip;
 use crate::components::message_cards::{NoteLine, SystemMessage, UserMessage};
 use crate::components::plan_card::PlanCard;
 use crate::components::report_card::ReportCard;
 use crate::components::verdict_card::VerdictCard;
 use crate::components::wave_card::WaveCard;
 use crate::state::{Ui, use_ui};
-use crate::views::stream_model::{Item, build_items, token_label};
+use crate::views::stream_model::{Item, build_items};
 
 /// Within this many pixels of the bottom, new items pull the view down.
 const NEAR_BOTTOM_PX: i32 = 160;
@@ -29,6 +30,15 @@ const NEAR_BOTTOM_PX: i32 = 160;
 /// Whether the reader is close enough to the bottom to follow new items.
 pub fn near_bottom(scroll_height: i32, scroll_top: i32, client_height: i32) -> bool {
     scroll_height - scroll_top - client_height < NEAR_BOTTOM_PX
+}
+
+/// A short token count, such as `52k` or `900`.
+pub fn token_label(tokens: u32) -> String {
+    if tokens >= 1000 {
+        format!("{}k", tokens / 1000)
+    } else {
+        tokens.to_string()
+    }
 }
 
 #[component]
@@ -94,6 +104,9 @@ fn item_view(item: Item) -> AnyView {
             <PlanCard tasks=tasks contradictions=contradictions already_done=already_done />
         }
         .into_any();
+    }
+    if let Item::TypeChosen { intent, reason } = item {
+        return view! { <IntentChip intent=intent.0 reason=reason /> }.into_any();
     }
     if let Item::Wave { wave, tasks } = item {
         return view! { <WaveCard wave=wave tasks=tasks /> }.into_any();
@@ -194,5 +207,11 @@ mod tests {
     fn a_reader_within_160_pixels_of_the_end_is_followed() {
         assert!(near_bottom(1000, 800, 100));
         assert!(!near_bottom(1000, 600, 100));
+    }
+
+    #[test]
+    fn token_counts_show_thousands_with_k() {
+        assert_eq!(token_label(52_000), "52k");
+        assert_eq!(token_label(900), "900");
     }
 }

@@ -1,7 +1,7 @@
 //! Slash commands. One parser and one list. Each command maps to one API route in `composer.rs`,
 //! and never does more than that route (`docs/code-standards.md`, UI Code).
 
-use sentinel_core::BrainMode;
+use sentinel_core::{BrainMode, Intent};
 
 /// A command name and the text shown beside it in the menu.
 pub type SlashEntry = (&'static str, &'static str);
@@ -15,15 +15,14 @@ pub enum SlashCommand {
     Agent(String),
     Focus(String),
     Kill(String),
-    Plan,
     Skill(String),
     Brain(BrainMode),
     Report,
     Help,
 }
 
-/// Same list and order as the prototype's `SLASH`.
-const COMMANDS: [SlashEntry; 12] = [
+/// The prototype's `SLASH` list, with the message types after `/plan`.
+const COMMANDS: [SlashEntry; 16] = [
     ("/pause", "Pause the run"),
     ("/resume", "Resume the run"),
     ("/stop", "Stop the run"),
@@ -31,7 +30,11 @@ const COMMANDS: [SlashEntry; 12] = [
     ("/agent claude", "Send messages to one agent"),
     ("/focus codex", "Show one agent in the stream"),
     ("/kill codex", "Kill an agent"),
-    ("/plan", "Switch to plan only"),
+    ("/plan", "Send the next message as a plan"),
+    ("/ask", "Ask a question. Changes no file."),
+    ("/research", "Investigate and give evidence. Changes no file."),
+    ("/fix", "Change files in the reserved files."),
+    ("/chat", "Small talk. Reads no file."),
     ("/skill house-style", "Add a skill to your next message"),
     ("/brain off", "Set the Brain mode"),
     ("/report", "Open the report"),
@@ -56,7 +59,6 @@ fn build(name: &str, arg: &str) -> Result<SlashCommand, String> {
         "pause" => no_arg(name, arg, SlashCommand::Pause),
         "resume" => no_arg(name, arg, SlashCommand::Resume),
         "stop" => no_arg(name, arg, SlashCommand::Stop),
-        "plan" => no_arg(name, arg, SlashCommand::Plan),
         "report" => no_arg(name, arg, SlashCommand::Report),
         "help" => no_arg(name, arg, SlashCommand::Help),
         "cap" => amount(arg),
@@ -66,10 +68,33 @@ fn build(name: &str, arg: &str) -> Result<SlashCommand, String> {
         "brain" => brain_mode(arg),
         "skill" => skill_name(arg),
         "" => Err("Type a command name after the slash. Type /help for the list.".to_owned()),
+        name if intent_for_name(name).is_some() => Err(format!(
+            "/{name} sends your text with that type. Type it before the text."
+        )),
         other => Err(format!(
             "Unknown command /{other}. Type /help for the list."
         )),
     }
+}
+
+/// The message type a command names. `/fix` names a change.
+pub fn intent_for_name(name: &str) -> Option<Intent> {
+    match name {
+        "chat" => Some(Intent::Chat),
+        "ask" => Some(Intent::Ask),
+        "research" => Some(Intent::Research),
+        "plan" => Some(Intent::Plan),
+        "fix" => Some(Intent::Change),
+        _ => None,
+    }
+}
+
+/// A type command typed before the text, such as `/ask where is the fee logic?`. The text is
+/// what follows the command, with its line breaks kept. It is empty for a bare command.
+pub fn parse_intent_command(text: &str) -> Option<(Intent, String)> {
+    let body = text.trim().strip_prefix('/')?;
+    let (name, rest) = body.split_once(char::is_whitespace).unwrap_or((body, ""));
+    Some((intent_for_name(name)?, rest.trim().to_owned()))
 }
 
 fn no_arg(name: &str, arg: &str, command: SlashCommand) -> Result<SlashCommand, String> {
@@ -155,7 +180,6 @@ mod tests {
         assert_eq!(cmd("/pause"), Ok(SlashCommand::Pause));
         assert_eq!(cmd("/resume"), Ok(SlashCommand::Resume));
         assert_eq!(cmd("/stop"), Ok(SlashCommand::Stop));
-        assert_eq!(cmd("/plan"), Ok(SlashCommand::Plan));
         assert_eq!(cmd("/report"), Ok(SlashCommand::Report));
         assert_eq!(cmd("/help"), Ok(SlashCommand::Help));
     }
@@ -214,9 +238,49 @@ mod tests {
     }
 
     #[test]
+    fn a_type_name_alone_is_not_a_plain_command() {
+        assert!(cmd("/ask").is_err());
+        assert!(cmd("/fix").is_err());
+    }
+
+    #[test]
+    fn a_type_command_before_text_gives_its_type_and_the_text() {
+        assert_eq!(
+            parse_intent_command("/ask where is the fee logic?"),
+            Some((Intent::Ask, "where is the fee logic?".to_owned()))
+        );
+        assert_eq!(
+            parse_intent_command("  /fix  add a retry\nto the sync  "),
+            Some((Intent::Change, "add a retry\nto the sync".to_owned()))
+        );
+    }
+
+    #[test]
+    fn a_bare_type_command_gives_an_empty_text() {
+        assert_eq!(
+            parse_intent_command("/research"),
+            Some((Intent::Research, String::new()))
+        );
+    }
+
+    #[test]
+    fn each_type_command_names_its_type() {
+        assert_eq!(intent_for_name("chat"), Some(Intent::Chat));
+        assert_eq!(intent_for_name("plan"), Some(Intent::Plan));
+        assert_eq!(intent_for_name("fix"), Some(Intent::Change));
+    }
+
+    #[test]
+    fn words_that_only_start_with_a_type_name_are_not_type_commands() {
+        assert_eq!(parse_intent_command("/askew the fee"), None);
+        assert_eq!(parse_intent_command("/cap 1.50"), None);
+        assert_eq!(parse_intent_command("ask me"), None);
+    }
+
+    #[test]
     fn help_lists_every_command_once() {
         let lines = help_lines();
-        assert_eq!(lines.len(), 12);
+        assert_eq!(lines.len(), 16);
         assert_eq!(lines[0], ("/pause", "Pause the run"));
         assert!(lines.iter().any(|(name, _)| *name == "/help"));
     }
@@ -224,7 +288,8 @@ mod tests {
     #[test]
     fn menu_shows_commands_that_start_with_the_typed_word() {
         assert_eq!(matches("/ca"), vec![("/cap 1.50", "Lower the budget cap")]);
-        assert_eq!(matches("/").len(), 12);
+        assert_eq!(matches("/as"), vec![("/ask", "Ask a question. Changes no file.")]);
+        assert_eq!(matches("/").len(), 16);
     }
 
     #[test]

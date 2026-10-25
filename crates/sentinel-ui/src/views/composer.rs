@@ -115,6 +115,7 @@ pub fn Composer() -> impl IntoView {
     Effect::new(move |_| {
         ui.open_chat.track();
         ui.attachments.set(Vec::new());
+        ui.next_intent.set(None);
         reload_attachments(ui);
     });
     let text = RwSignal::new(String::new());
