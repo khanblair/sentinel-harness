@@ -80,7 +80,11 @@ jobs:
           mkdir -p ci-logs
           (while true; do date -u; free -m | sed -n 1,2p; df -h / | tail -1; ps -eo pid,pcpu,pmem,etime,args --sort=-pcpu | head -6 | cut -c1-170; echo; sleep 30; done) > ci-logs/machine.log 2>&1 &
           set -o pipefail
-          timeout 30m cargo nextest run --workspace --no-tests=pass --no-fail-fast --test-threads 2 2>&1 | tee ci-logs/nextest.log
+          # Limits so that one runaway test fails by itself, with its name in the log, and does not
+          # take the whole runner with it: no file over 2 GB and no process over 8 GB of memory.
+          ulimit -f 2097152
+          ulimit -v 8388608
+          timeout 30m cargo nextest run --workspace --no-tests=pass --no-fail-fast --test-threads 2 --status-level all 2>&1 | tee ci-logs/nextest.log
       - name: Keep the test logs
         if: always()
         uses: actions/upload-artifact@v4
