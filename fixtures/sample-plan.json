@@ -1,0 +1,122 @@
+{
+ "tasks": [
+  {
+   "id": "T-01",
+   "scope": [
+    "src/health.rs",
+    "tests/health.rs",
+    "src/lib.rs"
+   ],
+   "depends_on": [],
+   "read_after_write": [],
+   "tier": "cheap",
+   "already_done": false,
+   "contradicts": []
+  },
+  {
+   "id": "T-02",
+   "scope": [
+    "src/ledger.rs",
+    "tests/negative.rs"
+   ],
+   "depends_on": [],
+   "read_after_write": [],
+   "tier": "cheap",
+   "already_done": false,
+   "contradicts": []
+  },
+  {
+   "id": "T-03",
+   "scope": [
+    "src/fees.rs",
+    "tests/rounding.rs"
+   ],
+   "depends_on": [],
+   "read_after_write": [],
+   "tier": "cheap",
+   "already_done": false,
+   "contradicts": [
+    "T-07"
+   ]
+  },
+  {
+   "id": "T-04",
+   "scope": [
+    "src/limits.rs",
+    "tests/daily_limit.rs",
+    "src/lib.rs"
+   ],
+   "depends_on": [],
+   "read_after_write": [],
+   "tier": "mid",
+   "already_done": false,
+   "contradicts": []
+  },
+  {
+   "id": "T-05",
+   "scope": [
+    "src/api.rs"
+   ],
+   "depends_on": [],
+   "read_after_write": [],
+   "tier": "mid",
+   "already_done": false,
+   "contradicts": []
+  },
+  {
+   "id": "T-06",
+   "scope": [],
+   "depends_on": [],
+   "read_after_write": [],
+   "tier": "cheap",
+   "already_done": true,
+   "contradicts": []
+  },
+  {
+   "id": "T-07",
+   "scope": [
+    "src/rounding_down.rs"
+   ],
+   "depends_on": [],
+   "read_after_write": [],
+   "tier": "cheap",
+   "already_done": false,
+   "contradicts": [
+    "T-03"
+   ]
+  },
+  {
+   "id": "T-08",
+   "scope": [
+    "src/audit.rs"
+   ],
+   "depends_on": [],
+   "read_after_write": [],
+   "tier": "cheap",
+   "already_done": false,
+   "contradicts": []
+  },
+  {
+   "id": "T-09",
+   "scope": [
+    "src/partner.rs"
+   ],
+   "depends_on": [],
+   "read_after_write": [],
+   "tier": "cheap",
+   "already_done": false,
+   "contradicts": []
+  },
+  {
+   "id": "T-10",
+   "scope": [
+    "tests/ledger.rs"
+   ],
+   "depends_on": [],
+   "read_after_write": [],
+   "tier": "cheap",
+   "already_done": false,
+   "contradicts": []
+  }
+ ]
+}

@@ -256,8 +256,13 @@ fn fake_tools(fake: &FakeAgents) -> Vec<ToolInfo> {
         .collect()
 }
 
+/// Said to the owner when the dry run's plan stands in for an agent's plan.
+pub(crate) const FALLBACK_PLAN_NOTE: &str =
+    "No agent gave a usable plan. The dry run uses the plan that ships with the sample.";
+
 /// A plan for the backlog. Fake mode reads `plan.json` next to the fake plans. Real mode asks the
-/// cheapest ready agent and falls back to the offline heuristic when it cannot get a valid plan.
+/// cheapest ready agent, then the engine's fallback plan if it has one, and last the offline
+/// heuristic.
 pub(crate) async fn make_plan(ctx: &RunCtx, request: &PlanRequest) -> Result<Plan> {
     let engine = &ctx.engine;
     if let Some(fake) = &engine.inner.fake_agents {
@@ -269,6 +274,14 @@ pub(crate) async fn make_plan(ctx: &RunCtx, request: &PlanRequest) -> Result<Pla
     }
     if let Some(plan) = ask_agent_for_plan(ctx, request).await {
         return Ok(plan);
+    }
+    if let Some(plan) = engine.fallback_plan() {
+        engine.emit_quiet(&Event::Message {
+            from: "sentinel".to_owned(),
+            to: None,
+            text: FALLBACK_PLAN_NOTE.to_owned(),
+        });
+        return restrict_plan(plan, request);
     }
     engine.emit_quiet(&Event::Message {
         from: "sentinel".to_owned(),
@@ -282,7 +295,7 @@ pub(crate) async fn make_plan(ctx: &RunCtx, request: &PlanRequest) -> Result<Pla
 }
 
 /// Keep only what is in the request: a run of one task must not name tasks that are not in it.
-fn restrict_plan(mut plan: Plan, request: &PlanRequest) -> Result<Plan> {
+pub(crate) fn restrict_plan(mut plan: Plan, request: &PlanRequest) -> Result<Plan> {
     let ids: Vec<_> = request.items.iter().map(|i| i.id.clone()).collect();
     plan.tasks.retain(|t| ids.contains(&t.id));
     for task in &mut plan.tasks {
