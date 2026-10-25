@@ -142,11 +142,7 @@ fn ChatList(query: RwSignal<String>) -> impl IntoView {
                     })
                 });
                 if groups.is_empty() {
-                    let text = if searching {
-                        "No chats match."
-                    } else {
-                        ui.snapshot.with(list_empty_text)
-                    };
+                    let text = empty_list_text(searching, ui);
                     return view! { <div class="note" style="padding:1em">{text}</div> }.into_any();
                 }
                 groups
@@ -165,6 +161,15 @@ fn ChatList(query: RwSignal<String>) -> impl IntoView {
             <AddProjectButton />
             <RoutinesRow />
         </div>
+    }
+}
+
+/// The text for an empty list. A search says nothing matched, and an idle list explains why.
+fn empty_list_text(searching: bool, ui: Ui) -> &'static str {
+    if searching {
+        "No chats match."
+    } else {
+        ui.snapshot.with(list_empty_text)
     }
 }
 

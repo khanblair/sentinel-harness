@@ -21,7 +21,7 @@ use tower_http::limit::RequestBodyLimitLayer;
 
 use crate::auth::{self, Computer};
 use crate::engine::{Engine, lock};
-use crate::routes::data;
+use crate::routes::clearing;
 use crate::routes::{ApiFailure, ApiResult};
 use crate::server::{self, BODY_LIMIT_BYTES};
 
@@ -354,8 +354,8 @@ fn routes() -> Router<Hub> {
     Router::new()
         .route("/api/projects", get(list_projects).post(add_project))
         .route("/api/projects/{id}", delete(remove_project))
-        .route("/api/data/app", post(data::clear_app))
-        .route("/api/data/all", post(data::clear_all))
+        .route("/api/data/app", post(clearing::clear_app))
+        .route("/api/data/all", post(clearing::clear_all))
 }
 
 async fn list_projects(State(hub): State<Hub>) -> ApiResult<Vec<ProjectInfo>> {

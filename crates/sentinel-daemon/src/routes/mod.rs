@@ -5,7 +5,7 @@ mod access;
 mod brain;
 mod changes;
 mod chats;
-pub(crate) mod data;
+pub(crate) mod clearing;
 mod dry_run;
 mod routines;
 mod run;
@@ -162,7 +162,7 @@ pub fn protected_routes() -> Router<Engine> {
         .merge(skills::routes())
         .merge(telegram::routes())
         .merge(routines::routes())
-        .merge(data::routes())
+        .merge(clearing::routes())
 }
 
 async fn health() -> Json<Value> {
