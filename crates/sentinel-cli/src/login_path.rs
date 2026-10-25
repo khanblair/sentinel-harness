@@ -40,12 +40,12 @@ pub(crate) fn repaired_path(
     shell_path: Option<&OsStr>,
 ) -> Option<OsString> {
     let shell_entries = shell_path.into_iter().flat_map(std::env::split_paths);
-    let common = common_folders(home)
+    let install_folders = common_folders(home)
         .into_iter()
         .filter(|folder| folder.is_dir());
     let candidates = std::env::split_paths(current)
         .chain(shell_entries)
-        .chain(common);
+        .chain(install_folders);
     let mut entries: Vec<PathBuf> = Vec::new();
     for entry in candidates {
         if entry.is_absolute() && !entries.contains(&entry) {
