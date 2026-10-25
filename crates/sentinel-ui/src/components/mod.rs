@@ -67,6 +67,7 @@ pub mod repo_checks;
 pub mod repo_file_picker;
 pub mod report_card;
 pub mod reserved_row;
+pub mod resize_handle;
 pub mod routine_editor;
 pub mod routine_row;
 pub mod sidebar;

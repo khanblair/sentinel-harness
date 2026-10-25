@@ -7,6 +7,10 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
+use crate::layout::{
+    PANEL_DEFAULT, PANEL_MAX, PANEL_MIN, SIDEBAR_DEFAULT, SIDEBAR_MAX, SIDEBAR_MIN,
+};
+
 /// Dark theme tokens, from `docs/ui-tokens.md`.
 const DARK: &[(&str, &str)] = &[
     ("bg", "#191919"),
@@ -187,6 +191,10 @@ pub struct Prefs {
     pub radius: u32,
     /// Stream width in pixels, 560 to 980.
     pub mw: u32,
+    /// Sidebar width in pixels, set by dragging its edge on desktop.
+    pub sidebar_w: u32,
+    /// Right panel width in pixels, set by dragging its edge on desktop.
+    pub panel_w: u32,
     pub overrides: Overrides,
 }
 
@@ -202,6 +210,8 @@ impl Default for Prefs {
             density: 1.0,
             radius: 8,
             mw: 760,
+            sidebar_w: SIDEBAR_DEFAULT,
+            panel_w: PANEL_DEFAULT,
             overrides: Overrides::default(),
         }
     }
@@ -214,6 +224,8 @@ impl Prefs {
         self.fs = self.fs.clamp(12, 18);
         self.radius = self.radius.clamp(2, 16);
         self.mw = self.mw.clamp(560, 980);
+        self.sidebar_w = self.sidebar_w.clamp(SIDEBAR_MIN, SIDEBAR_MAX);
+        self.panel_w = self.panel_w.clamp(PANEL_MIN, PANEL_MAX);
         self.density = self.density.clamp(0.8, 1.25);
         if !UI_FONTS.iter().any(|(k, _, _)| *k == self.font_ui) {
             self.font_ui = "inter".into();
@@ -489,5 +501,23 @@ mod tests {
         let partial: Prefs = serde_json::from_str("{\"fs\":16}").unwrap();
         assert_eq!(partial.fs, 16);
         assert_eq!(partial.radius, 8);
+    }
+
+    #[test]
+    fn prefs_saved_before_the_resize_fields_load_with_default_widths() {
+        let old: Prefs = serde_json::from_str("{\"fs\":16,\"mw\":700}").unwrap();
+        assert_eq!((old.sidebar_w, old.panel_w), (264, 440));
+        assert_eq!((old.fs, old.mw), (16, 700));
+    }
+
+    #[test]
+    fn clamped_keeps_stored_widths_inside_their_bounds() {
+        let prefs = Prefs {
+            sidebar_w: 900,
+            panel_w: 10,
+            ..Prefs::default()
+        };
+        let c = prefs.clamped();
+        assert_eq!((c.sidebar_w, c.panel_w), (SIDEBAR_MAX, PANEL_MIN));
     }
 }
