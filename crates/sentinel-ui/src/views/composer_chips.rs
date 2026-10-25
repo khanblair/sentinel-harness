@@ -1,11 +1,14 @@
-//! The pending attachments of the open chat: the chips row above the footer, and the reload that
-//! fills it. The daemon keeps the chips per chat, so switching chats reloads them.
+//! The pending attachments of the open chat, and the type of the next message: the chips row above
+//! the footer, and the reload that fills it. The daemon keeps the chips per chat, so switching
+//! chats reloads them.
 
 use leptos::prelude::*;
 use leptos::task::spawn_local;
+use sentinel_core::Intent;
 
 use crate::api;
-use crate::components::attachment_chip::AttachmentChip;
+use crate::components::attachment_chip::{AttachmentChip, Chip};
+use crate::components::intent_chip::chip_look;
 use crate::state::{ToastKind, Ui, use_ui};
 
 /// Loads the pending attachments of the open chat. A reply for a chat the user has left is
@@ -26,14 +29,30 @@ pub fn reload_attachments(ui: Ui) {
     });
 }
 
-/// The pending attachments of the open chat, one chip each.
+/// The row shows when something is pending: an attachment, or the type of the next message.
+fn chips_hidden(ui: Ui) -> bool {
+    ui.attachments.with(Vec::is_empty) && ui.next_intent.with(Option::is_none)
+}
+
+/// The pending attachments of the open chat, one chip each, and the type set for the next message.
 #[component]
 pub fn ChipsRow() -> impl IntoView {
     let ui = use_ui();
     view! {
-        <div class="chips" id="attachChips" hidden=move || ui.attachments.with(Vec::is_empty)>
+        <div class="chips" id="attachChips" hidden=move || chips_hidden(ui)>
+            {move || ui.next_intent.get().map(|intent| view! { <NextIntentChip intent=intent /> })}
             <For each=move || ui.attachments.get() key=|attachment| attachment.id.clone()
                 children=|attachment| view! { <AttachmentChip attachment=attachment /> } />
         </div>
     }
+}
+
+/// The type the next message will carry. The x clears it.
+#[component]
+fn NextIntentChip(intent: Intent) -> impl IntoView {
+    let ui = use_ui();
+    let (_, icon) = chip_look(intent);
+    let name = format!("Next message: {}", intent.label());
+    let on_remove = Callback::new(move |()| ui.next_intent.set(None));
+    view! { <Chip icon=icon name=name on_remove=on_remove /> }
 }

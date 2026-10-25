@@ -8,7 +8,7 @@ use leptos::prelude::*;
 use sentinel_core::api::{ProjectInfo, WhoAmI};
 use sentinel_core::chat::ChatChange;
 use sentinel_core::routines::{Brief, Routine};
-use sentinel_core::{Attachment, ChatId, Event, EventRecord, Snapshot, ToolId};
+use sentinel_core::{Attachment, ChatId, Event, EventRecord, Intent, Snapshot, ToolId};
 
 use crate::chats::RenameState;
 use crate::components::add_project::{ProjectDialog, carry_out_wish};
@@ -109,6 +109,8 @@ pub struct Ui {
     pub modal: RwSignal<Option<Modal>>,
     /// Pending attachments of the open chat. They go with the next message.
     pub attachments: RwSignal<Vec<Attachment>>,
+    /// The type the next message carries, set by a bare type command such as `/ask`.
+    pub next_intent: RwSignal<Option<Intent>>,
     /// The chat row whose title is being edited in place.
     pub renaming: RwSignal<Option<RenameState>>,
     pub toast: RwSignal<Option<Toast>>,
@@ -196,6 +198,7 @@ impl Ui {
             open_chat: RwSignal::new(None),
             modal: RwSignal::new(None),
             attachments: RwSignal::new(Vec::new()),
+            next_intent: RwSignal::new(None),
             renaming: RwSignal::new(None),
             toast: RwSignal::new(None),
             prefs: RwSignal::new(prefs),

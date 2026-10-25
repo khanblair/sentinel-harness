@@ -5,6 +5,8 @@ use sentinel_core::{
     ApprovalId, DecisionId, Event, EventRecord, Snapshot, TaskId, TaskStatus, ToolId,
 };
 
+use crate::components::intent_chip::TypeChoice;
+
 /// Where an agent's attempt stands, read from the events after it started.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum AgentState {
@@ -35,6 +37,10 @@ pub enum Item {
         tasks: u32,
         contradictions: u32,
         already_done: u32,
+    },
+    TypeChosen {
+        intent: TypeChoice,
+        reason: String,
     },
     Wave {
         wave: u32,
@@ -147,7 +153,18 @@ fn item_for(events: &[EventRecord], index: usize) -> Option<Item> {
     {
         return running_item(events, index, task);
     }
-    run_item(event).or_else(|| review_item(event))
+    run_item(event).or_else(|| review_item(event)).or_else(|| intent_item(event))
+}
+
+/// The type a message got, with the reason the daemon gave.
+fn intent_item(event: &Event) -> Option<Item> {
+    let Event::IntentChosen { intent, reason, .. } = event else {
+        return None;
+    };
+    Some(Item::TypeChosen {
+        intent: TypeChoice(*intent),
+        reason: reason.clone(),
+    })
 }
 
 /// Run, plan, and message events.
@@ -381,19 +398,12 @@ fn event_agent(events: &[EventRecord], index: usize) -> Option<ToolId> {
     None
 }
 
-/// A short token count, such as `52k` or `900`.
-pub fn token_label(tokens: u32) -> String {
-    if tokens >= 1000 {
-        format!("{}k", tokens / 1000)
-    } else {
-        tokens.to_string()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use sentinel_core::{Approval, ApprovalKind, ApprovalState, Decision, DecisionState};
+    use sentinel_core::{
+        Approval, ApprovalKind, ApprovalState, ChatId, Decision, DecisionState, Intent,
+    };
     use time::OffsetDateTime;
 
     fn record(id: i64, event: Event) -> EventRecord {
@@ -833,8 +843,22 @@ mod tests {
     }
 
     #[test]
-    fn token_counts_show_thousands_with_k() {
-        assert_eq!(token_label(52_000), "52k");
-        assert_eq!(token_label(900), "900");
+    fn an_intent_choice_becomes_a_type_item_with_its_reason() {
+        let shown = items(
+            vec![Event::IntentChosen {
+                chat: ChatId::new("c1"),
+                intent: Intent::Ask,
+                reason: "A question about the fee logic.".to_owned(),
+                by: "router".to_owned(),
+            }],
+            None,
+        );
+        assert_eq!(
+            shown,
+            vec![Item::TypeChosen {
+                intent: TypeChoice(Intent::Ask),
+                reason: "A question about the fee logic.".to_owned(),
+            }]
+        );
     }
 }
