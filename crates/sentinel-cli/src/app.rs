@@ -6,13 +6,14 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use anyhow::{Context, Result};
-use sentinel_daemon::engine::Engine;
 use sentinel_daemon::folders::{alert, pick_native};
+use sentinel_daemon::hub::Hub;
 use sentinel_daemon::server::{self, BoundServer, ServerOptions};
 use sentinel_daemon::starter::{self, FirstChoice};
 use sentinel_daemon::tailscale::BindMode;
 
 use crate::commands::home_dir;
+use crate::projects;
 use crate::serve;
 
 const PORT: u16 = 7878;
@@ -78,7 +79,7 @@ fn make_starter() -> Result<Option<PathBuf>> {
 
 /// The tailnet address when Tailscale is up, so a phone can reach it. Otherwise this computer
 /// only: 127.0.0.1, which nothing else can reach. Port 7878, or a free one when it is taken.
-pub(crate) async fn bind_here(engine: &Engine) -> Result<BoundServer> {
+pub(crate) async fn bind_here(hub: &Hub) -> Result<BoundServer> {
     let attempts = [
         (BindMode::Tailscale, PORT),
         (BindMode::DevLoopback, PORT),
@@ -86,7 +87,7 @@ pub(crate) async fn bind_here(engine: &Engine) -> Result<BoundServer> {
     ];
     let mut last = None;
     for (bind, port) in attempts {
-        match server::bind(engine.clone(), &ServerOptions { port, bind }).await {
+        match server::bind_hub(hub.clone(), &ServerOptions { port, bind }).await {
             Ok(bound) => return Ok(bound),
             Err(error) => last = Some(error),
         }
@@ -106,7 +107,8 @@ pub(crate) async fn app(repo: Option<PathBuf>) -> Result<ExitCode> {
         return serve::open(Some(repo), false);
     }
     let engine = serve::prepare(&repo, false).await?;
-    let bound = bind_here(&engine).await?;
+    let hub = projects::hub_of(&engine, false).await;
+    let bound = bind_here(&hub).await?;
     serve::publish(&repo, &bound)?;
     serve::open(Some(repo.clone()), false)?;
     serve::run_until_stopped(&engine, &repo, bound).await

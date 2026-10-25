@@ -12,6 +12,7 @@ use sentinel_daemon::server::{self, BoundServer, ServerOptions};
 use sentinel_daemon::tailscale::BindMode;
 
 use crate::commands::{open_engine, repo_or_current};
+use crate::projects;
 
 /// Where the running daemon writes its address, so `open` and `pair` can find it.
 fn addr_file(repo: &Path) -> PathBuf {
@@ -77,7 +78,8 @@ pub(crate) async fn daemon(args: DaemonArgs) -> Result<ExitCode> {
         port: args.port,
         bind,
     };
-    let bound = server::bind(engine.clone(), &options).await.context(
+    let hub = projects::hub_of(&engine, args.headless).await;
+    let bound = server::bind_hub(hub, &options).await.context(
         "could not bind. Sign in to Tailscale, or pass --dev-bind to serve on 127.0.0.1 for development",
     )?;
     publish(&repo, &bound)?;
