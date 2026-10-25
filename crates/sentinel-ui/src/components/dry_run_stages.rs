@@ -1,12 +1,12 @@
-//! `DryRunStages`: the six stages of the dry run with the state each one has now. A stage with no
-//! row has not started yet. The rows come from `GET /api/dry-run` (`docs/product-scope.md`, F8
-//! step 5).
+//! `DryRunStages`: the six stages of the dry run with the look each one has now. The looks come
+//! from `dry_run::row_states`, which reads `GET /api/dry-run` (`docs/product-scope.md`, F8
+//! step 5). A failed stage shows the last note the daemon sent under it.
 
 use leptos::prelude::*;
-use sentinel_core::dry_run::{DryRunStage, DryRunStageRow, StageState};
+use sentinel_core::dry_run::DryRunStage;
 
 use crate::components::status_badge::shape_markup;
-use crate::dry_run::{stage_class, stage_look, stage_title, state_of};
+use crate::dry_run::{StageLook, stage_class, stage_look, stage_title};
 
 /// What each stage does, in run order. The titles come from `dry_run::stage_title`.
 pub const DRY_STAGE_DETAILS: [&str; 6] = [
@@ -35,22 +35,36 @@ fn stage_icon(shape: &str, color: &str) -> AnyView {
     }
 }
 
+/// The note under a failed stage. Other stages show no note.
+fn failure_note(look: StageLook, note: Option<String>) -> Option<String> {
+    match look {
+        StageLook::Failed => note,
+        StageLook::Waiting | StageLook::Running | StageLook::Done => None,
+    }
+}
+
 #[component]
-fn StageRow(stage: DryRunStage, state: Option<StageState>, detail: &'static str) -> impl IntoView {
-    let (shape, color) = stage_look(state);
+fn StageRow(
+    stage: DryRunStage,
+    look: StageLook,
+    detail: &'static str,
+    note: Option<String>,
+) -> impl IntoView {
+    let (shape, color) = stage_look(look);
     view! {
-        <div class=format!("stg {}", stage_class(state))>
+        <div class=format!("stg {}", stage_class(look))>
             <span class="ico">{stage_icon(shape, color)}</span>
             <div>
                 <b>{stage_title(stage)}</b>
                 <small>{detail}</small>
+                {note.map(|text| view! { <div class="sub">{text}</div> })}
             </div>
         </div>
     }
 }
 
 #[component]
-pub fn DryRunStages(rows: Vec<DryRunStageRow>) -> impl IntoView {
+pub fn DryRunStages(looks: Vec<StageLook>, last_note: Option<String>) -> impl IntoView {
     view! {
         <div class="card">
             <b>"What happens"</b>
@@ -58,11 +72,32 @@ pub fn DryRunStages(rows: Vec<DryRunStageRow>) -> impl IntoView {
                 {DryRunStage::ALL
                     .into_iter()
                     .zip(DRY_STAGE_DETAILS)
-                    .map(move |(stage, detail)| {
-                        view! { <StageRow stage=stage state=state_of(&rows, stage) detail=detail /> }
+                    .zip(looks)
+                    .map(move |((stage, detail), look)| {
+                        let note = failure_note(look, last_note.clone());
+                        view! { <StageRow stage=stage look=look detail=detail note=note /> }
                     })
                     .collect_view()}
             </div>
         </div>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_a_failed_stage_shows_the_note() {
+        let note = Some("T-04 went back for another try".to_string());
+        assert_eq!(failure_note(StageLook::Failed, note.clone()), note);
+        assert_eq!(failure_note(StageLook::Done, note.clone()), None);
+        assert_eq!(failure_note(StageLook::Running, note.clone()), None);
+        assert_eq!(failure_note(StageLook::Waiting, note), None);
+    }
+
+    #[test]
+    fn a_failed_stage_with_no_notes_shows_no_note() {
+        assert_eq!(failure_note(StageLook::Failed, None), None);
     }
 }

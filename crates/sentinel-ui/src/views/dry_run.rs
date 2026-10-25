@@ -7,12 +7,12 @@ use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use sentinel_core::ToolInfo;
-use sentinel_core::dry_run::{DryRunStageRow, DryRunStatus};
+use sentinel_core::dry_run::DryRunStatus;
 
 use crate::api::{self, ApiFailure};
 use crate::components::dry_run_stages::DryRunStages;
 use crate::components::icon::Icon;
-use crate::dry_run::{outcome_text, result_text};
+use crate::dry_run::{StageLook, last_note, outcome_text, recent_notes, result_text, row_states};
 use crate::state::{ToastKind, Ui, use_ui};
 use crate::views::budget_step::ready_tools;
 use crate::views::onboarding::use_wizard;
@@ -46,10 +46,24 @@ pub fn dry_run_message(error: &ApiFailure) -> String {
     }
 }
 
-/// The stage rows the page shows. Before the first answer there are none, so every stage is
-/// shown as not started.
-fn stage_rows(current: Option<&DryRunStatus>) -> Vec<DryRunStageRow> {
-    current.map_or_else(Vec::new, |status| status.stages.clone())
+/// The look of each stage row. Before the first answer there is no status, so every stage waits.
+fn stage_looks(current: Option<&DryRunStatus>) -> Vec<StageLook> {
+    current.map_or_else(
+        || row_states(&[], false),
+        |status| row_states(&status.stages, status.running),
+    )
+}
+
+/// The notes the page lists, newest last.
+fn shown_notes(current: Option<&DryRunStatus>) -> Vec<String> {
+    current.map_or_else(Vec::new, |status| recent_notes(&status.notes).to_vec())
+}
+
+/// The note a failed stage shows under it: the newest one the daemon sent.
+fn newest_note(current: Option<&DryRunStatus>) -> Option<String> {
+    current
+        .and_then(|status| last_note(&status.notes))
+        .map(str::to_string)
 }
 
 fn is_running(current: Option<&DryRunStatus>) -> bool {
@@ -150,6 +164,38 @@ fn FailedCard(ui: Ui, status: RwSignal<Option<DryRunStatus>>) -> impl IntoView {
     }
 }
 
+/// The notes the daemon sent, one line each. They stay on screen after the run ends.
+#[component]
+fn RunNotes(notes: Vec<String>) -> impl IntoView {
+    view! {
+        <div class="card" style="margin-top:.8em">
+            <b>"What happened"</b>
+            <div style="margin-top:.3em">
+                {notes.into_iter().map(|note| view! { <div class="sub">{note}</div> }).collect_view()}
+            </div>
+        </div>
+    }
+}
+
+/// The stage list, then the notes under it. Both read the status on every poll.
+#[component]
+fn RunProgress(status: RwSignal<Option<DryRunStatus>>) -> impl IntoView {
+    view! {
+        {move || {
+            view! {
+                <DryRunStages
+                    looks=status.with(|current| stage_looks(current.as_ref()))
+                    last_note=status.with(|current| newest_note(current.as_ref()))
+                />
+            }
+        }}
+        {move || {
+            let notes = status.with(|current| shown_notes(current.as_ref()));
+            (!notes.is_empty()).then(|| view! { <RunNotes notes=notes /> })
+        }}
+    }
+}
+
 /// The start button while no outcome shows. Once the run ends, the result card or the failure
 /// card takes its place. Memos keep the button from being rebuilt on every poll.
 #[component]
@@ -200,15 +246,15 @@ pub fn DryRunStep() -> impl IntoView {
             <ul style="margin:.4em 0 0 1.1em;padding:0;line-height:1.7">
                 <li>"A tiny sample project that ships with Sentinel. " <b>"Your repository is not touched."</b></li>
                 <li>{move || format!("{}, working at the same time.", ui.snapshot.with(|s| agents_line(&s.tools)))}</li>
+                <li>"A few minutes. It stops after 10 minutes."</li>
                 <li>
-                    "About " <b>"$0.04"</b> " of your "
+                    "At most " <b>"$1.00"</b> ", and usually much less. It never touches your "
                     {move || ui.snapshot.with(|s| s.cost.cap.to_string())}
-                    " budget."
+                    " budget cap."
                 </li>
-                <li>"About 15 seconds."</li>
             </ul>
         </div>
-        {move || view! { <DryRunStages rows=status.with(|current| stage_rows(current.as_ref())) /> }}
+        <RunProgress status=status />
         <DryRunActions ui=ui status=status />
     }
 }

@@ -1,8 +1,21 @@
-//! Pure logic for the dry run step: stage titles, how a stage looks, how stage events fold into
-//! the rows the page shows, and the result sentences. No browser calls here, so the tests run on
-//! the host.
+//! Pure logic for the dry run step: stage titles, how a stage looks, how the API's stage rows
+//! become the rows the page shows, the notes the page lists, and the result sentences. No browser
+//! calls here, so the tests run on the host.
 
 use sentinel_core::dry_run::{DryRunStage, DryRunStageRow, DryRunStatus, StageState};
+
+/// How many notes the page lists. The newest ones stay on screen.
+const MAX_NOTES_SHOWN: usize = 5;
+
+/// How one stage row looks on screen. The API has no waiting state: a stage it does not mention
+/// is one the page shows as waiting or running.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum StageLook {
+    Waiting,
+    Running,
+    Done,
+    Failed,
+}
 
 /// The stage title, the same words as the wizard's stage list.
 pub fn stage_title(stage: DryRunStage) -> &'static str {
@@ -16,24 +29,24 @@ pub fn stage_title(stage: DryRunStage) -> &'static str {
     }
 }
 
-/// The shape and the color of a stage. A stage that never started is a muted ring. A running
-/// stage has no SVG shape: it is the `spin` sentinel, which the view draws as a spinner.
-pub fn stage_look(state: Option<StageState>) -> (&'static str, &'static str) {
-    match state {
-        None => ("ring", "muted"),
-        Some(StageState::Running) => ("spin", "accent"),
-        Some(StageState::Done) => ("dot", "ok"),
-        Some(StageState::Failed) => ("oct", "danger"),
+/// The shape and the color of a stage row. A waiting stage is a muted ring. A running stage has
+/// no SVG shape: it is the `spin` sentinel, which the view draws as a spinner.
+pub fn stage_look(look: StageLook) -> (&'static str, &'static str) {
+    match look {
+        StageLook::Waiting => ("ring", "muted"),
+        StageLook::Running => ("spin", "accent"),
+        StageLook::Done => ("dot", "ok"),
+        StageLook::Failed => ("oct", "danger"),
     }
 }
 
 /// The CSS class of a stage row. The prototype defines only `on` and `done`, so a failed stage
 /// uses `done`, and its red shape carries the failure.
-pub fn stage_class(state: Option<StageState>) -> &'static str {
-    match state {
-        None => "todo",
-        Some(StageState::Running) => "on",
-        Some(StageState::Done | StageState::Failed) => "done",
+pub fn stage_class(look: StageLook) -> &'static str {
+    match look {
+        StageLook::Waiting => "todo",
+        StageLook::Running => "on",
+        StageLook::Done | StageLook::Failed => "done",
     }
 }
 
@@ -49,6 +62,36 @@ pub fn failed_stage(rows: &[DryRunStageRow]) -> Option<DryRunStage> {
     DryRunStage::ALL
         .into_iter()
         .find(|stage| state_of(rows, *stage) == Some(StageState::Failed))
+}
+
+/// The look of each stage, in run order. A done stage is done and a failed stage is failed. While
+/// the run goes on, the first stage that is neither gets the spinner and the stages after it
+/// wait. A run that ended never shows a spinner, because nothing is running any more.
+pub fn row_states(stages: &[DryRunStageRow], running: bool) -> Vec<StageLook> {
+    let mut spinner_given = !running;
+    DryRunStage::ALL
+        .into_iter()
+        .map(|stage| match state_of(stages, stage) {
+            Some(StageState::Done) => StageLook::Done,
+            Some(StageState::Failed) => StageLook::Failed,
+            _ if !spinner_given => {
+                spinner_given = true;
+                StageLook::Running
+            }
+            _ => StageLook::Waiting,
+        })
+        .collect()
+}
+
+/// The newest notes the page lists, newest last, at most `MAX_NOTES_SHOWN`.
+pub fn recent_notes(notes: &[String]) -> &[String] {
+    let start = notes.len().saturating_sub(MAX_NOTES_SHOWN);
+    &notes[start..]
+}
+
+/// The note under a failed stage: the last note the daemon sent, if there is one.
+pub fn last_note(notes: &[String]) -> Option<&str> {
+    notes.last().map(String::as_str)
 }
 
 /// The result sentence after a run that finished.
@@ -87,6 +130,24 @@ mod tests {
         }
     }
 
+    fn status(
+        running: bool,
+        counts: Option<(u32, u32)>,
+        stages: Vec<DryRunStageRow>,
+    ) -> DryRunStatus {
+        DryRunStatus {
+            running,
+            stages,
+            verified: counts.map(|(verified, _)| verified),
+            total: counts.map(|(_, total)| total),
+            notes: Vec::new(),
+        }
+    }
+
+    fn notes(count: usize) -> Vec<String> {
+        (1..=count).map(|number| format!("note {number}")).collect()
+    }
+
     #[test]
     fn each_stage_has_its_own_title_in_run_order() {
         let titles: Vec<&str> = DryRunStage::ALL.into_iter().map(stage_title).collect();
@@ -104,22 +165,22 @@ mod tests {
     }
 
     #[test]
-    fn a_stage_that_never_started_is_a_muted_ring() {
-        assert_eq!(stage_look(None), ("ring", "muted"));
-        assert_eq!(stage_class(None), "todo");
+    fn a_waiting_stage_is_a_muted_ring() {
+        assert_eq!(stage_look(StageLook::Waiting), ("ring", "muted"));
+        assert_eq!(stage_class(StageLook::Waiting), "todo");
     }
 
     #[test]
     fn a_running_stage_gets_the_spinner_sentinel() {
-        assert_eq!(stage_look(Some(StageState::Running)).0, "spin");
-        assert_eq!(stage_class(Some(StageState::Running)), "on");
+        assert_eq!(stage_look(StageLook::Running).0, "spin");
+        assert_eq!(stage_class(StageLook::Running), "on");
     }
 
     #[test]
     fn a_done_stage_is_a_green_dot_and_a_failed_one_a_red_octagon() {
-        assert_eq!(stage_look(Some(StageState::Done)), ("dot", "ok"));
-        assert_eq!(stage_look(Some(StageState::Failed)), ("oct", "danger"));
-        assert_eq!(stage_class(Some(StageState::Done)), "done");
+        assert_eq!(stage_look(StageLook::Done), ("dot", "ok"));
+        assert_eq!(stage_look(StageLook::Failed), ("oct", "danger"));
+        assert_eq!(stage_class(StageLook::Done), "done");
     }
 
     #[test]
@@ -134,23 +195,87 @@ mod tests {
     }
 
     #[test]
+    fn a_run_where_every_stage_is_done_shows_all_done() {
+        let rows: Vec<DryRunStageRow> = DryRunStage::ALL
+            .into_iter()
+            .map(|stage| row(stage, StageState::Done))
+            .collect();
+        assert_eq!(row_states(&rows, false), vec![StageLook::Done; 6]);
+    }
+
+    #[test]
+    fn a_third_stage_without_a_row_is_the_running_one_after_two_done() {
+        let rows = [
+            row(DryRunStage::Plan, StageState::Done),
+            row(DryRunStage::LockFiles, StageState::Done),
+        ];
+        assert_eq!(
+            row_states(&rows, true),
+            [
+                StageLook::Done,
+                StageLook::Done,
+                StageLook::Running,
+                StageLook::Waiting,
+                StageLook::Waiting,
+                StageLook::Waiting,
+            ]
+        );
+    }
+
+    #[test]
+    fn a_failed_stage_shows_failed_and_the_stages_after_it_wait() {
+        let rows = [
+            row(DryRunStage::Plan, StageState::Done),
+            row(DryRunStage::RunTests, StageState::Failed),
+        ];
+        assert_eq!(
+            row_states(&rows, false),
+            [
+                StageLook::Done,
+                StageLook::Waiting,
+                StageLook::Waiting,
+                StageLook::Failed,
+                StageLook::Waiting,
+                StageLook::Waiting,
+            ]
+        );
+    }
+
+    #[test]
+    fn a_run_that_has_not_started_shows_every_stage_waiting() {
+        assert_eq!(row_states(&[], false), vec![StageLook::Waiting; 6]);
+    }
+
+    #[test]
+    fn a_run_that_just_started_shows_the_first_stage_running() {
+        let looks = row_states(&[], true);
+        assert_eq!(looks[0], StageLook::Running);
+        assert_eq!(looks[1..], [StageLook::Waiting; 5]);
+    }
+
+    #[test]
+    fn a_run_that_ended_unfinished_shows_no_spinner() {
+        let rows = [row(DryRunStage::Plan, StageState::Done)];
+        assert!(!row_states(&rows, false).contains(&StageLook::Running));
+    }
+
+    #[test]
     fn the_result_sentence_counts_verified_tasks_of_the_total() {
         assert_eq!(result_text(3, 3), "3 of 3 sample tasks verified.");
         assert_eq!(result_text(1, 3), "1 of 3 sample tasks verified.");
     }
 
-    fn status(
-        running: bool,
-        counts: Option<(u32, u32)>,
-        stages: Vec<DryRunStageRow>,
-    ) -> DryRunStatus {
-        DryRunStatus {
-            running,
-            stages,
-            verified: counts.map(|(verified, _)| verified),
-            total: counts.map(|(_, total)| total),
-            notes: Vec::new(),
-        }
+    #[test]
+    fn the_notes_list_keeps_the_newest_five_in_order() {
+        let all = notes(7);
+        assert_eq!(recent_notes(&all), &all[2..]);
+        assert_eq!(recent_notes(&all[..3]), &all[..3]);
+    }
+
+    #[test]
+    fn the_note_under_a_failed_stage_is_the_last_one() {
+        assert_eq!(last_note(&notes(3)), Some("note 3"));
+        assert_eq!(last_note(&[]), None);
     }
 
     #[test]
