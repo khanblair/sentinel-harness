@@ -90,7 +90,7 @@ Limit: for CLI workers, step 4 is complete only where the CLI supports hooks. El
 
 ### Run
 
-0. A message in an idle chat starts the run. The message, with its attachments, is the request. A backlog attachment gives one task per section. Plain text gives the planner the whole message to turn into tasks. The run belongs to the chat that started it, and every event of the run carries the chat id.
+0. A message in an idle chat starts the run. The message, with its attachments, is the request. A backlog attachment gives one task per section. Plain text gives the planner the whole message to turn into tasks. The run belongs to the chat that started it, and every event of the run carries the chat id. The message gets a type first (`chat`, `ask`, `research`, `plan`, or `change`): a heuristic, then the router agent, and never `change` by default. Chat, ask, and research get an answer and start no run. The type is recorded as `IntentChosen`. When the chat has its own agent, that agent types the message, answers it, plans, and does every task; if it fails, the run stops with `AgentStopped` and no other agent takes over.
 1. Load backlog and repo. Planner builds the task graph (scopes, dependencies, contradictions, already-done flags).
 2. Scheduler builds Wave 1: ready tasks with disjoint scopes, capped by worker count and budget.
 3. For each task: reserve files, choose a worker, spawn it with the task prompt, the MCP file server, and a guard config.
@@ -171,7 +171,7 @@ Running -> Crashed -> Resuming -> Running
 
 | Table | Key columns |
 |---|---|
-| `chats` | id, project (repository name), title, pinned, archived_at, created_at, updated_at |
+| `chats` | id, project (repository name), title, pinned, archived_at, created_at, updated_at, agent (null is auto) |
 | `attachments` | id, chat_id, kind (file, folder, backlog, note, upload), name, path_or_text, size, created_at, used_by_message (the event id that carried it, null until sent) |
 | `tasks` | id, title, body, status, tier, attempts, scope_json, flags |
 | `task_deps` | task_id, depends_on, kind (order, read-after-write) |
@@ -221,9 +221,11 @@ Money is stored as integer micro-dollars.
 | `GET /api/reserved` | Reserved files map |
 | `GET /api/cost` | Spend, cap, estimate flags |
 | `GET /api/tools`, `POST /api/tools/scan` | Detected CLIs, rescan |
+| `POST /api/tools/:id/test` | Test one agent: one tiny prompt through the real worker path, at most 90 seconds, secrets masked in the answer |
+| `PUT /api/config/agent` | Set the project default agent for new chats. Body: `agent` (a tool id, or `auto`). The computer only |
 | `GET /api/chats?archived=` | The chats of the project, newest first, pinned first. Each row has title, pinned, archived, run state, verified and total counts, and whether it needs you |
 | `POST /api/chats` | Create an empty chat. Body: optional title. Returns the chat |
-| `PUT /api/chats/:id` | Rename, pin or unpin, archive or unarchive. Body: any of `title`, `pinned`, `archived`. Archive is refused while the chat has a live run |
+| `PUT /api/chats/:id` | Rename, pin or unpin, archive or unarchive, or set the chat's agent. Body: any of `title`, `pinned`, `archived`, `agent` (a tool id, or `auto` or empty to clear). Archive and agent changes are refused while the chat has a live run. An agent that is not ready and enabled is refused with a 400 |
 | `DELETE /api/chats/:id` | Delete a chat, its events, and its uploads. Refused while the chat has a live run. The computer only |
 | `GET /api/chats/:id/events?after=&limit=` | The stored events of one chat, for opening an old chat |
 | `POST /api/chats/:id/attachments` | Add an attachment. Body: `kind` and `path` for a repository file, folder, or backlog; `text` for a note; `name` and `content_base64` for an upload (at most 1 MB each). Returns the attachment |
@@ -289,7 +291,7 @@ Server sends `Event` frames. Client sends `Subscribe{topics}` and `Ping`. No con
 
 ### Events
 
-`ChatChanged` (created, renamed, pinned, archived, deleted), `RunStarted`, `PlanReady`, `WaveStarted`, `Verdict`, `RunFinished`, `ReportReady`, `Message`, `TaskStatus`, `FilesReserved`, `FilesReleased`, `WriteBlocked`, `Checkpoint`, `BarrierStart`, `BarrierEnd`, `CostUpdate`, `BudgetThreshold`, `ToolDetected`, `AgentOutput`, `DecisionRequested`, `HarnessState`, `DeviceAction`, `NoteWritten`, `LessonStateChanged`, `ProposalCreated`, `CareFinished`, `QualityNote`, `ContextCompacted`, `TaskCeilingHit`, `ApprovalRequested`, `ApprovalResolved`, `PermissionChanged`, `ToolStatusChanged`, `ConnectionChanged`, `TailscaleChanged`, `TelegramPaired`, `TelegramSent`, `TelegramReceived`, `HostHeartbeat`, `HostBackOnline`, `DryRunStage`, `DryRunFinished`, `RoutineFired`, `RoutineSkipped`, `BriefReady`.
+`ChatChanged` (created, renamed, pinned, archived, agent changed, deleted), `IntentChosen`, `AgentStopped`, `RunStarted`, `PlanReady`, `WaveStarted`, `Verdict`, `RunFinished`, `ReportReady`, `Message`, `TaskStatus`, `FilesReserved`, `FilesReleased`, `WriteBlocked`, `Checkpoint`, `BarrierStart`, `BarrierEnd`, `CostUpdate`, `BudgetThreshold`, `ToolDetected`, `AgentOutput`, `DecisionRequested`, `HarnessState`, `DeviceAction`, `NoteWritten`, `LessonStateChanged`, `ProposalCreated`, `CareFinished`, `QualityNote`, `ContextCompacted`, `TaskCeilingHit`, `ApprovalRequested`, `ApprovalResolved`, `PermissionChanged`, `ToolStatusChanged`, `ConnectionChanged`, `TailscaleChanged`, `TelegramPaired`, `TelegramSent`, `TelegramReceived`, `HostHeartbeat`, `HostBackOnline`, `DryRunStage`, `DryRunFinished`, `RoutineFired`, `RoutineSkipped`, `BriefReady`.
 
 ### Shared Types
 
