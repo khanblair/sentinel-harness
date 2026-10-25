@@ -19,20 +19,8 @@ fn chat(id: &str, project: &str, title: &str) -> ChatInfo {
     }
 }
 
-fn ids(groups: &[ProjectGroup]) -> Vec<(String, Vec<String>)> {
-    groups
-        .iter()
-        .map(|group| {
-            (
-                group.project.clone(),
-                group
-                    .chats
-                    .iter()
-                    .map(|row| row.id.as_str().to_owned())
-                    .collect(),
-            )
-        })
-        .collect()
+fn titles(rows: &[ChatRow]) -> Vec<String> {
+    rows.iter().map(|row| row.title.clone()).collect()
 }
 
 fn snapshot_with(chats: Vec<ChatInfo>) -> Snapshot {
@@ -57,64 +45,42 @@ fn attachment(kind: AttachmentKind, name: &str) -> Attachment {
 }
 
 #[test]
-fn projects_keep_the_order_they_first_appear_in() {
-    let chats = vec![
-        chat("c1", "api", "Fees"),
-        chat("c2", "web", "Login"),
-        chat("c3", "api", "Tax"),
-    ];
-    assert_eq!(
-        ids(&group_chats(&chats, "")),
-        vec![
-            ("api".to_owned(), vec!["c1".to_owned(), "c3".to_owned()]),
-            ("web".to_owned(), vec!["c2".to_owned()]),
-        ]
-    );
-}
-
-#[test]
 fn the_daemon_order_inside_a_project_is_kept() {
     let mut pinned = chat("c2", "api", "Pinned");
     pinned.pinned = true;
     let chats = vec![pinned, chat("c1", "api", "Newer")];
-    let groups = group_chats(&chats, "");
-    assert!(groups[0].chats[0].pinned);
-    assert_eq!(groups[0].chats[1].title, "Newer");
+    let (live, _) = project_rows(&chats, "");
+    assert!(live[0].pinned);
+    assert_eq!(titles(&live), vec!["Pinned", "Newer"]);
 }
 
 #[test]
-fn archived_chats_only_appear_in_the_last_archived_group() {
+fn archived_chats_are_split_from_the_live_ones() {
     let mut old = chat("c2", "api", "Old");
     old.archived = true;
     let chats = vec![old, chat("c1", "api", "Fees")];
-    let groups = group_chats(&chats, "");
-    assert_eq!(groups.len(), 2);
-    assert_eq!(groups[0].project, "api");
-    assert_eq!(groups[0].chats.len(), 1);
-    assert_eq!(groups[1].project, ARCHIVED_GROUP);
-    assert!(groups[1].chats[0].archived);
+    let (live, archived) = project_rows(&chats, "");
+    assert_eq!(titles(&live), vec!["Fees"]);
+    assert_eq!(titles(&archived), vec!["Old"]);
+    assert!(archived[0].archived);
 }
 
 #[test]
 fn an_archived_chat_that_matches_the_query_still_shows() {
     let mut old = chat("c1", "api", "Tax report");
     old.archived = true;
-    let groups = group_chats(&[old], "tax");
-    assert_eq!(groups.len(), 1);
-    assert_eq!(groups[0].project, ARCHIVED_GROUP);
+    let (live, archived) = project_rows(&[old], "tax");
+    assert_eq!(titles(&live), Vec::<String>::new());
+    assert_eq!(titles(&archived), vec!["Tax report"]);
 }
 
 #[test]
-fn the_query_ignores_case_and_outer_spaces_and_drops_empty_groups() {
-    let chats = vec![chat("c1", "api", "Fees"), chat("c2", "web", "Login")];
-    assert_eq!(
-        ids(&group_chats(&chats, "  FEE ")),
-        vec![("api".to_owned(), vec!["c1".to_owned()])]
-    );
-    assert_eq!(
-        group_chats(&chats, "nothing here"),
-        Vec::<ProjectGroup>::new()
-    );
+fn the_query_ignores_case_and_outer_spaces_and_keeps_only_matches() {
+    let chats = vec![chat("c1", "api", "Fees"), chat("c2", "api", "Login")];
+    let (live, _) = project_rows(&chats, "  FEE ");
+    assert_eq!(titles(&live), vec!["Fees"]);
+    let (live, archived) = project_rows(&chats, "nothing here");
+    assert!(live.is_empty() && archived.is_empty());
 }
 
 #[test]

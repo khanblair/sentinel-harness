@@ -5,12 +5,13 @@
 use std::collections::HashMap;
 
 use leptos::prelude::*;
-use sentinel_core::api::WhoAmI;
+use sentinel_core::api::{ProjectInfo, WhoAmI};
 use sentinel_core::chat::ChatChange;
 use sentinel_core::routines::{Brief, Routine};
 use sentinel_core::{Attachment, ChatId, Event, EventRecord, Snapshot, ToolId};
 
 use crate::chats::RenameState;
+use crate::components::add_project::{ProjectDialog, carry_out_wish};
 use crate::components::confirm_clear::ClearAction;
 use crate::layout::{Layout, PanelId};
 use crate::prefs::Prefs;
@@ -130,6 +131,10 @@ pub struct Ui {
     pub panel_width: RwSignal<u32>,
     /// Page width in pixels. The side widths are fitted to it so the stream keeps its room.
     pub viewport: RwSignal<u32>,
+    /// The projects as `GET /api/projects` last returned them, the primary first.
+    pub projects: RwSignal<Vec<ProjectInfo>>,
+    /// The Add project or Remove project dialog, when one is open.
+    pub project_dialog: RwSignal<Option<ProjectDialog>>,
 }
 
 /// Which menu a popover shows. Each kind has one body in `components/menus.rs`.
@@ -200,6 +205,8 @@ impl Ui {
             sidebar_width: RwSignal::new(sidebar_width),
             panel_width: RwSignal::new(panel_width),
             viewport: RwSignal::new(0),
+            projects: RwSignal::new(Vec::new()),
+            project_dialog: RwSignal::new(None),
         }
     }
 
@@ -226,6 +233,7 @@ impl Ui {
         self.loaded.set(true);
         if first {
             self.load_caller();
+            carry_out_wish(*self);
         }
     }
 

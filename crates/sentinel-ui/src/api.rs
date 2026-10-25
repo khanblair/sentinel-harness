@@ -1,16 +1,111 @@
 //! Typed HTTP client for the daemon API (`docs/architecture.md`, API). Request and response
 //! bodies come from `sentinel_core::api`, so the UI and the daemon share one definition.
 
+use std::cell::RefCell;
 use std::fmt;
 
 use gloo_net::http::{Request, RequestBuilder, Response};
-use gloo_storage::{LocalStorage, Storage};
+use gloo_storage::{LocalStorage, SessionStorage, Storage};
 use sentinel_core::api::{AddAttachment, ApiError, CreateChat, RunRequest, UpdateChat};
 use sentinel_core::{Attachment, AttachmentId, ChatId, ChatInfo, Snapshot};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 
 const TOKEN_KEY: &str = "sentinel.token";
+const PROJECT_KEY: &str = "sentinel.project";
+const WISH_KEY: &str = "sentinel.then";
+/// Names the project a request belongs to. The daemon reads it on every call but the hub's own.
+pub const PROJECT_HEADER: &str = "X-Sentinel-Project";
+
+/// The active project, as storage gave it or as the page last set it.
+#[derive(Clone)]
+enum Slot {
+    /// Storage has not been read yet.
+    Unread,
+    /// `None` is the primary project.
+    Read(Option<String>),
+}
+
+thread_local! {
+    static ACTIVE_PROJECT: RefCell<Slot> = const { RefCell::new(Slot::Unread) };
+}
+
+/// The active project id. `None` means the primary project.
+pub fn project() -> Option<String> {
+    ACTIVE_PROJECT.with(|cell| {
+        let mut slot = cell.borrow_mut();
+        if matches!(*slot, Slot::Unread) {
+            let stored = LocalStorage::get::<String>(PROJECT_KEY)
+                .ok()
+                .filter(|id| !id.is_empty());
+            *slot = Slot::Read(stored);
+        }
+        match &*slot {
+            Slot::Read(id) => id.clone(),
+            Slot::Unread => None,
+        }
+    })
+}
+
+/// Makes `id` the active project for this browser. `None` is the primary project. Storage can be
+/// blocked; the choice then lasts until the page reloads.
+pub fn set_project(id: Option<&str>) {
+    ACTIVE_PROJECT.with(|cell| *cell.borrow_mut() = Slot::Read(id.map(str::to_owned)));
+    match id {
+        Some(id) => {
+            let _ = LocalStorage::set(PROJECT_KEY, id);
+        }
+        None => LocalStorage::delete(PROJECT_KEY),
+    }
+}
+
+/// The query that names the project on the socket URL. The primary project needs no query.
+pub fn project_query(id: Option<&str>) -> String {
+    id.map_or_else(String::new, |id| format!("?project={id}"))
+}
+
+/// Where the page goes after a switch of project. It is carried over the reload in
+/// `sessionStorage`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Then {
+    Nothing,
+    OpenChat(ChatId),
+    NewChat,
+}
+
+impl Then {
+    pub fn encode(&self) -> String {
+        match self {
+            Then::Nothing => "nothing".to_owned(),
+            Then::NewChat => "new".to_owned(),
+            Then::OpenChat(chat) => format!("chat:{}", chat.as_str()),
+        }
+    }
+
+    /// The wish for a stored text. Text that is not a wish gives `None`.
+    pub fn decode(text: &str) -> Option<Then> {
+        match text {
+            "nothing" => Some(Then::Nothing),
+            "new" => Some(Then::NewChat),
+            _ => text
+                .strip_prefix("chat:")
+                .filter(|id| !id.is_empty())
+                .map(|id| Then::OpenChat(ChatId::new(id))),
+        }
+    }
+}
+
+/// Keeps the wish for the page that loads after a project switch. It lasts for this tab only.
+pub fn save_wish(then: &Then) {
+    let _ = SessionStorage::set(WISH_KEY, then.encode());
+}
+
+/// Reads the wish and removes it, so a later reload does not repeat it.
+pub fn take_wish() -> Option<Then> {
+    let text = SessionStorage::get::<String>(WISH_KEY).ok();
+    SessionStorage::delete(WISH_KEY);
+    text.as_deref().and_then(Then::decode)
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ApiFailure {
@@ -80,8 +175,12 @@ pub fn capture_token_from_url() {
 }
 
 fn authorize(builder: RequestBuilder) -> RequestBuilder {
-    match token() {
+    let builder = match token() {
         Some(token) => builder.header("Authorization", &format!("Bearer {token}")),
+        None => builder,
+    };
+    match project() {
+        Some(id) => builder.header(PROJECT_HEADER, &id),
         None => builder,
     }
 }
@@ -205,5 +304,40 @@ mod fragment_tests {
         assert_eq!(token_from_fragment("#t="), None);
         assert_eq!(token_from_fragment("#x=abc"), None);
         assert_eq!(token_from_fragment("#t=a&b=c"), None);
+    }
+}
+
+#[cfg(test)]
+mod project_tests {
+    use super::{Then, project_query};
+    use sentinel_core::ChatId;
+
+    #[test]
+    fn the_primary_project_adds_no_query_to_the_socket() {
+        assert_eq!(project_query(None), "");
+    }
+
+    #[test]
+    fn a_named_project_adds_its_id_to_the_socket_query() {
+        assert_eq!(project_query(Some("p-7")), "?project=p-7");
+    }
+
+    #[test]
+    fn every_wish_survives_an_encode_and_decode() {
+        let wishes = [
+            Then::Nothing,
+            Then::NewChat,
+            Then::OpenChat(ChatId::new("c-42")),
+        ];
+        for wish in wishes {
+            assert_eq!(Then::decode(&wish.encode()), Some(wish));
+        }
+    }
+
+    #[test]
+    fn text_that_is_not_a_wish_decodes_to_nothing() {
+        assert_eq!(Then::decode(""), None);
+        assert_eq!(Then::decode("chat:"), None);
+        assert_eq!(Then::decode("open:c1"), None);
     }
 }

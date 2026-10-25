@@ -21,13 +21,6 @@ pub const CHIP_NAME_CHARS: usize = 24;
 /// The largest upload the page sends, in bytes.
 const UPLOAD_LIMIT_BYTES: u64 = 1_000_000;
 
-/// Chats of one project, or the archived group.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ProjectGroup {
-    pub project: String,
-    pub chats: Vec<ChatRow>,
-}
-
 /// One chat row of the sidebar.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChatRow {
@@ -99,40 +92,18 @@ fn matches_query(title: &str, needle: &str) -> bool {
     needle.is_empty() || title.to_lowercase().contains(needle)
 }
 
-/// Chats grouped by project, in the order each project first appears. Archived chats go to one
-/// `Archived` group at the end. The query filters by title, ignoring case and outer spaces.
-/// Groups with no matching chat are left out.
-pub fn group_chats(chats: &[ChatInfo], query: &str) -> Vec<ProjectGroup> {
+/// The rows of one project, split into live chats and archived ones. Each part keeps the order
+/// the daemon gave. The query filters by title the same way `group_chats` does.
+pub fn project_rows(chats: &[ChatInfo], query: &str) -> (Vec<ChatRow>, Vec<ChatRow>) {
     let needle = query.trim().to_lowercase();
-    let mut groups: Vec<ProjectGroup> = Vec::new();
-    let mut archived: Vec<ChatRow> = Vec::new();
-    for chat_info in chats
+    let (archived, live): (Vec<&ChatInfo>, Vec<&ChatInfo>) = chats
         .iter()
         .filter(|chat_info| matches_query(&chat_info.title, &needle))
-    {
-        if chat_info.archived {
-            archived.push(row_from(chat_info));
-        } else {
-            push_into_project(&mut groups, &chat_info.project, row_from(chat_info));
-        }
-    }
-    if !archived.is_empty() {
-        groups.push(ProjectGroup {
-            project: ARCHIVED_GROUP.to_owned(),
-            chats: archived,
-        });
-    }
-    groups
-}
-
-fn push_into_project(groups: &mut Vec<ProjectGroup>, project: &str, row: ChatRow) {
-    match groups.iter_mut().find(|group| group.project == project) {
-        Some(group) => group.chats.push(row),
-        None => groups.push(ProjectGroup {
-            project: project.to_owned(),
-            chats: vec![row],
-        }),
-    }
+        .partition(|chat_info| chat_info.archived);
+    (
+        live.into_iter().map(row_from).collect(),
+        archived.into_iter().map(row_from).collect(),
+    )
 }
 
 fn has_chat(snapshot: &Snapshot, id: &ChatId) -> bool {

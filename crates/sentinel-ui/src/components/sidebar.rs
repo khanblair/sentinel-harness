@@ -6,9 +6,9 @@ use leptos::task::spawn_local;
 use sentinel_core::{ChatId, HarnessState, Snapshot};
 
 use crate::api;
-use crate::chats::{ARCHIVED_GROUP, ProjectGroup, group_chats};
-use crate::components::chat_row::ChatRow;
+use crate::components::add_project::{AddProjectButton, ProjectDialogHost, poll_projects};
 use crate::components::icon::Icon;
+use crate::components::project_group::{Folds, ProjectGroupView, sidebar_groups};
 use crate::prefs::{Resolved, Theme};
 use crate::routines::{self, enabled_count};
 use crate::state::{self, Connection, Modal, ToastKind, Ui, use_ui};
@@ -24,6 +24,8 @@ pub fn is_live(snapshot: &Snapshot) -> bool {
 
 #[component]
 pub fn Sidebar() -> impl IntoView {
+    let ui = use_ui();
+    poll_projects(ui);
     let search_open = RwSignal::new(false);
     let query = RwSignal::new(String::new());
     view! {
@@ -33,6 +35,7 @@ pub fn Sidebar() -> impl IntoView {
             <SearchRow search_open=search_open query=query />
             <ChatList query=query />
             <SidebarFooter />
+            <ProjectDialogHost />
         </aside>
     }
 }
@@ -123,23 +126,43 @@ fn SearchRow(search_open: RwSignal<bool>, query: RwSignal<String>) -> impl IntoV
 #[component]
 fn ChatList(query: RwSignal<String>) -> impl IntoView {
     let ui = use_ui();
-    let closed_groups = RwSignal::new(vec![ARCHIVED_GROUP.to_owned()]);
+    let folds = Folds {
+        closed: RwSignal::new(Vec::new()),
+        archived_open: RwSignal::new(Vec::new()),
+    };
     view! {
         <div class="sb-scroll">
             {move || {
                 let needle = query.get();
-                let groups = ui.snapshot.with(|snapshot| group_chats(&snapshot.chats, &needle));
+                let searching = !needle.trim().is_empty();
+                let active = api::project();
+                let groups = ui.projects.with(|projects| {
+                    ui.snapshot.with(|snapshot| {
+                        sidebar_groups(projects, active.as_deref(), &snapshot.chats, &needle)
+                    })
+                });
                 if groups.is_empty() {
-                    let text = ui.snapshot.with(list_empty_text);
+                    let text = if searching {
+                        "No chats match."
+                    } else {
+                        ui.snapshot.with(list_empty_text)
+                    };
                     return view! { <div class="note" style="padding:1em">{text}</div> }.into_any();
                 }
-                let searching = !needle.trim().is_empty();
                 groups
                     .into_iter()
-                    .map(|group| group_view(group, closed_groups, searching))
+                    .map(|group| {
+                        let closed = !searching && folds.closed.with(|ids| ids.contains(&group.id));
+                        let archived_open = searching
+                            || folds.archived_open.with(|ids| ids.contains(&group.id));
+                        view! {
+                            <ProjectGroupView group=group folds=folds closed=closed archived_open=archived_open />
+                        }
+                    })
                     .collect_view()
                     .into_any()
             }}
+            <AddProjectButton />
             <RoutinesRow />
         </div>
     }
@@ -181,48 +204,6 @@ fn list_empty_text(snapshot: &Snapshot) -> &'static str {
     } else {
         "No chats match."
     }
-}
-
-/// A project header and its chats. While a search runs, every group is open, so a match shows.
-/// The archived group has no plus button.
-fn group_view(
-    group: ProjectGroup,
-    closed: RwSignal<Vec<String>>,
-    searching: bool,
-) -> impl IntoView {
-    let ui = use_ui();
-    let ProjectGroup { project, chats } = group;
-    let is_closed = !searching && closed.with(|list| list.contains(&project));
-    let toggle_name = project.clone();
-    let can_add = project != ARCHIVED_GROUP;
-    let label = format!("New chat in {project}");
-    view! {
-        <div class="grp" class:closed=is_closed
-            on:click=move |_| toggle_group(closed, &toggle_name)>
-            {project}
-            <Icon name="down" size=12 />
-            {can_add.then(|| view! {
-                <button class="ibtn plus" aria-label=label.clone() data-tip=label
-                    on:click=move |event| {
-                        event.stop_propagation();
-                        new_chat(ui);
-                    }>
-                    <Icon name="plus" size=14 />
-                </button>
-            })}
-        </div>
-        {(!is_closed).then(|| chats.into_iter().map(|row| view! { <ChatRow row=row /> }).collect_view())}
-    }
-}
-
-fn toggle_group(closed: RwSignal<Vec<String>>, group: &str) {
-    closed.update(|list| {
-        if let Some(index) = list.iter().position(|name| name == group) {
-            list.remove(index);
-        } else {
-            list.push(group.to_owned());
-        }
-    });
 }
 
 #[component]

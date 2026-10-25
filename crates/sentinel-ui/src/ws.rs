@@ -15,6 +15,7 @@ use time::{Duration, OffsetDateTime};
 
 use crate::api::{self, ApiFailure};
 use crate::chats::pick_open_chat;
+use crate::components::add_project::load_projects;
 use crate::state::{Connection, Toast, ToastKind, Ui};
 
 /// Bursts of events make one reload: the reload waits this long after the last event.
@@ -126,7 +127,8 @@ fn socket_url() -> Option<String> {
     } else {
         "ws"
     };
-    Some(format!("{scheme}://{}/ws", location.host().ok()?))
+    let query = api::project_query(api::project().as_deref());
+    Some(format!("{scheme}://{}/ws{query}", location.host().ok()?))
 }
 
 /// One connection, from open to close. Returns true when the socket reached `Live`.
@@ -178,7 +180,11 @@ fn handle_text(ui: Ui, text: &str) {
         return;
     };
     let is_output = matches!(record.event, Event::AgentOutput { .. });
+    let is_chat = matches!(record.event, Event::ChatChanged { .. });
     ui.ingest(record);
+    if is_chat {
+        load_projects(ui);
+    }
     if !is_output {
         schedule_reload(ui);
     }

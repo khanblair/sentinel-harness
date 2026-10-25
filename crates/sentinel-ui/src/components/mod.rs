@@ -1,5 +1,6 @@
 //! One file per component in `docs/ui-registry.md`.
 pub mod accent_picker;
+pub mod add_project;
 pub mod agent_stack;
 pub mod agent_step_card;
 pub mod appearance_form;
@@ -61,6 +62,7 @@ pub mod permission_matrix;
 pub mod permission_mode_list;
 pub mod plan_card;
 pub mod popover;
+pub mod project_group;
 pub mod proposal_list;
 pub mod range_field;
 pub mod receipt_block;

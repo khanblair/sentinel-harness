@@ -3,37 +3,20 @@
 
 use std::collections::BTreeMap;
 
-use gloo_storage::{LocalStorage, Storage};
-use leptos::prelude::*;
-use leptos::task::spawn_local;
-use sentinel_core::api::{CheckRow, CheckStatus, RepoCheckRequest, RepoCheckResponse};
-use serde::Deserialize;
-
 use crate::api;
+use crate::components::add_project::start_add;
 use crate::components::icon::Icon;
 use crate::components::reset_section::ResetSection;
-use crate::components::status_badge::shape_markup;
 use crate::components::toggle::Toggle;
-use crate::components::top_bar::settle;
 use crate::components::tour_menu::TourMenu;
 use crate::state::{Modal, ToastKind, Ui, use_ui};
 use crate::views::brain_settings::BrainSettings;
 use crate::views::settings::Field;
+use gloo_storage::{LocalStorage, Storage};
+use leptos::prelude::*;
+use leptos::task::spawn_local;
 
 const WAKE_LOCK_KEY: &str = "sentinel.wake_lock";
-
-/// A folder the user picked, with the daemon's checks for it.
-#[derive(Debug, Clone)]
-struct PickedFolder {
-    path: String,
-    check: RepoCheckResponse,
-}
-
-/// The answer of `POST /api/fs/pick`. `path` is empty when the user cancels the dialog.
-#[derive(Deserialize)]
-struct PickReply {
-    path: Option<String>,
-}
 
 #[component]
 pub fn GeneralPage() -> impl IntoView {
@@ -56,10 +39,15 @@ pub fn GeneralPage() -> impl IntoView {
     }
 }
 
+/// The projects in the list, and the folder of the active project. Adding a project runs the same
+/// flow as the sidebar's New project button.
 #[component]
 fn RepositoryField() -> impl IntoView {
     let ui = use_ui();
-    let picked = RwSignal::new(None::<PickedFolder>);
+    let count = move || {
+        let total = ui.projects.with(Vec::len);
+        format!("{total} in the list")
+    };
     let folder = move || {
         ui.snapshot
             .get()
@@ -67,123 +55,27 @@ fn RepositoryField() -> impl IntoView {
             .map_or_else(|| "No folder chosen".to_owned(), |repo| repo.path)
     };
     view! {
-        <Field label="Repository" hint="The folder agents work in. One tree, no copies.">
+        <Field label="Projects" hint="Each folder is a project with its own chats.">
             <span class="row wrap" style="justify-content:flex-end">
-                <span class="k">{folder}</span>
-                <button class="btn" on:click=move |_| pick_folder(ui, picked)>
+                <span class="k">{count}</span>
+                <button class="btn" on:click=move |_| add_from_settings(ui)>
                     <Icon name="folder" size=15 />
-                    " Choose folder"
+                    " Add a project"
                 </button>
             </span>
         </Field>
-        {move || picked.get().map(|found| check_panel(ui, picked, found))}
+        <div class="meta">{folder}</div>
     }
 }
 
-fn check_panel(
-    ui: Ui,
-    picked: RwSignal<Option<PickedFolder>>,
-    found: PickedFolder,
-) -> impl IntoView {
-    let usable = found.check.usable;
-    let path = found.path.clone();
-    let checks = found
-        .check
-        .rows
-        .into_iter()
-        .map(|row| check_row(ui, picked, path.clone(), row))
-        .collect_view();
-    view! {
-        <div class="psec">
-            <h5>{format!("Checks for {}", found.path)}</h5>
-            {checks}
-            <button class="btn pri" disabled=!usable on:click=move |_| use_folder(ui, picked, path.clone())>
-                "Use this folder"
-            </button>
-        </div>
+/// Closes Settings, so the project dialog is not hidden under it. A phone cannot add folders.
+fn add_from_settings(ui: Ui) {
+    if ui.on_phone() {
+        ui.show_toast("Add projects from the computer.", ToastKind::Info);
+        return;
     }
-}
-
-// Only the starter-backlog row carries a fix (`folders.rs`), so the fix button calls that route.
-fn check_row(
-    ui: Ui,
-    picked: RwSignal<Option<PickedFolder>>,
-    path: String,
-    row: CheckRow,
-) -> impl IntoView {
-    let (label, color, shape) = check_look(row.status);
-    let style = format!("color:var(--{color})");
-    let fix = row.fix.map(|fix_label| {
-        view! {
-            <button class="btn sm" on:click=move |_| fix_folder(ui, picked, path.clone())>{fix_label}</button>
-        }
-    });
-    view! {
-        <div class="tcard">
-            <div class="row sp wrap">
-                <b>{row.name}</b>
-                <span class="stb" style=style>
-                    <svg class="shp" viewBox="0 0 12 12" aria-hidden="true" inner_html=shape_markup(shape, color)></svg>
-                    <span>{label}</span>
-                </span>
-            </div>
-            <div class="meta">{row.detail}</div>
-            {fix}
-        </div>
-    }
-}
-
-/// The label, color, and shape for one folder check.
-pub fn check_look(status: CheckStatus) -> (&'static str, &'static str, &'static str) {
-    match status {
-        CheckStatus::Ok => ("Ready", "ok", "dot"),
-        CheckStatus::NeedsAction => ("Needs action", "warn", "ring"),
-        CheckStatus::Invalid => ("Not usable", "danger", "oct"),
-    }
-}
-
-fn pick_folder(ui: Ui, picked: RwSignal<Option<PickedFolder>>) {
-    spawn_local(async move {
-        match api::post_empty::<PickReply>("/api/fs/pick").await {
-            Ok(PickReply { path: Some(path) }) => check_folder(ui, picked, path).await,
-            // Cancelling the dialog is not an error, so nothing changes.
-            Ok(PickReply { path: None }) => {}
-            Err(failure) => ui.show_toast(failure.to_string(), ToastKind::Danger),
-        }
-    });
-}
-
-async fn check_folder(ui: Ui, picked: RwSignal<Option<PickedFolder>>, path: String) {
-    let request = RepoCheckRequest { path: path.clone() };
-    match api::post::<_, RepoCheckResponse>("/api/repo/check", &request).await {
-        Ok(check) => picked.set(Some(PickedFolder { path, check })),
-        Err(failure) => ui.show_toast(failure.to_string(), ToastKind::Danger),
-    }
-}
-
-fn fix_folder(ui: Ui, picked: RwSignal<Option<PickedFolder>>, path: String) {
-    spawn_local(async move {
-        let request = RepoCheckRequest { path: path.clone() };
-        match api::post::<_, serde_json::Value>("/api/repo/starter-backlog", &request).await {
-            Ok(_) => {
-                ui.show_toast("Starter backlog created.", ToastKind::Ok);
-                check_folder(ui, picked, path).await;
-            }
-            Err(failure) => ui.show_toast(failure.to_string(), ToastKind::Danger),
-        }
-    });
-}
-
-fn use_folder(ui: Ui, picked: RwSignal<Option<PickedFolder>>, path: String) {
-    spawn_local(async move {
-        let request = RepoCheckRequest { path };
-        let result = api::send::<_, RepoCheckResponse>("PUT", "/api/repo", &request).await;
-        if result.is_ok() {
-            picked.set(None);
-            ui.show_toast("Folder set.", ToastKind::Ok);
-        }
-        settle(ui, result);
-    });
+    ui.modal.set(None);
+    start_add(ui);
 }
 
 #[component]
@@ -246,13 +138,6 @@ pub fn setting_or(settings: &BTreeMap<String, String>, key: &str, fallback: &str
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn a_ready_check_is_ok_and_an_invalid_one_is_not_usable() {
-        assert_eq!(check_look(CheckStatus::Ok).0, "Ready");
-        assert_eq!(check_look(CheckStatus::Invalid).0, "Not usable");
-        assert_eq!(check_look(CheckStatus::NeedsAction).1, "warn");
-    }
 
     #[test]
     fn a_stored_setting_wins_over_the_fallback() {

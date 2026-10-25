@@ -12,8 +12,9 @@ use sentinel_core::ChatId;
 use sentinel_core::api::UpdateChat;
 use web_sys::KeyboardEvent;
 
-use crate::api;
+use crate::api::{self, Then};
 use crate::chats::{ChatRow as RowData, RowIcon, commit_rename};
+use crate::components::add_project::switch_project;
 use crate::components::chat_menu::{more_anchor, row_anchor};
 use crate::components::icon::Icon;
 use crate::components::popover::toggle_popover;
@@ -205,7 +206,33 @@ fn save_rename(ui: Ui, chat: &ChatId, typed: &str) {
     });
 }
 
-fn status_icon(icon: RowIcon) -> AnyView {
+/// A chat of a project that is not the active one. It has no menu: a click switches to the
+/// project and opens the chat. `project` is the id to save, `None` for the primary project.
+#[component]
+pub fn PlainChatRow(row: RowData, project: Option<String>) -> impl IntoView {
+    let chat = row.id.clone();
+    let icon = status_icon(row.icon);
+    let open = move || switch_project(project.as_deref(), &Then::OpenChat(chat.clone()));
+    let key_open = open.clone();
+    view! {
+        <div class="run" role="button" tabindex="0"
+            on:click=move |_| open()
+            on:keydown=move |event| {
+                if event.key() == "Enter" {
+                    key_open();
+                }
+            }>
+            <span class="t">{row.title}</span>
+            <span class="meta">
+                {row.needs_you.then(|| view! { <span class="dot" title="Needs you"></span> })}
+                <span>{row.count}</span>
+                {icon}
+            </span>
+        </div>
+    }
+}
+
+pub fn status_icon(icon: RowIcon) -> AnyView {
     match icon {
         RowIcon::Spinner => view! { <span class="spin" title="Running"></span> }.into_any(),
         RowIcon::Paused => view! {
