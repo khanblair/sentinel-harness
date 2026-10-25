@@ -114,7 +114,8 @@ impl PairingManager {
             // Without an address the phone cannot reach the daemon at all.
             return start;
         }
-        start.url = format!("{}/pair", base_url.trim_end_matches('/'));
+        let base = phone_base_url(base_url, start.tailscale.address.as_deref());
+        start.url = format!("{}/pair", base.trim_end_matches('/'));
         start.expires_in_seconds = u32::try_from(CODE_LIFETIME_SECONDS).unwrap_or(0);
         start.code = display_code(&new_code());
         start.qr_svg = render_qr_svg(&start.url);
@@ -339,6 +340,24 @@ fn new_code() -> String {
         .collect()
 }
 
+/// The address a phone can open: the tailnet address with the port of the request. The request's own
+/// host is only what this browser used, and in the app window that is 127.0.0.1, which a phone
+/// cannot reach.
+fn phone_base_url(base_url: &str, tailnet_address: Option<&str>) -> String {
+    let Some(address) = tailnet_address else {
+        return base_url.to_owned();
+    };
+    let authority = base_url.split("://").nth(1).unwrap_or(base_url);
+    let port = authority
+        .rsplit_once(':')
+        .map(|(_, port)| port.trim_end_matches('/'))
+        .filter(|port| !port.is_empty() && port.chars().all(|c| c.is_ascii_digit()));
+    match port {
+        Some(port) => format!("http://{address}:{port}"),
+        None => format!("http://{address}"),
+    }
+}
+
 fn render_qr_svg(url: &str) -> String {
     let Ok(code) = QrCode::new(url.as_bytes()) else {
         return String::new();
@@ -392,6 +411,12 @@ mod tests {
         }
         assert!(start.qr_svg.contains("<svg"));
         assert_eq!(start.expires_in_seconds, 300);
+    }
+
+    #[test]
+    fn the_link_uses_the_tailnet_address_not_the_local_host() {
+        let start = PairingManager::new().start("http://127.0.0.1:7878", running(), at(0));
+        assert_eq!(start.url, "http://100.64.0.9:7878/pair");
     }
 
     #[test]
