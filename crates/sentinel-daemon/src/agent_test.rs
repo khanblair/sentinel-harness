@@ -12,6 +12,7 @@ use sentinel_core::{Cost, TaskId, ToolId, ToolInfo, ToolStatus};
 use sentinel_workers::{Budget, EndKind, RunControl, RunOutcome, RunSpec, Worker};
 use tokio::sync::mpsc;
 
+use crate::agent_health::note_test_result;
 use crate::engine::{Engine, EngineError, Result};
 use crate::openrouter_tool::is_openrouter_adapter;
 
@@ -94,6 +95,7 @@ impl Engine {
         } else {
             self.probe_verdict(&tool).await
         };
+        note_test_result(&self.inner.health, &tool.id, ok, &message);
         Ok(Some(tool_test(&tool.id, ok, &message, started.elapsed())))
     }
 
