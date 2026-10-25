@@ -19,7 +19,7 @@ use crate::close_out::finish;
 use crate::config::Config;
 use crate::controls::Caller;
 use crate::engine::{Engine, EngineError, Result, lock};
-use crate::plan_phase::plan_phase;
+use crate::plan_phase::{PlanOutcome, plan_phase};
 use crate::pumps::{budget_pump, forward_guard_events};
 use crate::resume::{restored_git, resume_phase};
 use crate::reviewer::{AgentReviewer, ScopeReviewer};
@@ -53,10 +53,10 @@ impl Engine {
         if resume.is_none() {
             self.mark_run_live(run_info.started_at, &run_info.chat)?;
             self.announce_request(&ctx.source, caller)?;
-            self.emit(&Event::RunStarted {
-                run: run_info.id.clone(),
-                backlog: run_info.backlog.clone(),
-            })?;
+            // A message run says it started only once its planner has given a plan.
+            if ctx.source.words.is_none() {
+                self.announce_run_started()?;
+            }
         }
         self.set_state(if resume.is_some() {
             HarnessState::Resuming
@@ -65,6 +65,19 @@ impl Engine {
         });
         self.launch(ctx, request, stop_tx)?;
         Ok(run_info)
+    }
+
+    /// Put the run on the stream. The run is registered by now, so the event belongs to its chat.
+    pub(crate) fn announce_run_started(&self) -> Result<()> {
+        let run = lock(&self.inner.live)
+            .run
+            .clone()
+            .ok_or_else(|| EngineError::Invalid("run not registered".to_owned()))?;
+        self.emit(&Event::RunStarted {
+            run: run.id,
+            backlog: run.backlog,
+        })?;
+        Ok(())
     }
 
     /// Start the write guard, the budget pump, and the run loop in the background.
@@ -311,34 +324,48 @@ async fn run_main(
     guard: sentinel_tree::GuardHandle,
     stop_tx: watch::Sender<bool>,
 ) {
-    let result = drive(&ctx, &request).await;
-    if let Err(error) = &result {
-        ctx.engine.emit_quiet(&Event::Message {
-            from: "sentinel".to_owned(),
-            to: None,
-            text: format!("The run ended because of an error: {error}"),
-        });
+    let ending = match drive(&ctx, &request).await {
+        Ok(ending) => ending,
+        Err(error) => {
+            ctx.engine.emit_quiet(&Event::Message {
+                from: "sentinel".to_owned(),
+                to: None,
+                text: format!("The run ended because of an error: {error}"),
+            });
+            Ending::Finished
+        }
+    };
+    match ending {
+        Ending::Finished => finish(&ctx).await,
+        Ending::WithoutRun => close_without_run(&ctx),
     }
-    finish(&ctx).await;
     drop(guard);
     // Ends the helper tasks that watch the stop signal.
     stop_tx.send_replace(true);
 }
 
-async fn drive(ctx: &Arc<RunCtx>, request: &RunRequest) -> Result<()> {
+/// How the run loop ended. A message that needed no run never reports a run to close out.
+enum Ending {
+    Finished,
+    WithoutRun,
+}
+
+async fn drive(ctx: &Arc<RunCtx>, request: &RunRequest) -> Result<Ending> {
     let first = if ctx.resuming {
         resume_phase(ctx).await?
     } else {
-        let plan = plan_phase(ctx, request).await?;
-        if !plan.approved {
-            ctx.engine.emit_quiet(&Event::Message {
-                from: "sentinel".to_owned(),
-                to: None,
-                text: "The plan was not approved, so nothing ran.".to_owned(),
-            });
-            return Ok(());
+        match plan_phase(ctx, request).await? {
+            PlanOutcome::NoRun => return Ok(Ending::WithoutRun),
+            PlanOutcome::Declined => {
+                ctx.engine.emit_quiet(&Event::Message {
+                    from: "sentinel".to_owned(),
+                    to: None,
+                    text: "The plan was not approved, so nothing ran.".to_owned(),
+                });
+                return Ok(Ending::Finished);
+            }
+            PlanOutcome::Approved => 1,
         }
-        1
     };
     for number in first..first + MAX_WAVES {
         match run_wave(ctx, number).await? {
@@ -346,7 +373,24 @@ async fn drive(ctx: &Arc<RunCtx>, request: &RunRequest) -> Result<()> {
             WaveEnd::Empty | WaveEnd::Stop => break,
         }
     }
-    Ok(())
+    Ok(Ending::Finished)
+}
+
+/// Take the run down when it never really started. The reply is already in the chat, so no run
+/// event is written: no report, no journal, and no `RunFinished`.
+fn close_without_run(ctx: &RunCtx) {
+    let engine = &ctx.engine;
+    {
+        let mut live = lock(&engine.inner.live);
+        live.budget = None;
+        live.run = None;
+        live.pause = None;
+        live.stop = None;
+        live.task_kills.clear();
+        live.agent_task.clear();
+    }
+    engine.clear_run_live();
+    engine.set_state(HarnessState::Idle);
 }
 
 /// The `.sentinel` folder of a repository.

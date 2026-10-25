@@ -66,7 +66,8 @@ const PLAN_SHAPE: &str = r#"{
   ]
 }"#;
 
-const PLANNER_RULES: [&str; 9] = [
+const PLANNER_RULES: [&str; 10] = [
+    "If the message is not a request to change the project (a greeting, a question, thanks), do not write a plan. Answer it in one to four plain sentences instead, and put no JSON in the answer.",
     "Every backlog item must have exactly one planned task.",
     "Scope entries are non-empty relative paths without '..'.",
     "Scope lists the files the task may write. Never list a test file that already exists: editing an existing test fails the task.",
@@ -130,6 +131,12 @@ pub fn parse_plan_json(text: &str, request: &PlanRequest) -> Result<Plan> {
     let plan: Plan = serde_json::from_str(json_text)?;
     validate_plan(&plan, request)?;
     Ok(plan)
+}
+
+/// True when the text carries a plan's `tasks` key. A broken plan must never reach the chat as a
+/// reply, so a planner answer with this key is not a reply even when the plan does not parse.
+pub fn holds_plan_json(text: &str) -> bool {
+    text.contains("\"tasks\"")
 }
 
 /// The first `{ ... }` block in `text`, braces matched.
@@ -334,6 +341,22 @@ mod tests {
             already_done: false,
             contradicts: vec![],
         }
+    }
+
+    #[test]
+    fn a_greeting_answer_holds_no_plan_json() {
+        assert!(!holds_plan_json("Hello! What would you like to build?"));
+    }
+
+    #[test]
+    fn a_planner_answer_with_a_tasks_key_holds_plan_json() {
+        assert!(holds_plan_json(r#"{"tasks": []}"#));
+    }
+
+    #[test]
+    fn the_planner_prompt_tells_the_model_to_answer_a_greeting_without_a_plan() {
+        let text = planner_prompt(&make_request(vec![], vec![]));
+        assert!(text.contains("do not write a plan"), "{text}");
     }
 
     #[test]
