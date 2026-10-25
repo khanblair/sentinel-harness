@@ -108,6 +108,7 @@ pub const ROUTES: &[Route] = &[
     Route::post("/api/message", Access::Any).json(r#"{"text":"hello"}"#),
     Route::post("/api/brain/mode", Access::Any).json(r#"{"mode":"off"}"#),
     Route::get("/api/state", Access::Any),
+    Route::get("/api/context", Access::Any),
     Route::get("/api/events", Access::Any),
     Route::get("/api/tasks/nope/output", Access::Any),
     Route::get("/api/report", Access::Any),

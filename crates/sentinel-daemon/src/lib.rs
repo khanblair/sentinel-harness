@@ -20,6 +20,7 @@ mod close_out;
 pub mod cmd;
 pub mod config;
 pub mod connections;
+mod context_usage;
 pub mod controls;
 pub mod doctor;
 mod dry_run;
