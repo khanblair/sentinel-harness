@@ -319,7 +319,7 @@ Plan: 2 files (src/limits/rate.ts, src/api/transfer.ts). No conflicts.
   3. **The plus button.** The composer's plus opens a menu: **Add files** (choose from the repository's files, or upload from this device), **Add a folder** (a folder of the repository, as a hint about where the work belongs), **Use a backlog file** (a file in the repository, or an upload), **Use a skill** (adds one of your skills to the next message, F24), and **Add a context note** (text that goes into the agents' prompts). Each choice becomes a chip above the text box with an x to remove it. Chips travel with the next message. Files and folders reach the planner and the agents as paths, with the file text included when a file is small. Uploads are saved under `.sentinel/chats/CHAT/attachments/`, never inside the tracked tree. Attached files are hints for the planner. They do not reserve files.
   4. **Chat menu.** A row in the sidebar has a menu (three dots, or a long press on a phone) with Rename, Pin, Archive, and Delete. The title in the top bar opens the same menu plus Export report. Rename edits in place. Pin keeps a chat at the top of its project. Archive hides a chat in the Archived group, and Unarchive brings it back. Delete asks first, removes the chat's messages and uploads, and never touches the repository or its commits. A chat with a live run cannot be archived or deleted until the run is stopped.
   5. **Search.** The search button filters chats by title, across projects.
-  6. **Projects.** The sidebar groups chats under their project. One Sentinel daemon serves one project in this version. The model, the API, and the screens already speak in projects, so adding more projects later (a project switcher and an Add project button) needs no redesign.
+  6. **Projects.** The sidebar groups chats under their project. One app holds many projects, each with its own chats. [F27](#f27-projects) says how projects are added, switched, and removed.
   7. **History.** A chat keeps its messages and the events of its runs, so reopening an old chat shows what happened, including the honest report. The Board, Reserved, and Cost panels show the project's live run, or the last run when none is live.
   8. **Phone.** A phone may create a chat, send, rename, pin, and archive. Deleting a chat needs the computer ([mobile.md](mobile.md), Security).
 - **Why:** People already know this shape from Claude. A coding tool you talk to needs chats you can keep, name, and clean up, and a plus button for the things you want to hand it. A backlog file is one way to say what you want, not the only way.
@@ -367,6 +367,33 @@ Plan: 2 files (src/limits/rate.ts, src/api/transfer.ts). No conflicts.
 - **Why:** A desktop app is a tool you run, not a tab you can lose. Closing the window should not stop the work that runs in the background.
 - **Limits:** macOS only for now. Developer tools are off. The voice input button does not work in the window. A plain `cargo build` has no window and opens the browser: the window is built only into the release app. The first open of an ad hoc signed app is still blocked by macOS until you choose Open Anyway, or use the one-line installer.
 
+### F27. Projects
+
+- **What:** The app holds many projects. Each project is a folder with its own chats and its own `.sentinel` state. The sidebar lists every project and its chats.
+- **How:**
+  1. **The first project is the primary one.** Sentinel opens it first. The primary project holds the paired phones, the saved keys, Telegram, the routines, and the setup wizard. Telegram, the routines, and the always-on host loop run for the primary project only.
+  2. **New project.** The New project button in the sidebar opens the Mac folder dialog. On a phone, or on an always-on host with no folder dialog, it opens a folder browser limited to the home folder. The folder must be a git repository. If it is not, Sentinel says to run `git init` there first.
+  3. **Saved list.** The extra projects are kept in `~/.sentinel/projects.json`. On start, Sentinel opens each one again. A folder that is gone, or that does not open, is left out and the app starts anyway.
+  4. **Remove.** A project can be taken off the list. Its folder stays where it is. The primary project cannot be removed. A project with a live run cannot be removed until the run is stopped.
+  5. **Switch.** Clicking a chat of another project switches to that project, opens the chat, and reloads the page.
+  6. **Phone.** A phone signs in once and sees every project and its chats. It cannot add or remove a project.
+  7. **Runs at the same time.** Each project has its own working tree, so runs in different projects can go at the same time. One run is still live per project ([F23](#f23-chats-projects-and-attachments)).
+  8. **Own settings.** Each project has its own cap, permission mode, agents, Brain, and skills. Personal skills are shared by every project.
+- **Why:** People work in more than one repository. One app and one phone pairing cover all of them, so there is no second copy of Sentinel to run.
+- **Limits:** A project must be a git repository. Only the primary project runs Telegram and routines.
+
+### F28. Reset
+
+- **What:** Settings, General, Reset clears one kind of data, or everything. Each row asks first. Project files are never touched: the repository, its files, and its commits stay as they are.
+- **How:**
+  1. **Four kinds for one project.** Chats (the chats, their messages, and their uploads), Brain (the notes and their index), History (the runs: tasks, reservations, checkpoints, approvals, decisions, costs, and the report), and Settings (the project settings go back to the defaults). Chats and History wait until a live run in that project stops.
+  2. **Six kinds for the app.** Devices (every paired phone; this computer stays signed in), Keys (the keys in the system keychain), Telegram (the settings and the log), Routines (the routines and their briefs), Projects (the extra projects leave the list; their folders stay), and Onboarding (the setup wizard starts again).
+  3. **Everything.** Clears the four project kinds in every project, then the six app kinds, then the project list. It is refused while a run is live in any project. Only this reset needs the word `RESET` typed.
+  4. **Page reload.** Resets that touch the app, the wizard, or the keys reload the page. The rest refresh the screen without a reload.
+  5. **Computer only.** A phone sees one note instead of the rows.
+- **Why:** A user who wants a clean start, or who wants to remove one kind of data, should not have to delete folders by hand. Asking first and typing the word for the full reset keeps a slip from costing a lot.
+- **Limits:** A reset does not undo anything. It removes the Sentinel data it names and nothing else.
+
 ## User Flow
 
 How to use Sentinel properly. The in-app guide walks through the same steps with a try-it button on each.
@@ -408,7 +435,7 @@ How to use Sentinel properly. The in-app guide walks through the same steps with
 
 | Stage | Contents |
 |---|---|
-| v1 | Features F1 to F26 |
+| v1 | Features F1 to F28 |
 | v1.1 | Per-tool cost accuracy, more adapters, richer reserved files map, parser-based smell checks on agent code |
 | v2 | Optional native shell, multi-repo runs, shared team tailnet |
 

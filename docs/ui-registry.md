@@ -36,6 +36,10 @@ Every UI component. If it is not here, it does not exist yet.
 | TopBar | Title menu, agent stack, cost chip, run controls, panel icons | run, cost, layout | running, paused, offline, phone | P6 | planned |
 | Sidebar | Chat list grouped by project, New chat button, archived group, update button, profile row | chats, active, query | expanded, collapsed, searching | P6 | planned |
 | ProjectHeader | Project name, collapse toggle, plus for a new chat in the project | project, closed | open, closed | P6 | planned |
+| ProjectGroupView | One project in the sidebar: its header, its chats, and its archived chats | group, folds, closed, archived_open | open, closed, searching | P19 | done |
+| PlainChatRow | A chat of another project: no menu, a click switches to the project and opens the chat | row, project | idle, active | P19 | done |
+| AddProjectButton | The sidebar's New project button: opens the folder dialog, or the folder browser on a phone | none | idle, choosing, phone note | P19 | done |
+| ProjectDialogHost | Overlay for the New project flow and the Remove dialog | none | open, closed | P19 | done |
 | ChatRow | One chat: title, status icon, count, attention dot, phone icon, menu button | chat, active | idle, running, paused, done, blocked, pinned, archived, renaming | P6 | planned |
 | ChatMenu | Rename, Pin or Unpin, Archive or Unarchive, Delete. The top bar title opens the same menu plus Export report and Stop run | chat, device | each item, delete disabled on phone and during a run | P6 | planned |
 | ConfirmDelete | Asks before a chat and its uploads are deleted | chat | open, working | P6 | planned |
@@ -108,6 +112,8 @@ Every UI component. If it is not here, it does not exist yet.
 | GuideModal | 13-step user flow with try-it buttons | step | open, closed | P9 | planned |
 | UpdateButton | Relaunch to update | version | ready, restarting | P6 | planned |
 | ProfileRow | Local daemon name, theme switch, settings | daemon | default | P6 | planned |
+| ResetSection | The Reset block at the end of Settings, General: one row per data kind, and one row for everything | none | default, phone note | P19 | done |
+| ConfirmClear | Asks before a data reset runs. Only the everything reset needs the word RESET typed | title, body, action | open, typing, working | P19 | done |
 
 ## Board and Tasks
 

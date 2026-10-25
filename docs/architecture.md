@@ -213,6 +213,9 @@ Money is stored as integer micro-dollars.
 | Route | Purpose |
 |---|---|
 | `GET /api/state` | Full snapshot |
+| `GET /api/projects` | The projects in the list, the primary first: id, name, path, primary, live, and chats. Answered by the hub ([Projects](#projects)) |
+| `POST /api/projects` | Add a folder as a project. Body: `path`. The folder must be a git repository. The computer only |
+| `DELETE /api/projects/:id` | Take a project off the list. The folder stays. Refused for the primary project and while a run is live in it. The computer only |
 | `GET /api/tasks`, `GET /api/tasks/:id` | Task list and detail |
 | `GET /api/tasks/:id/stream` | Agent output (SSE or WS topic) |
 | `GET /api/reserved` | Reserved files map |
@@ -304,9 +307,44 @@ Defined once in `sentinel-core` and used by both daemon and UI (same Rust types,
 | `<repo>/.sentinel/brain.db` | Search and graph index. Rebuildable from the vault |
 | `<repo>/.sentinel/skills/NAME/SKILL.md` | A project skill, with any files beside it |
 | `~/.sentinel/skills/NAME/SKILL.md` | A personal skill, shared by every project |
+| `~/.sentinel/projects.json` | The folders of the extra projects, opened again on start |
 | Browser storage on each device | Appearance preferences and color token overrides. Not stored on the daemon |
 
 `.sentinel/` is git-ignored. No other folder is created in or next to the repo.
+
+## Projects
+
+The app holds one engine per project. The first project is the primary one. `crates/sentinel-daemon/src/hub.rs` holds the list.
+
+| Part | Detail |
+|---|---|
+| Hub | Answers `/api/projects`, `/api/data/app`, and `/api/data/all`. Every other request goes to one project's router |
+| Primary paths | Always go to the primary project, whatever project a request names: `/api/health`, `/api/pair`, `/api/devices`, `/api/tailscale`, `/api/host`, `/api/whoami`, `/api/quit`, `/api/fs/`, `/api/connections`, `/api/secrets`, `/api/doctor`, `/api/telegram`, `/api/routines`, `/api/briefs`, `/api/onboarding` |
+| Routing | The `X-Sentinel-Project` header names the project. The WebSocket cannot send a header, so it uses `?project=`. No name means the primary project. An unknown id gets 404 |
+| Project id | FNV-1a hash of the folder path, as 16 hex digits. It stays the same across restarts |
+| Add | The path must be a folder with a `.git` entry and must not be in the list yet. The command line opens the engine, scans the agent CLIs, and marks the setup wizard complete (the wizard belongs to the app) |
+| Shared sign-in | Each project takes its paired devices from the primary (`use_devices_of`), so a phone token that works on the primary works on every project |
+| Saved list | `~/.sentinel/projects.json` holds `{"projects": [PATH, ...]}` for the extra projects. It is written on each add and remove. On start each path is opened; one that fails is logged and left out |
+| Remove | The primary project cannot be removed. A project with a live run cannot be removed |
+| Primary only | Telegram, the routines scheduler, and the host loop run in the primary project alone |
+| Folder dialog | `POST /api/fs/pick` on the primary project opens the native dialog. A phone uses the folder browser at `GET /api/fs/list` |
+
+## Data reset
+
+A reset clears data by scope. The scopes are the `DataScope` values in `crates/sentinel-core/src/api.rs`.
+
+| Group | Scopes |
+|---|---|
+| Project (`DataScope::PROJECT`) | `Chats`, `Brain`, `History`, `Settings` |
+| App (`DataScope::APP`) | `Devices`, `Keys`, `Telegram`, `Routines`, `Projects`, `Onboarding` |
+
+| Route | Scope of the call |
+|---|---|
+| `POST /api/data/project` | The project the request names. Its scopes must be project scopes. Chats and History are refused while a run is live. A Settings clear scans the agent CLIs again |
+| `POST /api/data/app` | The hub. Its scopes must be app scopes. The primary project clears them. `Projects` forgets the other projects in the list and leaves their folders |
+| `POST /api/data/all` | The hub. Refused if a run is live in any project. Then each project clears its project scopes and scans its CLIs, then the primary project clears the app scopes, then the list is forgotten |
+
+Every route takes the computer only. Each call checks its scopes before it deletes a row, so a refused call changes nothing. The request body is `ClearData` with a list of `scopes`.
 
 ## Security Model
 

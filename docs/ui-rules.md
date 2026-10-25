@@ -33,6 +33,8 @@ Three zones.
 
 The sidebar is open by default on tablet and desktop and can be collapsed. On phone it is a drawer. The layout follows the width of the app, not the device.
 
+The sidebar groups chats by project. A chat of another project switches the project and reloads the page. The Reset section sits at the end of Settings, General ([F28](product-scope.md#f28-reset)).
+
 ## Top Bar
 
 Left of the stream header: sidebar toggle (when hidden), back and forward through opened chats, a search toggle for the chat list.

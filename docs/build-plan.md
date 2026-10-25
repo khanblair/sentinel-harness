@@ -322,6 +322,21 @@ Goal: on a Mac, Sentinel opens in its own window, and closing it leaves the daem
 
 Dependencies: P5, P6, P14. See F26 in [product-scope.md](product-scope.md) and Desktop Window in [architecture.md](architecture.md).
 
+## Phase 19: Projects and data reset
+
+Goal: the app holds many projects, each with its own chats. Settings, General resets one kind of data or everything.
+
+| ID | Task | Done when | Status |
+|---|---|---|---|
+| P19-01 | Hub and routing: the project list, the `X-Sentinel-Project` header and `?project=`, the primary paths | A request that names a project reaches its router. A request with no name, or to a primary path, reaches the primary project. An unknown id gets 404 | Done |
+| P19-02 | Command-line wiring: open the saved projects on start, keep `~/.sentinel/projects.json` | Saved projects open on start. A missing folder is skipped and the app starts. Only the primary project starts Telegram, the routines, and the host loop | Done |
+| P19-03 | Sidebar: chats grouped by project, a chat of another project switches the project | Each project has its own group. A click on another project's chat switches the project and opens the chat. A phone sees every project and its chats | Done |
+| P19-04 | New project flow: folder dialog on the computer, folder browser on a phone or host, Remove | A folder with no `.git` is refused with a reason. The primary project cannot be removed. A project with a live run cannot be removed | Done |
+| P19-05 | Data reset backend: `POST /api/data/project`, `/api/data/app`, `/api/data/all`, computer only | Each route clears only its own scopes. A live run refuses Chats and History, and the all reset. A Settings clear scans the agent CLIs again. The all reset forgets the project list and leaves the folders | Done |
+| P19-06 | Reset UI: Settings, General, one row per kind and one for everything, the confirm dialog | Ten kinds in two groups. Only the everything reset needs the word RESET typed. A phone sees one note instead of the rows | Done |
+
+Dependencies: P5, P6, P8. See F27 and F28 in [product-scope.md](product-scope.md) and Projects and Data reset in [architecture.md](architecture.md).
+
 ## Testing Approach per Phase
 
 | Phase | Method |
@@ -342,6 +357,7 @@ Dependencies: P5, P6, P14. See F26 in [product-scope.md](product-scope.md) and D
 | 16 | Fixture skills: limits, selection under the cap, import leaves the original alone |
 | 17 | Fake clock: one fire per day, missed-run rule, brief text from fixture state, no private text in a brief |
 | 18 | Pure functions unit tested. The release workflow launches the app once and checks the page loaded |
+| 19 | Temp git repos for add and remove. Route tests for the project a request names. Reset tests per scope, with a live run |
 
 ## Quality and Slop Tooling Tasks
 
