@@ -438,6 +438,7 @@ crates/sentinel-cli/
   src/app.rs                           router and layout
   src/commands.rs                      run, scan, pair, report, doctor
   src/doctor_host.rs                   The host checks of `sentinel doctor` (P14-06, `docs/product-scope.md` F21). Each row says
+  src/login_path.rs                    Finds the agent CLIs when the Mac app starts from Finder, Spotlight, or the Dock. Those
   src/main.rs                          entry
   src/serve.rs                         The commands that run or reach the daemon: `daemon`, `open`, `pair`, and `keys`
   src/service.rs                       `sentinel service`: run the daemon at boot and restart it when it stops. A launchd job on
