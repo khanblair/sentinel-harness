@@ -333,6 +333,7 @@ crates/sentinel-daemon/
   build.rs                             The daemon embeds the built UI from `crates/sentinel-ui/dist/`. On a fresh clone that folder
   src/access.rs                        Engine methods for getting at the daemon: Tailscale, pairing, devices, the install check,
   src/agents.rs                        Finding the agent CLIs on this computer, turning them into workers, and asking one of them
+  src/agents_config.rs                 Pure helpers that pick the tools and the routing from one scan. They take no engine, so the
   src/ask.rs                           Questions the run loop puts to the user: approval cards and decisions. Each one waits for an
   src/assets.rs                        The web UI, embedded in the daemon. A path with no file gets the page, so the single page app
   src/attach.rs                        Attachments: what the composer plus button adds to a chat. A file, a folder, or a backlog is a
@@ -345,6 +346,7 @@ crates/sentinel-daemon/
   src/brain_proposals.rs               Proposals from care runs and their answers. A proposal file in `_proposals/` waits until you
   src/brain_run.rs                     The Brain during a run: the notes an agent reads before a task, and the journal a run writes
   src/brain_seed.rs                    The seed: notes that describe the project on disk. It reads the repository root and runs no
+  src/brain_survey.rs                  The survey: a walk of the repository root that lists its files, its area folders, and its
   src/briefs.rs                        The facts a brief reports, and the plain words it is written in. The text builders take counts,
   src/changes.rs                       Live project state for the Changes and Board panels: the git working tree, the diff of one
   src/changes/diff.rs                  The diff of one file against HEAD, for the Changes panel. An untracked file shows every line as
