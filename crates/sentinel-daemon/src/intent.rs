@@ -4,7 +4,7 @@
 use std::time::Duration;
 
 use sentinel_core::api::RunRequest;
-use sentinel_core::{ChatId, Event, Intent, PermissionMode, Tier};
+use sentinel_core::{ChatId, Event, Intent, PermissionMode, Tier, ToolId};
 use serde::Deserialize;
 
 use crate::answer::{OneShot, ask_once};
@@ -102,20 +102,28 @@ fn is_greeting(words: &[&str], has_change_verb: bool) -> bool {
     words.len() <= 4 && !has_change_verb && opens_with_greeting
 }
 
-/// The type of a message: the plain rules first, then the cheapest agent for what they leave open.
-pub(crate) async fn classify(engine: &Engine, text: &str) -> (Intent, String) {
+/// The type of a message: the plain rules first, then the cheapest agent for what they leave open,
+/// or the chat's agent when the chat has one. A chat's agent that gives no answer returns its
+/// reason, because no other agent may stand in.
+pub(crate) async fn classify(
+    engine: &Engine,
+    forced: Option<&ToolId>,
+    text: &str,
+) -> std::result::Result<(Intent, String), String> {
     if let Some((intent, reason)) = heuristic(text) {
-        return (intent, reason.to_owned());
+        return Ok((intent, reason.to_owned()));
     }
     let shot = OneShot {
         tier: Tier::Cheap,
         prompt: classify_prompt(text),
         ceiling_micro_usd: CLASSIFY_CEILING_MICRO_USD,
         timeout: CLASSIFY_TIMEOUT,
+        forced: forced.cloned(),
     };
     match ask_once(engine, shot).await {
-        Ok(answer) => router_answer(&answer).unwrap_or_else(unsure),
-        Err(_) => unsure(),
+        Ok(answer) => Ok(router_answer(&answer).unwrap_or_else(unsure)),
+        Err(reason) if forced.is_some() => Err(reason),
+        Err(_) => Ok(unsure()),
     }
 }
 
@@ -174,30 +182,43 @@ impl Engine {
         if source.words.is_none() {
             return Ok(Typing::Run(None));
         }
-        let typed = self.typed_for(request, source).await;
+        let forced = self.chat_agent(&source.chat)?;
+        let typed = match self.typed_for(request, source, forced.as_ref()).await {
+            Ok(typed) => typed,
+            Err(reason) => {
+                self.answer_halted(source, caller, forced.as_ref(), &reason)?;
+                return Ok(Typing::Answered);
+            }
+        };
         if matches!(typed.intent, Intent::Chat | Intent::Ask | Intent::Research) {
-            self.answer_without_run(source, caller, &typed).await?;
+            self.answer_without_run(source, caller, &typed, forced.as_ref())
+                .await?;
             return Ok(Typing::Answered);
         }
         request.intent = Some(typed.intent);
         Ok(Typing::Run(Some(typed)))
     }
 
-    async fn typed_for(&self, request: &RunRequest, source: &RunSource) -> Typed {
+    async fn typed_for(
+        &self,
+        request: &RunRequest,
+        source: &RunSource,
+        forced: Option<&ToolId>,
+    ) -> std::result::Result<Typed, String> {
         if let Some(intent) = request.intent {
-            return Typed {
+            return Ok(Typed {
                 intent,
                 reason: "You picked this type.".to_owned(),
                 by: "you",
-            };
+            });
         }
         let text = source.words.as_deref().unwrap_or_default();
-        let (intent, reason) = classify(self, text).await;
-        Typed {
+        let (intent, reason) = classify(self, forced, text).await?;
+        Ok(Typed {
             intent,
             reason,
             by: "router",
-        }
+        })
     }
 
     /// Put the chosen type on the stream, in the chat of the message. Nothing is said when no type

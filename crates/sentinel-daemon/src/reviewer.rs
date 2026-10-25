@@ -88,10 +88,20 @@ pub(crate) struct AgentReviewer {
     pub budget: Arc<sentinel_workers::Budget>,
 }
 
+/// The best of the ready agents that did not write the diff. The highest tier is tried first. The
+/// author is the chat's forced agent when the chat has one, so a forced agent never reviews itself.
+pub(crate) fn pick_reviewer(
+    mut tools: Vec<ToolInfo>,
+    author: Option<&ToolId>,
+) -> Option<ToolInfo> {
+    tools.sort_by_key(|t| std::cmp::Reverse(t.tier));
+    tools.into_iter().find(|t| Some(&t.id) != author)
+}
+
 impl AgentReviewer {
     fn pick(&self, task: &TaskId) -> Option<ToolInfo> {
         let author: Option<ToolId> = lock(&self.memory).agents.get(task).cloned();
-        let mut tools: Vec<ToolInfo> = self
+        let tools: Vec<ToolInfo> = self
             .engine
             .store()
             .list_tools()
@@ -99,8 +109,7 @@ impl AgentReviewer {
             .into_iter()
             .filter(|t| t.enabled && t.status.is_ready())
             .collect();
-        tools.sort_by_key(|t| std::cmp::Reverse(t.tier));
-        tools.into_iter().find(|t| Some(&t.id) != author.as_ref())
+        pick_reviewer(tools, author.as_ref())
     }
 }
 
@@ -140,6 +149,8 @@ impl DiffReviewer for AgentReviewer {
 
 #[cfg(test)]
 mod tests {
+    use sentinel_core::{Tier, ToolStatus};
+
     use super::*;
 
     const DIFF: &str =
@@ -167,5 +178,45 @@ mod tests {
     #[test]
     fn diff_files_reads_the_new_path_of_each_file() {
         assert_eq!(diff_files(DIFF), ["src/a.rs"]);
+    }
+
+    fn reviewer_tool(id: &str, tier: Tier) -> ToolInfo {
+        ToolInfo {
+            id: ToolId::new(id),
+            name: id.to_owned(),
+            path: format!("/usr/bin/{id}"),
+            version: "1.0".to_owned(),
+            adapter: id.to_owned(),
+            status: ToolStatus::Ready,
+            tier,
+            enabled: true,
+        }
+    }
+
+    #[test]
+    fn the_reviewer_is_never_the_agent_that_wrote_the_change() {
+        let tools = vec![
+            reviewer_tool("claude", Tier::Smart),
+            reviewer_tool("codex", Tier::Mid),
+        ];
+        let reviewer = pick_reviewer(tools, Some(&ToolId::new("claude")));
+        assert_eq!(reviewer.map(|tool| tool.id), Some(ToolId::new("codex")));
+    }
+
+    #[test]
+    fn with_no_other_agent_there_is_no_reviewer() {
+        let tools = vec![reviewer_tool("claude", Tier::Smart)];
+        assert_eq!(pick_reviewer(tools, Some(&ToolId::new("claude"))), None);
+    }
+
+    #[test]
+    fn the_highest_tier_other_agent_reviews_first() {
+        let tools = vec![
+            reviewer_tool("author", Tier::Smart),
+            reviewer_tool("cheap", Tier::Cheap),
+            reviewer_tool("mid", Tier::Mid),
+        ];
+        let reviewer = pick_reviewer(tools, Some(&ToolId::new("author")));
+        assert_eq!(reviewer.map(|tool| tool.id), Some(ToolId::new("mid")));
     }
 }

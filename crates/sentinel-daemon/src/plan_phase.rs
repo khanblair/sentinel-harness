@@ -12,11 +12,10 @@ use sentinel_plan::backlog::{BacklogItem, parse_backlog};
 use sentinel_plan::contradiction::{
     ContradictionPair, Resolution, apply_answer, decision_for, find_contradictions,
 };
-use sentinel_plan::planner::{Plan, PlanRequest, build_tasks, parse_plan_json};
+use sentinel_plan::planner::{Plan, PlanRequest, build_tasks};
 use sentinel_store::VerificationRecord;
-use sentinel_workers::{EndKind, RunOutcome};
 
-use crate::answer::{no_answer_reason, reply_from, unreached_text};
+use crate::answer::unreached_text;
 use crate::ask::{ask_approval, ask_decision};
 use crate::engine::{Engine, EngineError, Result, lock};
 use crate::resume::resume_phase;
@@ -47,6 +46,8 @@ pub(crate) enum PlanOutcome {
     Declined,
     /// The message got a reply, or no planner answered. The run never starts.
     NoRun,
+    /// The chat's agent gave no plan. Its reason is in the chat, and no other agent planned.
+    Halted,
 }
 
 /// What the planning step produced.
@@ -56,6 +57,14 @@ pub(crate) enum PlanStep {
     Reply(String),
     /// No planning agent answered. The reason goes to the chat.
     Unreached(String),
+    /// The chat's agent gave no plan. The text names the agent and the reason.
+    Halted(String),
+}
+
+/// The plan of a run, or how the run ends without one.
+enum Planned {
+    Plan(Plan),
+    Ended(PlanOutcome),
 }
 
 /// What one planner agent said, as far as the run needs it.
@@ -74,8 +83,9 @@ pub(crate) async fn plan_phase(ctx: &Arc<RunCtx>, request: &RunRequest) -> Resul
         items,
         repo_files: repo_files(ctx),
     };
-    let Some(plan) = plan_or_message(ctx, &plan_request).await? else {
-        return Ok(PlanOutcome::NoRun);
+    let plan = match plan_or_message(ctx, &plan_request).await? {
+        Planned::Plan(plan) => plan,
+        Planned::Ended(outcome) => return Ok(outcome),
     };
     let message = ctx.source.words.is_some();
     if message {
@@ -118,15 +128,19 @@ fn store_plan(
     Ok(())
 }
 
-/// The plan to run, or `None` when the message ends with a reply, a failure, or no planner. The
-/// text goes to the chat, and no run starts. A backlog run that fails here still ends as a run.
-async fn plan_or_message(ctx: &RunCtx, request: &PlanRequest) -> Result<Option<Plan>> {
+/// The plan to run, or how the run ends without one. The text goes to the chat, and no run starts
+/// for a message. A backlog run that fails here still ends as a run.
+async fn plan_or_message(ctx: &RunCtx, request: &PlanRequest) -> Result<Planned> {
     let message = ctx.source.words.is_some();
-    let text = match crate::agents::make_plan(ctx, request).await {
-        Ok(PlanStep::Plan(plan)) => return Ok(Some(plan)),
-        Ok(PlanStep::Reply(text)) => text,
-        Ok(PlanStep::Unreached(reason)) => unreached_text(&reason),
-        Err(error) if message => format!("The run ended because of an error: {error}"),
+    let (text, outcome) = match crate::agents::make_plan(ctx, request).await {
+        Ok(PlanStep::Plan(plan)) => return Ok(Planned::Plan(plan)),
+        Ok(PlanStep::Reply(text)) => (text, PlanOutcome::NoRun),
+        Ok(PlanStep::Unreached(reason)) => (unreached_text(&reason), PlanOutcome::NoRun),
+        Ok(PlanStep::Halted(text)) => (text, PlanOutcome::Halted),
+        Err(error) if message => (
+            format!("The run ended because of an error: {error}"),
+            PlanOutcome::NoRun,
+        ),
         Err(error) => return Err(error),
     };
     ctx.engine.emit_quiet(&Event::Message {
@@ -134,7 +148,7 @@ async fn plan_or_message(ctx: &RunCtx, request: &PlanRequest) -> Result<Option<P
         to: None,
         text,
     });
-    Ok(None)
+    Ok(Planned::Ended(outcome))
 }
 
 /// A message run that plans a task with no files cannot change anything. Said once, naming the
@@ -152,25 +166,6 @@ fn warn_if_no_files(ctx: &RunCtx, tasks: &[Task]) -> Result<()> {
         ),
     })?;
     Ok(())
-}
-
-/// Read one planner answer. A message run reads prose as a reply, and a failed run as no answer.
-pub(crate) fn read_answer(
-    text: &str,
-    outcome: &RunOutcome,
-    request: &PlanRequest,
-    message: bool,
-) -> Asked {
-    if let Ok(plan) = parse_plan_json(text, request) {
-        return Asked::Plan(crate::agents::without_existing_tests(plan, request));
-    }
-    if !message {
-        return Asked::Unusable;
-    }
-    if outcome.end != EndKind::Completed || text.trim().is_empty() {
-        return Asked::Failed(no_answer_reason(outcome));
-    }
-    reply_from(text).map_or(Asked::Unusable, Asked::Reply)
 }
 
 fn count(n: usize) -> u32 {
@@ -368,6 +363,9 @@ pub(crate) async fn first_wave(
     }
     Ok(match plan_phase(ctx, request).await? {
         PlanOutcome::NoRun => Err(Ending::WithoutRun),
+        // A backlog run was announced at its start, so it ends as a run. A message never was.
+        PlanOutcome::Halted if ctx.source.words.is_some() => Err(Ending::WithoutRun),
+        PlanOutcome::Halted => Err(Ending::Finished),
         PlanOutcome::Declined => {
             ctx.engine.emit_quiet(&Event::Message {
                 from: "sentinel".to_owned(),
@@ -382,19 +380,8 @@ pub(crate) async fn first_wave(
 
 #[cfg(test)]
 mod tests {
-    use sentinel_core::Cost;
-
     use super::*;
-    use crate::answer::REPLY_CHARS;
-
-    fn outcome(end: EndKind) -> RunOutcome {
-        RunOutcome {
-            end,
-            exit_code: Some(2),
-            output_tail: Vec::new(),
-            cost: Cost::ZERO,
-        }
-    }
+    use crate::answer::{REPLY_CHARS, reply_from};
 
     #[test]
     fn a_plain_answer_is_the_reply_as_it_is() {
@@ -427,19 +414,6 @@ mod tests {
         let long = "é".repeat(5000);
         let reply = reply_from(&long).unwrap_or_default();
         assert_eq!(reply.chars().count(), REPLY_CHARS);
-    }
-
-    #[test]
-    fn a_message_run_reads_a_failed_run_as_no_answer_even_with_text() {
-        let request = PlanRequest {
-            items: Vec::new(),
-            repo_files: Vec::new(),
-        };
-        let asked = read_answer("error: boom", &outcome(EndKind::Failed), &request, true);
-        assert!(
-            matches!(asked, Asked::Failed(reason) if reason == "it exited with code 2"),
-            "a failed run gave text, so it is not a reply"
-        );
     }
 
     #[test]

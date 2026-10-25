@@ -215,7 +215,6 @@ impl Engine {
         intent: Option<Intent>,
     ) -> Result<(Arc<RunCtx>, watch::Sender<bool>)> {
         let config = self.config();
-        let repo = self.repo_path();
         let git = self.open_tree(resume)?;
         let budget = self.make_budget(&config, resume)?;
         let retry_limit = self.router()?.retry_limit();
@@ -240,7 +239,8 @@ impl Engine {
             book: Mutex::new(ApprovalBook::new()),
             memory,
             reviewer,
-            suite_dir: repo.join(".sentinel/logs"),
+            suite_dir: self.repo_path().join(".sentinel/logs"),
+            forced: self.chat_agent(&source.chat)?,
             source,
             checkpoint_lock: Mutex::new(()),
             resuming: resume.is_some(),
