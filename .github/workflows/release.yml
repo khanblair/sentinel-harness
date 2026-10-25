@@ -128,9 +128,9 @@ jobs:
         run: packaging/macos/notarize.sh "dist/Sentinel-${{ steps.tag.outputs.version }}.dmg"
 
       # A real launch catches a broken window or web view that a compile cannot. The daemon is
-      # stopped through the same quit path a person uses, and a failure here never blocks a release.
+      # stopped through the same quit path a person uses. The step needs the page to load AND a clean
+      # exit (code 0), so a crash on quit fails the run. The release stays a draft until you publish.
       - name: Launch the app once
-        continue-on-error: true
         run: |
           dmg="dist/Sentinel-${{ steps.tag.outputs.version }}.dmg"
           mount="$RUNNER_TEMP/sentinel-dmg"
@@ -150,8 +150,8 @@ jobs:
               "$RUNNER_TEMP/Sentinel.app/Contents/MacOS/sentinel" app --repo "$repo" > "$log" 2>&1
           }
           status=$?
-          if grep -q WINDOW_LOADED "$log" 2>/dev/null; then
-            echo "Window smoke: the page loaded and the app quit." >> "$GITHUB_STEP_SUMMARY"
+          if grep -q WINDOW_LOADED "$log" 2>/dev/null && [ "$status" -eq 0 ]; then
+            echo "Window smoke: the page loaded and the app quit cleanly." >> "$GITHUB_STEP_SUMMARY"
           elif [ "$status" -eq 142 ] || [ "$status" -eq 124 ]; then
             echo "Window smoke: timed out after 90 seconds." >> "$GITHUB_STEP_SUMMARY"
             tail -20 "$log" >> "$GITHUB_STEP_SUMMARY"

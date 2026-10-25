@@ -265,9 +265,11 @@ impl WindowState {
     fn quit(&mut self, control_flow: &mut ControlFlow) {
         self.engine.request_quit();
         // Wait for the server task so `.sentinel/daemon.addr` is removed before the process ends.
+        // The timeout is built inside the async block: it needs the runtime's timer to exist.
+        let server = &mut self.server;
         let _ = self
             .runtime
-            .block_on(tokio::time::timeout(QUIT_WAIT, &mut self.server));
+            .block_on(async { tokio::time::timeout(QUIT_WAIT, server).await });
         *control_flow = ControlFlow::ExitWithCode(0);
     }
 }
