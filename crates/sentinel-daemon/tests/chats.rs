@@ -88,6 +88,55 @@ fn a_chat_is_renamed_pinned_archived_and_deleted() {
     assert!(changes_of(&all).contains(&ChatChange::Deleted));
 }
 
+fn created_count(engine: &Engine) -> usize {
+    let all = engine.events_after(0, 1000).unwrap();
+    changes_of(&all)
+        .iter()
+        .filter(|change| **change == ChatChange::Created)
+        .count()
+}
+
+#[test]
+fn two_blank_creates_return_the_same_empty_chat() {
+    let repo = sample_repo();
+    let engine = fake_engine(repo.path());
+    let first = engine.create_chat(None, &computer()).unwrap();
+    let created_before = created_count(&engine);
+    let second = engine.create_chat(None, &computer()).unwrap();
+    assert_eq!(first.id, second.id);
+    assert_eq!(engine.list_chats().unwrap().len(), 1);
+    assert_eq!(created_count(&engine), created_before);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_chat_with_a_message_is_not_reused_for_a_blank_create() {
+    let repo = sample_repo();
+    let engine = fake_engine(repo.path());
+    engine.scan_tools().await.unwrap();
+    let used = engine.list_chats().unwrap().remove(0);
+    let request = RunRequest {
+        chat: Some(used.id.clone()),
+        text: Some("Add a health check function".to_owned()),
+        ..RunRequest::default()
+    };
+    engine.start_run(request).await.unwrap();
+    wait_done(&engine).await;
+
+    let blank = engine.create_chat(None, &computer()).unwrap();
+    assert_ne!(blank.id, used.id);
+    assert_eq!(engine.list_chats().unwrap().len(), 2);
+}
+
+#[test]
+fn a_titled_create_always_makes_a_new_chat() {
+    let repo = sample_repo();
+    let engine = fake_engine(repo.path());
+    let first = engine.create_chat(Some("Fees"), &computer()).unwrap();
+    let second = engine.create_chat(Some("Fees"), &computer()).unwrap();
+    assert_ne!(first.id, second.id);
+    assert_eq!(engine.list_chats().unwrap().len(), 3);
+}
+
 #[test]
 fn an_empty_name_is_refused() {
     let repo = sample_repo();
@@ -155,7 +204,7 @@ async fn a_second_chat_cannot_start_a_run_while_the_first_is_live() {
     let engine = fake_engine(repo.path());
     engine.scan_tools().await.unwrap();
     let first = engine.list_chats().unwrap().remove(0);
-    let second = engine.create_chat(None, &computer()).unwrap();
+    let second = engine.create_chat(Some("Second"), &computer()).unwrap();
     let start = RunRequest {
         chat: Some(first.id.clone()),
         text: Some("Add a health check function".to_owned()),
