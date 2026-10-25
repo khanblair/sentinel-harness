@@ -189,7 +189,10 @@ fn strip_fence(text: &str) -> &str {
     else {
         return text;
     };
-    inner.split_once('\n').map_or(inner, |(_, body)| body).trim()
+    inner
+        .split_once('\n')
+        .map_or(inner, |(_, body)| body)
+        .trim()
 }
 
 /// What the owner reads when no planning agent answered.

@@ -184,7 +184,7 @@ async fn a_greeting_gets_a_reply_and_no_run() {
         "{reply}"
     );
     assert_eq!(engine.harness_state(), HarnessState::Idle);
-    assert!(engine.store().list_tasks().unwrap().is_empty());
+    assert_eq!(engine.store().list_tasks().unwrap().len(), 0);
     let history = engine.events_after(0, 100_000).unwrap();
     assert!(
         !history.iter().any(|r| is_run_started(&r.event)),
@@ -199,7 +199,10 @@ async fn a_planner_that_fails_gives_the_could_not_reach_message_and_no_run() {
     let engine = engine_with_plans(dir.path(), plans.path());
     engine.scan_tools().await.unwrap();
     let mut events = engine.subscribe();
-    engine.start_run(message("Add a health check")).await.unwrap();
+    engine
+        .start_run(message("Add a health check"))
+        .await
+        .unwrap();
 
     let text = message_text(next_event(&mut events, is_sentinel_message).await);
     next_event(&mut events, is_settled).await;
@@ -213,7 +216,7 @@ async fn a_planner_that_fails_gives_the_could_not_reach_message_and_no_run() {
         "{text}"
     );
     assert_eq!(engine.harness_state(), HarnessState::Idle);
-    assert!(engine.store().list_tasks().unwrap().is_empty());
+    assert_eq!(engine.store().list_tasks().unwrap().len(), 0);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -260,5 +263,5 @@ async fn a_backlog_run_without_a_usable_plan_uses_the_offline_planner() {
     .await;
     wait_done(&engine).await;
 
-    assert!(!engine.store().list_tasks().unwrap().is_empty());
+    assert_ne!(engine.store().list_tasks().unwrap().len(), 0);
 }

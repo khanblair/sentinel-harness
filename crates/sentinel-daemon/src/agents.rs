@@ -336,7 +336,7 @@ async fn ask_agent_for_plan(ctx: &RunCtx, request: &PlanRequest) -> Asked {
         match ask_tier(ctx, request, tier).await {
             Asked::Unusable => {}
             Asked::Failed(_) if !message => {}
-            asked => return asked,
+            asked @ (Asked::Plan(_) | Asked::Reply(_) | Asked::Failed(_)) => return asked,
         }
         tier = tier.escalate().unwrap_or(tier);
     }
