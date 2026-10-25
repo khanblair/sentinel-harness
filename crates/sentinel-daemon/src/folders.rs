@@ -6,6 +6,7 @@ use std::process::Command;
 
 use sentinel_core::api::{CheckRow, CheckStatus, FolderEntry, RepoCheckResponse};
 
+use crate::folders_git::clean_row;
 pub use crate::folders_tree::{TREE_FOLDER_LIMIT, repo_tree};
 
 pub(crate) const STARTER_BACKLOG: &str = "# Backlog
@@ -171,49 +172,6 @@ fn backlog_row(path: &Path) -> CheckRow {
             fix: Some("Create a starter backlog".to_owned()),
         }
     }
-}
-
-fn clean_row(path: &Path, has_git: bool) -> CheckRow {
-    if !has_git {
-        return CheckRow {
-            name: "Clean working tree".to_owned(),
-            status: CheckStatus::NeedsAction,
-            detail: "Skipped because this folder is not a git repository".to_owned(),
-            fix: None,
-        };
-    }
-    match git_status(path) {
-        Ok(true) => CheckRow {
-            name: "Clean working tree".to_owned(),
-            status: CheckStatus::Ok,
-            detail: "No uncommitted changes".to_owned(),
-            fix: None,
-        },
-        Ok(false) => CheckRow {
-            name: "Clean working tree".to_owned(),
-            status: CheckStatus::NeedsAction,
-            detail: "Uncommitted changes in this folder".to_owned(),
-            fix: None,
-        },
-        Err(detail) => CheckRow {
-            name: "Clean working tree".to_owned(),
-            status: CheckStatus::NeedsAction,
-            detail,
-            fix: None,
-        },
-    }
-}
-
-fn git_status(path: &Path) -> std::result::Result<bool, String> {
-    let output = Command::new("git")
-        .args(["status", "--porcelain"])
-        .current_dir(path)
-        .output()
-        .map_err(|error| format!("Cannot run git status: {error}"))?;
-    if !output.status.success() {
-        return Err("git status failed".to_owned());
-    }
-    Ok(output.stdout.iter().all(u8::is_ascii_whitespace))
 }
 
 pub fn create_starter_backlog(path: &Path) -> Result<()> {

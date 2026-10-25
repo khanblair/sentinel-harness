@@ -25,6 +25,7 @@ pub(super) fn routes() -> Router<Engine> {
         .route("/api/repo/tree", get(repo_tree))
         .route("/api/repo/check", post(repo_check))
         .route("/api/repo/starter-backlog", post(starter_backlog))
+        .route("/api/repo/commit-backlog", post(commit_backlog))
         .route("/api/repo", put(set_repo))
         .route("/api/onboarding", get(onboarding))
         .route("/api/onboarding/{step}", post(onboarding_step))
@@ -50,6 +51,17 @@ async fn starter_backlog(
 ) -> ApiResult<Value> {
     blocking(engine, move |e| {
         e.create_starter_backlog(&body.path).map(|()| okay())
+    })
+    .await
+}
+
+async fn commit_backlog(
+    State(engine): State<Engine>,
+    Computer(_): Computer,
+    ApiJson(body): ApiJson<RepoCheckRequest>,
+) -> ApiResult<Value> {
+    blocking(engine, move |e| {
+        e.commit_backlog(&body.path).map(|()| okay())
     })
     .await
 }

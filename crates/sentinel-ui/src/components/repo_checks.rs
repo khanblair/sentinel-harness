@@ -31,16 +31,24 @@ pub fn check_shape(class: &str) -> &'static str {
     }
 }
 
-/// What a fix button does. The repository's backlog row creates a starter file, and every
-/// other fix re-runs the check.
+/// The clean tree row and the label it shows when `backlog.md` is its only change. The daemon
+/// sends the same words.
+const CLEAN_ROW: &str = "Clean working tree";
+const COMMIT_LABEL: &str = "Commit backlog.md";
+
+/// What a fix button does. The backlog row creates a starter file. The clean tree row commits
+/// that file when it is the only change. Every other fix re-runs the check.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FixAction {
     CreateBacklog,
+    CommitBacklog,
     Recheck,
 }
 
-pub fn fix_action(row_name: &str) -> FixAction {
-    if row_name.to_lowercase().contains("backlog") {
+pub fn fix_action(row_name: &str, fix_label: &str) -> FixAction {
+    if row_name == CLEAN_ROW && fix_label == COMMIT_LABEL {
+        FixAction::CommitBacklog
+    } else if row_name.to_lowercase().contains("backlog") {
         FixAction::CreateBacklog
     } else {
         FixAction::Recheck
@@ -57,14 +65,14 @@ pub fn CheckShape(class: &'static str) -> impl IntoView {
     }
 }
 
-/// One row of a repository check. The fix button runs `on_fix` with the row name.
-fn repo_check_view(row: CheckRow, on_fix: Callback<String>) -> impl IntoView {
+/// One row of a repository check. The fix button runs `on_fix` with the row name and the fix label.
+fn repo_check_view(row: CheckRow, on_fix: Callback<(String, String)>) -> impl IntoView {
     let (class, text) = describe_check(&row);
     let CheckRow { name, fix, .. } = row;
     let fix = fix.map(|label| {
-        let name = name.clone();
+        let (name, request) = (name.clone(), label.clone());
         view! {
-            <button class="btn sm" on:click=move |_| on_fix.run(name.clone())>{label}</button>
+            <button class="btn sm" on:click=move |_| on_fix.run((name.clone(), request.clone()))>{label}</button>
         }
     });
     view! {
@@ -81,7 +89,7 @@ fn repo_check_view(row: CheckRow, on_fix: Callback<String>) -> impl IntoView {
 
 /// The rows of one check. The parent owns the rows and the fix actions.
 #[component]
-pub fn RepoChecks(rows: Vec<CheckRow>, on_fix: Callback<String>) -> impl IntoView {
+pub fn RepoChecks(rows: Vec<CheckRow>, on_fix: Callback<(String, String)>) -> impl IntoView {
     rows.into_iter()
         .map(|row| repo_check_view(row, on_fix))
         .collect_view()
@@ -133,7 +141,26 @@ mod tests {
 
     #[test]
     fn only_the_backlog_row_creates_a_file() {
-        assert_eq!(fix_action("backlog.md"), FixAction::CreateBacklog);
-        assert_eq!(fix_action("Working tree is clean"), FixAction::Recheck);
+        assert_eq!(
+            fix_action("backlog.md", "Create a starter backlog"),
+            FixAction::CreateBacklog
+        );
+    }
+
+    #[test]
+    fn the_clean_tree_row_commits_the_backlog_only_with_its_commit_label() {
+        assert_eq!(
+            fix_action("Clean working tree", "Commit backlog.md"),
+            FixAction::CommitBacklog
+        );
+        assert_eq!(
+            fix_action("Clean working tree", "Stash your changes"),
+            FixAction::Recheck
+        );
+    }
+
+    #[test]
+    fn a_row_without_a_special_fix_only_rechecks() {
+        assert_eq!(fix_action("Git repository", "Retry"), FixAction::Recheck);
     }
 }

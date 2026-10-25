@@ -181,6 +181,7 @@ pub const ROUTES: &[Route] = &[
     Route::get("/api/repo/tree", Access::Any),
     Route::post("/api/repo/check", Access::Any).json(r#"{"path":"{repo}"}"#),
     Route::post("/api/repo/starter-backlog", Access::Computer).json(r#"{"path":"{repo}"}"#),
+    Route::post("/api/repo/commit-backlog", Access::Computer).json(r#"{"path":"{repo}"}"#),
     Route::put("/api/repo", Access::Any).json(r#"{"path":"{repo}"}"#),
     Route::get("/api/onboarding", Access::Any),
     Route::post("/api/onboarding/1", Access::Computer),

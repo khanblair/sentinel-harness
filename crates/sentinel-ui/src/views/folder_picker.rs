@@ -60,31 +60,36 @@ pub fn check_repo(wizard: &Wizard, path: String) {
     });
 }
 
-/// The body of the starter backlog request: the folder the backlog file goes into.
-fn starter_backlog_body(path: &str) -> RepoCheckRequest {
+/// The body of a fix request: the folder the fix works in.
+fn fix_body(path: &str) -> RepoCheckRequest {
     RepoCheckRequest {
         path: path.to_string(),
     }
 }
 
-/// A fix button. The backlog row creates the starter file first; then the check runs again.
-fn run_fix(wizard: &Wizard, name: String) {
+/// The daemon route a fix posts to. A recheck posts nothing.
+fn fix_endpoint(action: FixAction) -> Option<&'static str> {
+    match action {
+        FixAction::CreateBacklog => Some("/api/repo/starter-backlog"),
+        FixAction::CommitBacklog => Some("/api/repo/commit-backlog"),
+        FixAction::Recheck => None,
+    }
+}
+
+/// A fix button. The fix posts first when it has a route; then the check runs again.
+fn run_fix(wizard: &Wizard, action: FixAction) {
     let wizard = *wizard;
     let Some(path) = wizard.repo_path() else {
         return;
     };
     spawn_local(async move {
-        if fix_action(&name) == FixAction::CreateBacklog
-            && !post_body_or_toast(
-                wizard.ui,
-                "/api/repo/starter-backlog",
-                &starter_backlog_body(&path),
-            )
-            .await
-        {
-            return;
+        let fixed = match fix_endpoint(action) {
+            Some(endpoint) => post_body_or_toast(wizard.ui, endpoint, &fix_body(&path)).await,
+            None => true,
+        };
+        if fixed {
+            check_repo(&wizard, path);
         }
-        check_repo(&wizard, path);
     });
 }
 
@@ -206,7 +211,9 @@ fn load_folders(wizard: &Wizard, path: String, entries: RwSignal<Vec<FolderEntry
 #[component]
 fn RepoCard() -> impl IntoView {
     let wizard = use_wizard();
-    let on_fix = Callback::new(move |name: String| run_fix(&wizard, name));
+    let on_fix = Callback::new(move |(name, label): (String, String)| {
+        run_fix(&wizard, fix_action(&name, &label));
+    });
     move || {
         wizard.repo.get().map(|repo| {
             view! {
@@ -246,11 +253,24 @@ mod tests {
     }
 
     #[test]
-    fn the_starter_backlog_body_names_the_chosen_folder() {
-        let body = serde_json::to_value(starter_backlog_body("~/code/wallet-app"));
+    fn a_fix_body_names_the_chosen_folder() {
+        let body = serde_json::to_value(fix_body("~/code/wallet-app"));
         assert_eq!(
             body.ok(),
             Some(serde_json::json!({ "path": "~/code/wallet-app" }))
         );
+    }
+
+    #[test]
+    fn each_fix_posts_to_its_own_route_and_a_recheck_posts_nothing() {
+        assert_eq!(
+            fix_endpoint(FixAction::CreateBacklog),
+            Some("/api/repo/starter-backlog")
+        );
+        assert_eq!(
+            fix_endpoint(FixAction::CommitBacklog),
+            Some("/api/repo/commit-backlog")
+        );
+        assert_eq!(fix_endpoint(FixAction::Recheck), None);
     }
 }

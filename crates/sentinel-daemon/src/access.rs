@@ -13,6 +13,7 @@ use crate::connections::{self, ConnectionStatus};
 use crate::doctor::{current_os, install_check};
 use crate::engine::{Engine, EngineError, Result, lock};
 use crate::folders::{self, Pick};
+use crate::folders_git;
 use crate::onboarding;
 use crate::pairing::{PairError, PairOutcome, PendingId, PendingPair};
 use crate::tailscale;
@@ -147,6 +148,14 @@ impl Engine {
     pub fn create_starter_backlog(&self, path: &str) -> Result<()> {
         folders::create_starter_backlog(Path::new(path))
             .map_err(|e| EngineError::Refused(e.to_string()))?;
+        self.refresh_repo();
+        Ok(())
+    }
+
+    /// Commits the starter backlog alone, when it is the only change in the folder.
+    pub fn commit_backlog(&self, path: &str) -> Result<()> {
+        folders_git::commit_backlog(Path::new(path))
+            .map_err(|e| EngineError::Invalid(e.to_string()))?;
         self.refresh_repo();
         Ok(())
     }
