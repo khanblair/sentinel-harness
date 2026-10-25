@@ -111,7 +111,11 @@ async fn health_answers_without_a_token() {
     let base = start(engine_in(dir.path())).await;
     let (status, body) = get_json(&base, "/api/health", None).await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(body, json!({ "status": "ok" }));
+    assert_eq!(body["status"], "ok");
+    assert!(
+        body["started"].is_string(),
+        "the daemon says when it started"
+    );
 }
 
 #[tokio::test]

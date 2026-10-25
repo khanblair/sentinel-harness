@@ -289,6 +289,16 @@ pub async fn start_run(request: &RunRequest) -> Result<serde_json::Value, ApiFai
     post("/api/run", request).await
 }
 
+/// The daemon start time, as RFC 3339 text. It changes when the daemon restarts.
+pub async fn daemon_started() -> Result<String, ApiFailure> {
+    let health: serde_json::Value = get("/api/health").await?;
+    health
+        .get("started")
+        .and_then(serde_json::Value::as_str)
+        .map(str::to_owned)
+        .ok_or_else(|| ApiFailure::Decode("The health answer has no start time.".to_owned()))
+}
+
 #[cfg(test)]
 mod fragment_tests {
     use super::token_from_fragment;

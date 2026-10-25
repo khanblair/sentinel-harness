@@ -17,13 +17,14 @@ mod telegram;
 
 use axum::Json;
 use axum::Router;
-use axum::extract::{FromRequest, Request};
+use axum::extract::{FromRequest, Request, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use axum::routing::get;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use serde_json::{Value, json};
+use time::OffsetDateTime;
 
 use sentinel_core::api::ApiError;
 
@@ -191,8 +192,19 @@ pub fn protected_routes() -> Router<Engine> {
         .merge(clearing::routes())
 }
 
-async fn health() -> Json<Value> {
-    Json(json!({ "status": "ok" }))
+/// `started` changes when the daemon restarts, so an open page can tell a new build is running.
+#[derive(Serialize)]
+struct HealthBody {
+    status: &'static str,
+    #[serde(with = "time::serde::rfc3339")]
+    started: OffsetDateTime,
+}
+
+async fn health(State(engine): State<Engine>) -> Json<HealthBody> {
+    Json(HealthBody {
+        status: "ok",
+        started: engine.inner.started,
+    })
 }
 
 #[cfg(test)]
