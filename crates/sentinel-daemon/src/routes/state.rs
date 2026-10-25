@@ -9,6 +9,7 @@ use serde_json::{Value, json};
 
 use sentinel_core::EventRecord;
 use sentinel_core::api::{DoctorReport, PermissionsUpdate, RoutingUpdate, ToolToggle};
+use sentinel_core::context::ContextUsage;
 use sentinel_core::ids::{TaskId, ToolId};
 use sentinel_core::permission::Approval;
 use sentinel_core::snapshot::Snapshot;
@@ -55,6 +56,7 @@ impl From<ConnectionStatus> for ConnectionBody {
 pub(super) fn routes() -> Router<Engine> {
     Router::new()
         .route("/api/state", get(get_state))
+        .route("/api/context", get(context_usage))
         .route("/api/events", get(events))
         .route("/api/tasks/{id}/output", get(task_output))
         .route("/api/report", get(report))
@@ -81,6 +83,23 @@ async fn get_state(
     blocking(engine, move |e| {
         let chat = query.chat.map(sentinel_core::ChatId::new);
         e.snapshot_for(chat.as_ref())
+    })
+    .await
+}
+
+#[derive(Debug, Deserialize)]
+struct ContextQuery {
+    /// The chat whose messages and attachments are counted. The live or first chat when absent.
+    chat: Option<String>,
+}
+
+async fn context_usage(
+    State(engine): State<Engine>,
+    Query(query): Query<ContextQuery>,
+) -> ApiResult<ContextUsage> {
+    blocking(engine, move |e| {
+        let chat = query.chat.map(sentinel_core::ChatId::new);
+        e.context_usage(chat.as_ref())
     })
     .await
 }
