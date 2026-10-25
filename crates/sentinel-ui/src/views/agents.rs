@@ -10,6 +10,7 @@ use crate::api;
 use crate::components::tool_row::ToolRow;
 use crate::components::top_bar::settle;
 use crate::state::{Modal, Ui, use_ui};
+use crate::views::install::ScanButton;
 
 /// The tiers in the routing section, easy first.
 pub const TIERS: [Tier; 3] = [Tier::Cheap, Tier::Mid, Tier::Smart];
@@ -75,13 +76,6 @@ pub fn routing_choices(tools: &[ToolInfo]) -> Vec<ToolId> {
         .collect()
 }
 
-fn rescan(ui: Ui) {
-    spawn_local(async move {
-        let result = api::post_empty::<Vec<ToolInfo>>("/api/tools/scan").await;
-        settle(ui, result);
-    });
-}
-
 fn save_routing(ui: Ui, tier: Tier, value: String) {
     let agent = (!value.is_empty()).then(|| ToolId::new(value));
     let routing = ui
@@ -126,10 +120,11 @@ fn RoutingRow(tier: Tier) -> impl IntoView {
 pub fn AgentsPanel() -> impl IntoView {
     let ui = use_ui();
     let tools = move || ui.snapshot.with(|s| s.tools.clone());
+    let scanning = RwSignal::new(false);
     view! {
         <div class="row sp" style="margin-bottom:.8em">
             <span class="sub">{move || ready_summary(&tools())}</span>
-            <button class="btn sm" on:click=move |_| rescan(ui)>"Rescan"</button>
+            <ScanButton ui=ui scanning=scanning idle="Rescan" />
         </div>
         {move || tools().into_iter().map(|tool| view! { <ToolRow tool=tool /> }).collect_view()}
         <div class="row" style="margin-top:.8em">
