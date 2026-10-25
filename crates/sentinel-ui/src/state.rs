@@ -12,6 +12,7 @@ use sentinel_core::{Attachment, ChatId, Event, EventRecord, Snapshot, ToolId};
 
 use crate::chats::RenameState;
 use crate::components::add_project::{ProjectDialog, carry_out_wish};
+use crate::components::agent_test_button::TestState;
 use crate::components::confirm_clear::ClearAction;
 use crate::layout::{Layout, PanelId};
 use crate::prefs::Prefs;
@@ -113,6 +114,9 @@ pub struct Ui {
     pub toast: RwSignal<Option<Toast>>,
     pub prefs: RwSignal<Prefs>,
     pub terminal: RwSignal<HashMap<ToolId, Vec<String>>>,
+    /// The Test state of each agent. It lives here, not in a row, so a refresh that rebuilds the
+    /// rows keeps the answer, and a running test shows in every row of that tool.
+    pub agent_tests: RwSignal<HashMap<ToolId, TestState>>,
     pub popover: RwSignal<Option<Popover>>,
     /// True once the first snapshot has arrived, so the page does not guess before it knows.
     pub loaded: RwSignal<bool>,
@@ -196,6 +200,7 @@ impl Ui {
             toast: RwSignal::new(None),
             prefs: RwSignal::new(prefs),
             terminal: RwSignal::new(HashMap::new()),
+            agent_tests: RwSignal::new(HashMap::new()),
             popover: RwSignal::new(None),
             loaded: RwSignal::new(false),
             setup_open: RwSignal::new(false),

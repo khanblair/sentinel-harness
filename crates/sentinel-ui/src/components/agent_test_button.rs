@@ -1,14 +1,19 @@
 //! The Test button of an agent row and the line that shows its answer. A test sends one tiny
 //! prompt through `POST /api/tools/{id}/test`. The daemon can take up to 90 seconds on it.
+//!
+//! The state of each test lives in `Ui::agent_tests`, keyed by tool, not in the row. A snapshot
+//! refresh rebuilds the rows, and the answer must survive that.
+
+use std::collections::HashMap;
 
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use sentinel_core::api::ToolTest;
-use sentinel_core::{ToolInfo, ToolStatus};
+use sentinel_core::{ToolId, ToolStatus};
 
 use crate::api::{self, ApiFailure};
 use crate::components::status_badge::shape_markup;
-use crate::state::use_ui;
+use crate::state::{Ui, use_ui};
 
 /// What the line under a row shows after a test: the daemon's sentence, or a failure.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -17,11 +22,30 @@ pub struct TestOutcome {
     pub text: String,
 }
 
-/// The running flag and the last outcome of one row. The button and the line share it.
-#[derive(Debug, Clone, Copy)]
-pub struct TestSlot {
-    pub running: RwSignal<bool>,
-    pub outcome: RwSignal<Option<TestOutcome>>,
+/// Where one agent's test stands. A tool never tested is idle. A done test keeps its answer
+/// until the next test of that tool or a page reload.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub enum TestState {
+    #[default]
+    Idle,
+    Running,
+    Done(TestOutcome),
+}
+
+/// The state of one tool's test. A tool with no entry is idle.
+pub fn state_of(map: &HashMap<ToolId, TestState>, id: &ToolId) -> TestState {
+    map.get(id).cloned().unwrap_or_default()
+}
+
+/// True while a test of this tool runs. Every row that shows the tool reads the same answer.
+pub fn is_running(map: &HashMap<ToolId, TestState>, id: &ToolId) -> bool {
+    matches!(map.get(id), Some(TestState::Running))
+}
+
+/// Stores one tool's test state. The map is the shared home of the answer, so a rebuilt row
+/// reads the same entry again.
+pub fn set_state(map: &mut HashMap<ToolId, TestState>, id: &ToolId, state: TestState) {
+    map.insert(id.clone(), state);
 }
 
 /// The line under a row while it runs, or the reason a tool cannot be tested.
@@ -66,37 +90,38 @@ impl TestOutcome {
     }
 }
 
-/// Sends the test and stores the answer. The row stays disabled until the answer lands.
-fn run_test(slot: TestSlot, id: String) {
-    slot.running.set(true);
+/// Marks the tool as testing, sends the test, and stores the answer under the tool's id. The
+/// button stays disabled until the answer lands.
+fn run_test(ui: Ui, id: ToolId) {
+    ui.agent_tests.update(|map| set_state(map, &id, TestState::Running));
     spawn_local(async move {
         let path = format!("/api/tools/{id}/test");
         let outcome = match api::post_empty::<ToolTest>(&path).await {
             Ok(answer) => TestOutcome::from_answer(&answer),
             Err(failure) => TestOutcome::from_failure(&failure),
         };
-        slot.outcome.set(Some(outcome));
-        slot.running.set(false);
+        ui.agent_tests.update(|map| set_state(map, &id, TestState::Done(outcome)));
     });
 }
 
 /// The small Test button. A missing tool cannot be tested, and a phone does not show it.
 #[component]
-pub fn AgentTestButton(tool: ToolInfo, test: TestSlot) -> impl IntoView {
+pub fn AgentTestButton(id: ToolId, status: ToolStatus) -> impl IntoView {
     let ui = use_ui();
-    let missing = tool.status == ToolStatus::Missing;
-    let running = test.running;
+    let missing = status == ToolStatus::Missing;
+    let busy_id = id.clone();
+    let busy = Memo::new(move |_| ui.agent_tests.with(|map| is_running(map, &busy_id)));
     view! {
         <Show when=move || !ui.on_phone() fallback=|| ()>
             {
-                let id = tool.id.as_str().to_owned();
+                let run_id = id.clone();
                 view! {
                     <button
                         class="btn sm"
-                        disabled=move || missing || running.get()
-                        on:click=move |_| run_test(test, id.clone())
+                        disabled=move || missing || busy.get()
+                        on:click=move |_| run_test(ui, run_id.clone())
                     >
-                        {move || if running.get() { "Testing" } else { "Test" }}
+                        {move || if busy.get() { "Testing" } else { "Test" }}
                     </button>
                 }
             }
@@ -106,22 +131,23 @@ pub fn AgentTestButton(tool: ToolInfo, test: TestSlot) -> impl IntoView {
 
 /// The hint while a test runs, then the answer until the next test.
 #[component]
-pub fn AgentTestLine(test: TestSlot, status: ToolStatus) -> impl IntoView {
+pub fn AgentTestLine(id: ToolId, status: ToolStatus) -> impl IntoView {
     let ui = use_ui();
+    let state = Memo::new(move |_| ui.agent_tests.with(|map| state_of(map, &id)));
     view! {
         <Show when=move || !ui.on_phone() fallback=|| ()>
-            {move || test_line(test, status)}
+            {move || test_line(state.get(), status)}
         </Show>
     }
 }
 
-fn test_line(slot: TestSlot, status: ToolStatus) -> AnyView {
-    if slot.running.get() || status == ToolStatus::Missing {
+fn test_line(state: TestState, status: ToolStatus) -> AnyView {
+    if state == TestState::Running || status == ToolStatus::Missing {
         return view! { <small class="sub">{test_hint(status)}</small> }.into_any();
     }
-    match slot.outcome.get() {
-        Some(outcome) => outcome_line(&outcome).into_any(),
-        None => ().into_any(),
+    match state {
+        TestState::Done(outcome) => outcome_line(&outcome).into_any(),
+        TestState::Idle | TestState::Running => ().into_any(),
     }
 }
 
@@ -138,6 +164,13 @@ fn outcome_line(outcome: &TestOutcome) -> impl IntoView {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn outcome(ok: bool, text: &str) -> TestOutcome {
+        TestOutcome {
+            ok,
+            text: text.to_owned(),
+        }
+    }
 
     #[test]
     fn a_missing_tool_is_told_to_install_before_testing() {
@@ -195,5 +228,42 @@ mod tests {
                 text: "Replied in 2 s.".to_owned(),
             }
         );
+    }
+
+    #[test]
+    fn a_result_stays_under_its_tool_after_the_rows_rebuild() {
+        let mut map = HashMap::new();
+        let claude = ToolId::new("claude");
+        set_state(&mut map, &claude, TestState::Done(outcome(true, "Replied.")));
+        assert_eq!(
+            state_of(&map, &claude),
+            TestState::Done(outcome(true, "Replied."))
+        );
+    }
+
+    #[test]
+    fn a_new_test_replaces_the_old_result() {
+        let mut map = HashMap::new();
+        let claude = ToolId::new("claude");
+        set_state(&mut map, &claude, TestState::Done(outcome(false, "Timed out.")));
+        set_state(&mut map, &claude, TestState::Running);
+        assert!(is_running(&map, &claude));
+        assert_eq!(state_of(&map, &claude), TestState::Running);
+    }
+
+    #[test]
+    fn a_result_of_one_tool_leaves_the_others_alone() {
+        let mut map = HashMap::new();
+        let claude = ToolId::new("claude");
+        let codex = ToolId::new("codex");
+        set_state(&mut map, &claude, TestState::Done(outcome(true, "Replied.")));
+        assert_eq!(state_of(&map, &codex), TestState::Idle);
+        assert!(!is_running(&map, &codex));
+    }
+
+    #[test]
+    fn a_tool_never_tested_reads_as_idle() {
+        let map = HashMap::new();
+        assert_eq!(state_of(&map, &ToolId::new("aider")), TestState::Idle);
     }
 }

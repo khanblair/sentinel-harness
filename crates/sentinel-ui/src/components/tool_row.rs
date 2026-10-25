@@ -7,7 +7,7 @@ use sentinel_core::api::ToolToggle;
 use sentinel_core::{ToolInfo, ToolStatus};
 
 use crate::api;
-use crate::components::agent_test_button::{AgentTestButton, AgentTestLine, TestSlot};
+use crate::components::agent_test_button::{AgentTestButton, AgentTestLine};
 use crate::components::status_badge::shape_markup;
 use crate::components::top_bar::settle;
 use crate::state::{ToastKind, Ui, use_ui};
@@ -26,7 +26,7 @@ fn status_line(status: ToolStatus) -> impl IntoView {
 
 /// The top line of a row: the name, then the status and the Test button.
 #[component]
-fn ToolHead(tool: ToolInfo, test: TestSlot) -> impl IntoView {
+fn ToolHead(tool: ToolInfo) -> impl IntoView {
     let name = tool.name.clone();
     let status = status_line(tool.status);
     view! {
@@ -34,7 +34,7 @@ fn ToolHead(tool: ToolInfo, test: TestSlot) -> impl IntoView {
             <span class="row"><b>{name}</b></span>
             <span class="row" style="gap:.5em">
                 {status}
-                <AgentTestButton tool=tool test=test />
+                <AgentTestButton id=tool.id.clone() status=tool.status />
             </span>
         </div>
     }
@@ -65,14 +65,11 @@ pub fn ToolRow(tool: ToolInfo) -> impl IntoView {
     let enabled = tool.enabled;
     let name = tool.name.clone();
     let head = tool.clone();
-    let test = TestSlot {
-        running: RwSignal::new(false),
-        outcome: RwSignal::new(None),
-    };
+    let line_id = tool.id.clone();
     let status = tool.status;
     view! {
         <div class="tcard">
-            <ToolHead tool=head test=test />
+            <ToolHead tool=head />
             <div class="meta">
                 <span class="mono">{path}</span>
                 {version.map(|text| view! { <span>{text}</span> })}
@@ -87,7 +84,7 @@ pub fn ToolRow(tool: ToolInfo) -> impl IntoView {
                     </button>
                 })}
             </div>
-            <AgentTestLine test=test status=status />
+            <AgentTestLine id=line_id status=status />
         </div>
     }
 }
