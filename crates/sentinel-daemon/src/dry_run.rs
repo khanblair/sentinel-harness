@@ -168,16 +168,17 @@ async fn pump(main: &Engine, events: &mut Rx) -> FollowEnd {
 
 /// Read events, without applying them, until the second run reports Done or the stop wait ends.
 async fn wait_until_done(events: &mut Rx) {
-    let wait = async {
-        loop {
-            match events.recv().await {
-                Ok(record) if is_done(&record.event) => return,
-                Ok(_) | Err(RecvError::Lagged(_)) => {}
-                Err(RecvError::Closed) => return,
-            }
+    let _ = tokio::time::timeout(STOP_LIMIT, until_done(events)).await;
+}
+
+async fn until_done(events: &mut Rx) {
+    loop {
+        match events.recv().await {
+            Ok(record) if is_done(&record.event) => return,
+            Ok(_) | Err(RecvError::Lagged(_)) => {}
+            Err(RecvError::Closed) => return,
         }
-    };
-    let _ = tokio::time::timeout(STOP_LIMIT, wait).await;
+    }
 }
 
 fn is_done(event: &Event) -> bool {

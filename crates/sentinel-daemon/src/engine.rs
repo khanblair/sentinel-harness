@@ -104,13 +104,7 @@ pub struct Engine {
 
 impl Engine {
     pub fn open(options: EngineOptions) -> Result<Engine> {
-        let sentinel_dir = options.repo_root.join(".sentinel");
-        fs::create_dir_all(&sentinel_dir)?;
-        let store = if options.in_memory {
-            Store::open_in_memory()?
-        } else {
-            Store::open(&sentinel_dir.join("state.db"))?
-        };
+        let store = open_store(&options)?;
         let config = config::load(&config::config_path(&options.repo_root))?;
         let (bus, _) = broadcast::channel(2048);
         let engine = Engine {
@@ -380,6 +374,17 @@ fn tracing_error(error: &EngineError) {
 
 /// Lock a mutex and keep going if another thread panicked while holding it: every guarded value is
 /// replaced whole, so it is never half written.
+/// The state store of a project: in memory for tests, else `.sentinel/state.db` in the folder.
+fn open_store(options: &EngineOptions) -> Result<Store> {
+    let sentinel_dir = options.repo_root.join(".sentinel");
+    fs::create_dir_all(&sentinel_dir)?;
+    if options.in_memory {
+        Ok(Store::open_in_memory()?)
+    } else {
+        Ok(Store::open(&sentinel_dir.join("state.db"))?)
+    }
+}
+
 pub(crate) fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex
         .lock()
