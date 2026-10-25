@@ -5,17 +5,21 @@ use std::process::Stdio;
 use std::sync::Arc;
 use std::time::Duration;
 
-use sentinel_core::{Cost, TaskId, Tier};
+use sentinel_core::{Cost, TaskId, Tier, ToolId};
 use tokio::io::AsyncWriteExt;
 use tokio::process::{Child, Command};
+use tokio::sync::mpsc;
 use tokio::time::{self, Instant, MissedTickBehavior};
 
-use crate::budget::{Budget, BudgetEvent, estimate_by_time};
+use crate::adapter_cli::{SpendSource, ceiling_applies};
+use crate::budget::{Budget, BudgetEvent, estimate_by_time, guess_per_hour};
 use crate::capture::{Capture, capture_streams};
-use crate::worker::{CommandLine, EndKind, RunControl, RunOutcome, RunSpec};
+use crate::worker::{CommandLine, EndKind, OutputLine, RunControl, RunOutcome, RunSpec};
 
 const DRAIN_LIMIT: Duration = Duration::from_secs(2);
 const ESTIMATE_TICK: Duration = Duration::from_secs(1);
+/// A run on a time guess alone for longer than this gets one line that says so.
+const GUESS_NOTICE_AFTER: Duration = Duration::from_secs(60);
 
 /// Where the reported cost comes from, and the tier used for time estimates.
 pub struct CostSource {
@@ -42,7 +46,7 @@ pub async fn run_command(
     let pid = child.id();
     feed_stdin(&mut child, cmd.stdin.as_deref()).await;
     let mut capture = capture_streams(&mut child, spec, ctrl.lines.clone());
-    let mut spend = Spend::new(spec.task.clone(), ctrl.budget.clone(), source);
+    let mut spend = Spend::new(spec, &ctrl, source);
 
     let stop = run_until_stop(RunUntilStopParams {
         child: &mut child,
@@ -58,7 +62,7 @@ pub async fn run_command(
             spend.observe(line);
         })
         .await;
-    let cost = spend.recorded;
+    let cost = spend.spent();
     build_outcome(stop, capture.into_tail(), cost)
 }
 
@@ -145,7 +149,10 @@ impl RunContext<'_> {
                 self.capture.push(line.clone());
                 self.spend.observe(&line)
             }
-            _ = self.ticker.tick() => self.spend.tick(),
+            _ = self.ticker.tick() => {
+                self.spend.tick();
+                None
+            }
         }
     }
 }
@@ -207,31 +214,51 @@ async fn feed_stdin(child: &mut Child, text: Option<&str>) {
 
 struct Spend {
     task: TaskId,
+    agent: ToolId,
     budget: Arc<Budget>,
+    lines: mpsc::UnboundedSender<OutputLine>,
     tier: Tier,
     prefix: Option<String>,
-    free: bool,
+    source: SpendSource,
+    /// Reported spend. It counts toward the task ceiling.
     recorded: Cost,
-    reported: Option<Cost>,
+    /// Time guesses. They count toward the cap, never toward the task ceiling.
+    guessed: Cost,
+    guess_elapsed: Duration,
+    guess_noticed: bool,
 }
 
 impl Spend {
-    fn new(task: TaskId, budget: Arc<Budget>, source: &CostSource) -> Self {
+    fn new(spec: &RunSpec, ctrl: &RunControl, source: &CostSource) -> Self {
+        let source_kind = if source.free {
+            SpendSource::Free
+        } else {
+            SpendSource::TimeGuess
+        };
         Self {
-            task,
-            budget,
+            task: spec.task.clone(),
+            agent: spec.agent.clone(),
+            budget: ctrl.budget.clone(),
+            lines: ctrl.lines.clone(),
             tier: source.tier,
             prefix: source.reported_prefix.clone(),
-            free: source.free,
+            source: source_kind,
             recorded: Cost::ZERO,
-            reported: None,
+            guessed: Cost::ZERO,
+            guess_elapsed: Duration::ZERO,
+            guess_noticed: false,
         }
+    }
+
+    /// Everything the run has cost so far, reported or guessed.
+    fn spent(&self) -> Cost {
+        self.recorded + self.guessed
     }
 
     fn observe(&mut self, line: &str) -> Option<Stop> {
         let total = self.reported_amount(line)?;
         let delta = total.saturating_sub(self.recorded);
-        self.reported = Some(total);
+        self.source = SpendSource::Reported;
         self.charge(delta)
     }
 
@@ -241,20 +268,39 @@ impl Spend {
         Cost::parse_usd(cut_decimals(leading_amount(rest)?)).ok()
     }
 
-    fn tick(&mut self) -> Option<Stop> {
-        if self.reported.is_some() || self.free {
-            return None;
+    /// Adds the time guess while the run has no real cost. A free or reported run adds nothing.
+    fn tick(&mut self) {
+        if self.source != SpendSource::TimeGuess {
+            return;
         }
-        self.charge(estimate_by_time(self.tier, ESTIMATE_TICK))
+        self.guess_elapsed += ESTIMATE_TICK;
+        if !self.guess_noticed && self.guess_elapsed > GUESS_NOTICE_AFTER {
+            self.notice_guess();
+        }
+        let guess = estimate_by_time(self.tier, ESTIMATE_TICK);
+        self.guessed = self.guessed + guess;
+        self.budget.record_guess(guess);
+    }
+
+    fn notice_guess(&mut self) {
+        self.guess_noticed = true;
+        let text = format!(
+            "{} reports no cost, so Sentinel counts a guess of {} an hour. The task timeout still applies.",
+            self.agent.as_str(),
+            guess_per_hour(self.tier),
+        );
+        let _ = self.lines.send(OutputLine {
+            task: self.task.clone(),
+            agent: self.agent.clone(),
+            text,
+        });
     }
 
     fn charge(&mut self, cost: Cost) -> Option<Stop> {
         let events = self.budget.record(&self.task, cost);
         self.recorded = self.recorded + cost;
-        events
-            .iter()
-            .any(|event| ceiling_for(event, &self.task))
-            .then_some(Stop::CostCeiling)
+        let ceiling_hit = events.iter().any(|event| ceiling_for(event, &self.task));
+        (ceiling_applies(self.source) && ceiling_hit).then_some(Stop::CostCeiling)
     }
 }
 
@@ -613,38 +659,97 @@ mod tests {
         assert_eq!(out.output_tail.len(), 1);
         assert_eq!(out.output_tail[0].chars().count(), MAX_LINE_CHARS);
     }
-}
 
-#[cfg(test)]
-mod free_cost_tests {
-    use std::sync::Arc;
+    fn spend_on(ctrl: &RunControl, source: &CostSource) -> Spend {
+        Spend::new(&spec(Duration::from_secs(60)), ctrl, source)
+    }
 
-    use sentinel_core::{Cost, TaskId, Tier};
-
-    use super::{CostSource, Spend};
-    use crate::budget::Budget;
-
-    fn spend(free: bool) -> Spend {
-        let (budget, _kill) = Budget::new(Cost::parse_usd("5.00").unwrap());
-        let source = CostSource {
+    fn free_source() -> CostSource {
+        CostSource {
             tier: Tier::Cheap,
             reported_prefix: None,
-            free,
-        };
-        Spend::new(TaskId::new("T-01"), Arc::clone(&budget), &source)
+            free: true,
+        }
     }
 
     #[test]
-    fn running_time_costs_nothing_for_a_free_model() {
-        let mut free = spend(true);
-        assert!(free.tick().is_none());
-        assert_eq!(free.recorded, Cost::ZERO);
+    fn a_free_run_never_accrues_time_cost() {
+        let (ctrl, _received) = control("5.00");
+        let mut spend = spend_on(&ctrl, &free_source());
+        for _ in 0..30 {
+            spend.tick();
+        }
+        assert_eq!(spend.spent(), Cost::ZERO);
+        assert_eq!(ctrl.budget.spent(), Cost::ZERO);
     }
 
     #[test]
-    fn running_time_is_charged_for_a_paid_model() {
-        let mut paid = spend(false);
-        paid.tick();
-        assert!(paid.recorded > Cost::ZERO);
+    fn a_time_guess_over_the_task_ceiling_emits_no_ceiling_event() {
+        let task = TaskId::new("T-01");
+        let (ctrl, _received) = control("10.00");
+        ctrl.budget.set_ceiling(&task, usd("0.05"));
+        let mut spend = spend_on(&ctrl, &cost_source(None));
+        // 400 seconds at 150 micro-dollars a second is $0.06, over the $0.05 ceiling.
+        for _ in 0..400 {
+            spend.tick();
+        }
+        assert!(ctrl.budget.spent() > usd("0.05"));
+        assert!(ctrl.budget.drain_events().is_empty());
+        assert_eq!(spend.source, SpendSource::TimeGuess);
+    }
+
+    #[test]
+    fn a_real_cost_after_a_guess_is_judged_on_its_own() {
+        let task = TaskId::new("T-01");
+        let (ctrl, _received) = control("10.00");
+        ctrl.budget.set_ceiling(&task, usd("0.05"));
+        let mut spend = spend_on(&ctrl, &cost_source(Some("Total cost: $")));
+        for _ in 0..400 {
+            spend.tick();
+        }
+        assert!(spend.observe("Total cost: $0.01").is_none());
+        assert!(spend.spent() > usd("0.05"));
+    }
+
+    #[test]
+    fn a_reported_run_over_the_task_ceiling_is_stopped() {
+        let task = TaskId::new("T-01");
+        let (ctrl, _received) = control("10.00");
+        ctrl.budget.set_ceiling(&task, usd("0.05"));
+        let mut spend = spend_on(&ctrl, &cost_source(Some("Total cost: $")));
+        assert!(matches!(
+            spend.observe("Total cost: $0.08"),
+            Some(Stop::CostCeiling)
+        ));
+    }
+
+    #[test]
+    fn a_real_cost_line_moves_the_source_from_guess_to_reported() {
+        let (ctrl, _received) = control("10.00");
+        let mut spend = spend_on(&ctrl, &cost_source(Some("Total cost: $")));
+        spend.tick();
+        assert_eq!(spend.source, SpendSource::TimeGuess);
+        assert!(spend.observe("Total cost: $0.02").is_none());
+        assert_eq!(spend.source, SpendSource::Reported);
+        let before = spend.spent();
+        spend.tick();
+        assert_eq!(spend.spent(), before);
+    }
+
+    #[test]
+    fn a_guess_over_a_minute_sends_one_notice_line() {
+        let (ctrl, mut received) = control("10.00");
+        let mut spend = spend_on(&ctrl, &cost_source(None));
+        for _ in 0..90 {
+            spend.tick();
+        }
+        let mut lines = Vec::new();
+        while let Ok(line) = received.try_recv() {
+            lines.push(line.text);
+        }
+        assert_eq!(
+            lines,
+            ["sh reports no cost, so Sentinel counts a guess of $0.54 an hour. The task timeout still applies."]
+        );
     }
 }
