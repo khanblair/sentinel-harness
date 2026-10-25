@@ -46,6 +46,9 @@
 | `rmcp` (official Rust MCP SDK) | 3.7.0 (confirm at P3-08) | MCP file server | Allowed by rules, avoids hand-written protocol |
 | `qrcode` | 0.14.1 | Pairing QR as SVG | Small, no image stack |
 | `rfd` | 0.17.2 | Native folder dialog on the PC | Cross-platform OS dialog, so nobody types a path |
+| `tao` | 0.37.2 | The app window and its event loop (macOS only, feature `window` of `sentinel-cli`) | Small window crate that the web view crate is built on. No full app framework |
+| `wry` | 0.57.1 | The web view inside the window (macOS only, feature `window`) | Uses the system WKWebView, so the app adds no browser engine. Shows the same UI the browser and the phone get |
+| `muda` | 0.21.2 | The menu bar (macOS only, feature `window`) | Without an Edit menu, copy and paste do not work inside a macOS web view. Also gives Quit and Close Window |
 | `rust-embed` | 8.13.0 | Embed UI assets in the binary | One-file release |
 | `globset` | 0.4.20 | Scope path patterns | Fast, reliable matching |
 
@@ -109,6 +112,10 @@ Files live in `crates/sentinel-ui/assets/fonts/`. Each family needs its license 
 - **Vault watching:** `notify` watches the vault. Debounce, then reindex. Skip files that Sentinel itself just wrote.
 - **Telegram:** long polling needs a request timeout longer than the poll window. Handle 429 responses by waiting the time the API asks for.
 - **rfd:** the dialog opens in the desktop session of the user who runs the daemon. On a headless machine, or from a phone, use the folder browser route instead.
+
+### Desktop window
+
+`tao`, `wry`, and `muda` are approved by the owner (2026-10-25) for the macOS app window only. They are optional dependencies behind the `window` feature of `sentinel-cli`, gated to `cfg(target_os = "macos")`, so the Linux and Windows builds, the always-on host, and `sentinel daemon` never compile them. Tauri and Electron are not used: a full app framework would restructure the project for the same visible result.
 
 ## Open Library Decisions
 
