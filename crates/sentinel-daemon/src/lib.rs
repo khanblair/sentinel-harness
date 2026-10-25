@@ -15,6 +15,7 @@ mod brain_proposals;
 mod brain_run;
 mod brain_seed;
 mod briefs;
+mod changes;
 mod chats;
 mod close_out;
 pub mod cmd;

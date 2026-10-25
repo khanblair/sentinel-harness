@@ -1,11 +1,16 @@
 //! The Board panel: tasks grouped by status (`docs/ui-rules.md`, Views).
 
 use leptos::prelude::*;
+use leptos::task::spawn_local;
+use sentinel_core::api::BacklogTask;
 use sentinel_core::{Event, EventRecord, QualityNote, Task, TaskId, ToolId};
 
-use crate::components::board_column::{BoardColumn, Column};
+use crate::api;
+use crate::components::attach_menu::backlog_name;
+use crate::components::board_column::{BoardColumn, Column, PlannedColumn, planned_line};
 use crate::components::task_card::CardModel;
-use crate::state::use_ui;
+use crate::state::{Ui, use_ui};
+use crate::views::live_fetch::keep_live;
 
 /// Column order from the prototype. Each label groups several statuses (`TaskStatus::label`).
 const COLUMN_ORDER: [&str; 9] = [
@@ -87,17 +92,39 @@ pub fn columns(tasks: &[Task], events: &[EventRecord]) -> Vec<Column> {
         .collect()
 }
 
+/// Loads the backlog tasks that the Planned column shows before a run plans them.
+fn load_planned(planned: RwSignal<Vec<BacklogTask>>) {
+    spawn_local(async move {
+        if let Ok(list) = api::get::<Vec<BacklogTask>>("/api/backlog/tasks").await {
+            planned.set(list);
+        }
+    });
+}
+
+/// What the Board shows while no run has planned tasks: the backlog as Planned cards, or a note
+/// when the backlog has no tasks.
+fn planned_board(ui: Ui, planned: RwSignal<Vec<BacklogTask>>) -> impl IntoView {
+    move || {
+        let tasks = planned.get();
+        if tasks.is_empty() {
+            view! { <div class="note">"No tasks yet. Start a run to plan the backlog."</div> }
+                .into_any()
+        } else {
+            let backlog = ui.snapshot.with(|s| backlog_name(&s.settings));
+            let line = planned_line(&backlog);
+            view! { <PlannedColumn line=line tasks=tasks /> }.into_any()
+        }
+    }
+}
+
 #[component]
 pub fn BoardPanel() -> impl IntoView {
     let ui = use_ui();
+    let planned = RwSignal::new(Vec::<BacklogTask>::new());
+    keep_live(ui, move || load_planned(planned));
     let has_tasks = move || ui.snapshot.with(|snapshot| !snapshot.tasks.is_empty());
     view! {
-        <Show
-            when=has_tasks
-            fallback=|| view! {
-                <div class="note">"No tasks yet. Start a run to plan the backlog."</div>
-            }
-        >
+        <Show when=has_tasks fallback=move || planned_board(ui, planned)>
             {move || {
                 ui.snapshot
                     .with(|snapshot| columns(&snapshot.tasks, &snapshot.events))

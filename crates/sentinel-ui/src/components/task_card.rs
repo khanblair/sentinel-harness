@@ -3,6 +3,7 @@
 
 use leptos::prelude::*;
 use sentinel_core::TaskStatus;
+use sentinel_core::api::BacklogTask;
 
 use crate::components::status_badge::StatusBadge;
 
@@ -93,6 +94,22 @@ fn CardDetail(open: RwSignal<bool>, body: String, paths: Vec<String>) -> impl In
                 {paths.iter().map(|path| view! { <div class="tr"><span class="nm">{path.clone()}</span></div> }).collect_view()}
             </div>
         </Show>
+    }
+}
+
+/// A task of the backlog file, before a run plans it: its id, title, and first body line.
+#[component]
+pub fn PlannedCard(task: BacklogTask) -> impl IntoView {
+    let BacklogTask { id, title, summary } = task;
+    view! {
+        <div class="tcard">
+            <div class="row sp">
+                <span class="id">{id}</span>
+                <span class="chip">"Planned"</span>
+            </div>
+            <div class="ttl">{title}</div>
+            <div class="sub">{summary}</div>
+        </div>
     }
 }
 
