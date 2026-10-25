@@ -8,7 +8,7 @@ use sentinel_core::api::{
     CheckRow, CheckStatus, FolderEntry, RepoCheckResponse, RepoTree, TreeFolder,
 };
 
-const STARTER_BACKLOG: &str = "# Backlog
+pub(crate) const STARTER_BACKLOG: &str = "# Backlog
 
 ## T-01 Add a greeting command
 Done when the command prints a greeting to the terminal.

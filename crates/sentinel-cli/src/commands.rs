@@ -5,13 +5,14 @@ use std::process::ExitCode;
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result};
 use sentinel_core::api::{CheckRow, CheckStatus, RunRequest};
 use sentinel_core::{Event, HarnessState, TaskStatus};
 use sentinel_daemon::cmd::SystemRunner;
 use sentinel_daemon::doctor::{current_os, install_check};
-use sentinel_daemon::engine::{Engine, EngineOptions, FakeAgents};
+use sentinel_daemon::engine::{Engine, EngineOptions};
 use sentinel_daemon::secrets::{EnvFallback, KeychainStore};
+use sentinel_daemon::starter;
 
 use crate::doctor_host::host_check_rows;
 use crate::writeup;
@@ -31,44 +32,13 @@ pub(crate) fn home_dir() -> PathBuf {
         .map_or_else(|| PathBuf::from("."), PathBuf::from)
 }
 
-/// The scripted agents. They live in `fixtures/fake-cli` of the Sentinel repository, found from the
-/// current folder upward, or from `SENTINEL_FIXTURES`.
-fn find_fake_agents() -> Result<FakeAgents> {
-    let candidates: Vec<PathBuf> = std::env::var_os("SENTINEL_FIXTURES")
-        .map(PathBuf::from)
-        .into_iter()
-        .chain(std::env::current_dir().ok().into_iter().flat_map(|d| {
-            d.ancestors()
-                .map(|a| a.join("fixtures"))
-                .collect::<Vec<_>>()
-        }))
-        .collect();
-    for base in candidates {
-        let script = base.join("fake-cli/fake-agent");
-        if script.is_file() {
-            return Ok(FakeAgents {
-                script,
-                plans_dir: base.join("fake-cli/plans"),
-            });
-        }
-    }
-    bail!(
-        "could not find fixtures/fake-cli. Run from the Sentinel repository, or set SENTINEL_FIXTURES."
-    )
-}
-
-pub(crate) fn open_engine(repo: &Path, fake: bool) -> Result<Engine> {
-    let fake_agents = if fake {
-        Some(find_fake_agents()?)
-    } else {
-        None
-    };
+pub(crate) fn open_engine(repo: &Path) -> Result<Engine> {
     Engine::open(EngineOptions {
         repo_root: repo.to_path_buf(),
         home: home_dir(),
         runner: Arc::new(SystemRunner),
         secrets: Arc::new(EnvFallback::new(KeychainStore)),
-        fake_agents,
+        fake_agents: None,
         in_memory: false,
     })
     .context("could not open Sentinel state")
@@ -78,10 +48,9 @@ pub(crate) async fn run(
     backlog: &str,
     repo: Option<PathBuf>,
     cap: Option<String>,
-    fake: bool,
 ) -> Result<ExitCode> {
     let repo = repo_or_current(repo)?;
-    let engine = open_engine(&repo, fake)?;
+    let engine = open_engine(&repo)?;
     if let Some(cap) = cap {
         engine.update_config(|c| c.cap_usd = cap)?;
     }
@@ -158,8 +127,18 @@ fn print_summary(engine: &Engine, repo: &Path) -> Result<ExitCode> {
     Ok(ExitCode::SUCCESS)
 }
 
+/// `sentinel starter`: make the starter project in a folder and print where it is.
+pub(crate) fn starter(dir: Option<PathBuf>) -> Result<ExitCode> {
+    let parent = dir.unwrap_or_else(home_dir);
+    let folder =
+        starter::create_starter_project(&parent).context("could not make the starter project")?;
+    starter::set_starter_test_command(&folder).context("could not save the starter settings")?;
+    println!("{}", folder.display());
+    Ok(ExitCode::SUCCESS)
+}
+
 pub(crate) async fn scan(repo: Option<PathBuf>) -> Result<ExitCode> {
-    let engine = open_engine(&repo_or_current(repo)?, false)?;
+    let engine = open_engine(&repo_or_current(repo)?)?;
     for tool in engine.scan_tools().await? {
         println!(
             "{:<10} {:<12} {:<8} {}",
@@ -181,7 +160,7 @@ pub(crate) async fn doctor(repo: Option<PathBuf>) -> Result<ExitCode> {
     let failed = install.rows.iter().any(|row| row.status != CheckStatus::Ok);
     if repo.join(".git").exists() {
         println!("\nHost checks");
-        let engine = open_engine(&repo, false)?;
+        let engine = open_engine(&repo)?;
         print_rows(&host_check_rows(&engine, &SystemRunner).await?);
     } else {
         println!("Host checks need a repository. Run this inside one.");

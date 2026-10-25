@@ -41,9 +41,6 @@ enum Command {
         /// The budget cap in dollars, for example 1.50.
         #[arg(long)]
         cap: Option<String>,
-        /// Use the scripted pretend agents from `fixtures/fake-cli` instead of real agent CLIs.
-        #[arg(long)]
-        fake_agents: bool,
     },
     /// Find the agent CLIs on this computer.
     Scan {
@@ -73,9 +70,6 @@ enum Command {
         /// Serve on 127.0.0.1 without Tailscale. For development only; never binds 0.0.0.0.
         #[arg(long)]
         dev_bind: bool,
-        /// Use the scripted pretend agents from `fixtures/fake-cli`.
-        #[arg(long)]
-        fake_agents: bool,
         /// Run as an always-on host: no native folder dialog, the folder browser instead.
         #[arg(long)]
         headless: bool,
@@ -112,6 +106,12 @@ enum Command {
     Stop {
         #[arg(long)]
         repo: Option<PathBuf>,
+    },
+    /// Make a small Python project with a test, to try Sentinel on. Prints its folder.
+    Starter {
+        /// The folder to make it in. Defaults to your home folder.
+        #[arg(long)]
+        dir: Option<PathBuf>,
     },
     /// Serve the file and Brain tools over stdio for an agent. Agent CLIs start it; no need to run it by hand.
     Mcp,
@@ -200,18 +200,14 @@ fn show_help() -> ExitCode {
 
 async fn dispatch(command: Command) -> anyhow::Result<ExitCode> {
     match command {
-        Command::Run {
-            backlog,
-            repo,
-            cap,
-            fake_agents,
-        } => commands::run(&backlog, repo, cap, fake_agents).await,
+        Command::Run { backlog, repo, cap } => commands::run(&backlog, repo, cap).await,
         Command::Scan { repo } => commands::scan(repo).await,
         Command::Doctor { repo } => commands::doctor(repo).await,
         Command::Report { repo, writeup } => commands::report(repo, writeup),
         Command::Mcp => commands::mcp().await,
         Command::App { repo } => app::app(repo).await,
         Command::Stop { repo } => serve::stop(repo).await,
+        Command::Starter { dir } => commands::starter(dir),
         other @ (Command::Daemon { .. }
         | Command::Open { .. }
         | Command::Pair { .. }
@@ -239,14 +235,12 @@ async fn dispatch_serve(command: Command) -> anyhow::Result<ExitCode> {
             repo,
             port,
             dev_bind,
-            fake_agents,
             headless,
         } => {
             serve::daemon(serve::DaemonArgs {
                 repo,
                 port,
                 dev_bind,
-                fake_agents,
                 headless,
             })
             .await
@@ -265,7 +259,8 @@ async fn dispatch_serve(command: Command) -> anyhow::Result<ExitCode> {
         | Command::Report { .. }
         | Command::Mcp
         | Command::App { .. }
-        | Command::Stop { .. } => {
+        | Command::Stop { .. }
+        | Command::Starter { .. } => {
             unreachable!("handled by dispatch")
         }
     }

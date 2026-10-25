@@ -22,14 +22,13 @@ pub(crate) struct DaemonArgs {
     pub repo: Option<PathBuf>,
     pub port: u16,
     pub dev_bind: bool,
-    pub fake_agents: bool,
     pub headless: bool,
 }
 
 /// Open the repository's state and start everything that runs beside the server: the tool scan,
 /// the desktop token, the host loop, the routines, and Telegram.
-pub(crate) async fn prepare(repo: &Path, fake_agents: bool, headless: bool) -> Result<Engine> {
-    let engine = open_engine(repo, fake_agents)?;
+pub(crate) async fn prepare(repo: &Path, headless: bool) -> Result<Engine> {
+    let engine = open_engine(repo)?;
     engine.scan_tools().await?;
     engine.ensure_desktop_token()?;
     engine.set_headless(headless);
@@ -68,7 +67,7 @@ pub(crate) async fn run_until_stopped(
 
 pub(crate) async fn daemon(args: DaemonArgs) -> Result<ExitCode> {
     let repo = repo_or_current(args.repo)?;
-    let engine = prepare(&repo, args.fake_agents, args.headless).await?;
+    let engine = prepare(&repo, args.headless).await?;
     let bind = if args.dev_bind {
         BindMode::DevLoopback
     } else {
