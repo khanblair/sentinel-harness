@@ -8,6 +8,7 @@ use sentinel_core::api::PermissionsUpdate;
 
 use crate::api;
 use crate::chats::PickerKind;
+use crate::components::confirm_clear::ConfirmClear;
 use crate::components::confirm_delete::ConfirmDelete;
 use crate::components::guide_modal::GuideModal;
 use crate::components::icon::Icon;
@@ -26,6 +27,7 @@ pub fn modal_key(modal: &Modal) -> &'static str {
         Modal::Palette => "palette",
         Modal::BypassConfirm => "bp",
         Modal::ConfirmDelete { .. } => "del",
+        Modal::ConfirmClear { .. } => "clear",
         Modal::AddFiles
         | Modal::AddFolder
         | Modal::AddBacklog
@@ -39,6 +41,7 @@ pub fn modal_class(modal: &Modal) -> &'static str {
     match modal {
         Modal::BypassConfirm
         | Modal::ConfirmDelete { .. }
+        | Modal::ConfirmClear { .. }
         | Modal::AddFiles
         | Modal::AddFolder
         | Modal::AddBacklog
@@ -74,6 +77,14 @@ fn modal_body(modal: &Modal) -> AnyView {
         Modal::Palette => ().into_any(),
         Modal::BypassConfirm => view! { <BypassConfirm /> }.into_any(),
         Modal::ConfirmDelete { chat } => view! { <ConfirmDelete chat=chat.clone() /> }.into_any(),
+        Modal::ConfirmClear {
+            title,
+            body,
+            action,
+        } => view! {
+            <ConfirmClear title=title.clone() body=body.clone() action=*action />
+        }
+        .into_any(),
         Modal::AddFiles => view! { <PickerDialog kind=PickerKind::Files /> }.into_any(),
         Modal::AddFolder => view! { <PickerDialog kind=PickerKind::Folder /> }.into_any(),
         Modal::AddBacklog => view! { <PickerDialog kind=PickerKind::Backlog /> }.into_any(),
@@ -125,6 +136,7 @@ fn turn_on_bypass(ui: Ui) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::components::confirm_clear::ClearAction;
 
     #[test]
     fn bypass_confirm_uses_its_own_overlay_key_and_small_dialog() {
@@ -141,5 +153,16 @@ mod tests {
         assert_eq!(modal_class(&settings), "modal");
         assert_eq!(modal_class(&Modal::Guide), "modal");
         assert_eq!(modal_key(&Modal::Palette), "palette");
+    }
+
+    #[test]
+    fn a_reset_confirm_uses_its_own_key_and_small_dialog() {
+        let confirm = Modal::ConfirmClear {
+            title: String::new(),
+            body: String::new(),
+            action: ClearAction::Everything,
+        };
+        assert_eq!(modal_key(&confirm), "clear");
+        assert_eq!(modal_class(&confirm), "modal sm");
     }
 }

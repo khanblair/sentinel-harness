@@ -11,6 +11,7 @@ use sentinel_core::routines::{Brief, Routine};
 use sentinel_core::{Attachment, ChatId, Event, EventRecord, Snapshot, ToolId};
 
 use crate::chats::RenameState;
+use crate::components::confirm_clear::ClearAction;
 use crate::layout::{Layout, PanelId};
 use crate::prefs::Prefs;
 
@@ -40,6 +41,12 @@ pub enum Modal {
     /// Asks before a chat and its uploads are removed.
     ConfirmDelete {
         chat: ChatId,
+    },
+    /// Asks before a data reset runs. Each Clear button in Settings opens it.
+    ConfirmClear {
+        title: String,
+        body: String,
+        action: ClearAction,
     },
     AddFiles,
     AddFolder,

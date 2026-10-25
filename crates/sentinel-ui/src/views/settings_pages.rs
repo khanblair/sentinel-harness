@@ -11,6 +11,7 @@ use serde::Deserialize;
 
 use crate::api;
 use crate::components::icon::Icon;
+use crate::components::reset_section::ResetSection;
 use crate::components::status_badge::shape_markup;
 use crate::components::toggle::Toggle;
 use crate::components::top_bar::settle;
@@ -51,6 +52,7 @@ pub fn GeneralPage() -> impl IntoView {
                 "How to use Sentinel"
             </button>
         </div>
+        <ResetSection />
     }
 }
 
