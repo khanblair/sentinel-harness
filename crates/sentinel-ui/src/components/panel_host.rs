@@ -9,7 +9,7 @@ use crate::layout::PanelId;
 use crate::state::{Align, PopoverKind, Ui, use_ui};
 use crate::views::{
     agents::AgentsPanel, board::BoardPanel, brain::BrainPanel, changes::ChangesPanel,
-    cost::CostPanel, files::FilesPanel, permissions::PermissionsPanel, remote::RemotePanel,
+    context::ContextPanel, cost::CostPanel, files::FilesPanel, permissions::PermissionsPanel, remote::RemotePanel,
     report::ReportPanel, reserved::ReservedPanel, telegram::TelegramPanel, terminal::TerminalPanel,
 };
 
@@ -22,6 +22,7 @@ pub fn panel_icon(panel: PanelId) -> &'static str {
         PanelId::Reserved => "lock",
         PanelId::Brain => "brain",
         PanelId::Remote => "phone",
+        PanelId::Context => "info",
         PanelId::Files => "folder",
         PanelId::Cost => "dollar",
         PanelId::Report => "list",
@@ -90,6 +91,7 @@ fn panel_body(panel: PanelId) -> AnyView {
         PanelId::Reserved => view! { <ReservedPanel /> }.into_any(),
         PanelId::Brain => view! { <BrainPanel /> }.into_any(),
         PanelId::Remote => view! { <RemotePanel /> }.into_any(),
+        PanelId::Context => view! { <ContextPanel /> }.into_any(),
         PanelId::Files => view! { <FilesPanel /> }.into_any(),
         PanelId::Cost => view! { <CostPanel /> }.into_any(),
         PanelId::Report => view! { <ReportPanel /> }.into_any(),

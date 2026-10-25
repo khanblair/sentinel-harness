@@ -45,7 +45,8 @@ fn tab_for_panel(panel: PanelId) -> Option<&'static str> {
         | PanelId::Report
         | PanelId::Agents
         | PanelId::Permissions
-        | PanelId::Telegram => None,
+        | PanelId::Telegram
+        | PanelId::Context => None,
     }
 }
 

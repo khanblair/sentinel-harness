@@ -55,10 +55,11 @@ pub enum PanelId {
     Agents,
     Permissions,
     Telegram,
+    Context,
 }
 
 impl PanelId {
-    pub const ALL: [PanelId; 12] = [
+    pub const ALL: [PanelId; 13] = [
         PanelId::Board,
         PanelId::Terminal,
         PanelId::Changes,
@@ -71,6 +72,7 @@ impl PanelId {
         PanelId::Agents,
         PanelId::Permissions,
         PanelId::Telegram,
+        PanelId::Context,
     ];
 
     /// The six panels that have an icon in the top bar. The rest open from the More menu.
@@ -98,6 +100,7 @@ impl PanelId {
             PanelId::Agents => "Agents",
             PanelId::Permissions => "Permissions",
             PanelId::Telegram => "Telegram",
+            PanelId::Context => "Context",
         }
     }
 }
