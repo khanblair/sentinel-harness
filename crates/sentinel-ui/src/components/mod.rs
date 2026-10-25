@@ -101,3 +101,5 @@ pub mod tour_coach;
 pub mod tour_menu;
 pub mod verdict_card;
 pub mod wave_card;
+pub mod agent_chip;
+pub mod agent_stopped_card;

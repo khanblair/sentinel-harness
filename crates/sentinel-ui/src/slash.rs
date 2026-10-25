@@ -27,7 +27,7 @@ const COMMANDS: [SlashEntry; 16] = [
     ("/resume", "Resume the run"),
     ("/stop", "Stop the run"),
     ("/cap 1.50", "Lower the budget cap"),
-    ("/agent claude", "Send messages to one agent"),
+    ("/agent claude", "Set the agent of this chat"),
     ("/focus codex", "Show one agent in the stream"),
     ("/kill codex", "Kill an agent"),
     ("/plan", "Send the next message as a plan"),

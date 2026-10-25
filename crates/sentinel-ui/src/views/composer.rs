@@ -6,12 +6,12 @@ use leptos::prelude::*;
 use sentinel_core::{ChatId, HarnessState};
 use web_sys::{HtmlElement, HtmlTextAreaElement, KeyboardEvent};
 
+use crate::components::agent_chip::AgentChip;
 use crate::components::brain_chip::BrainChip;
 use crate::components::icon::Icon;
 use crate::components::permission_chip::PermissionChip;
 use crate::components::popover::toggle_popover;
 use crate::components::slash_menu::SlashMenu;
-use crate::components::target_chip::TargetChip;
 use crate::slash::{self, SlashEntry};
 use crate::state::{Align, Connection, PopoverKind, Ui, use_ui};
 use crate::views::composer_chips::ChipsRow;
@@ -182,7 +182,7 @@ fn ComposerFoot() -> impl IntoView {
             <PermissionChip />
             <BrainChip />
             <span style="flex:1"></span>
-            <TargetChip />
+            <AgentChip />
             {move || (ui.snapshot.with(|s| s.harness) == HarnessState::Running)
                 .then(|| view! { <span class="spin"></span> })}
         </div>
