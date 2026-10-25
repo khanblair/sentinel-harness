@@ -204,7 +204,10 @@ pub fn default_ceiling(tier: Tier) -> Cost {
 
 /// A high guess for a CLI that reports no dollar figure: a rate per second by tier.
 pub fn estimate_by_time(tier: Tier, elapsed: Duration) -> Cost {
-    Cost::from_micro_usd(guess_micro_per_second(tier).saturating_mul(elapsed.as_secs()), true)
+    Cost::from_micro_usd(
+        guess_micro_per_second(tier).saturating_mul(elapsed.as_secs()),
+        true,
+    )
 }
 
 /// The guess for one hour of running. A run on a time guess alone shows this rate to the user.

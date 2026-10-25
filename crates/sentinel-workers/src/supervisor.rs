@@ -694,7 +694,7 @@ mod tests {
             spend.tick();
         }
         assert!(ctrl.budget.spent() > usd("0.05"));
-        assert!(ctrl.budget.drain_events().is_empty());
+        assert_eq!(ctrl.budget.drain_events().len(), 0);
         assert_eq!(spend.source, SpendSource::TimeGuess);
     }
 
@@ -749,7 +749,9 @@ mod tests {
         }
         assert_eq!(
             lines,
-            ["sh reports no cost, so Sentinel counts a guess of $0.54 an hour. The task timeout still applies."]
+            [
+                "sh reports no cost, so Sentinel counts a guess of $0.54 an hour. The task timeout still applies."
+            ]
         );
     }
 }
