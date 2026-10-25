@@ -189,6 +189,8 @@ jobs:
           tag_name: ${{ steps.tag.outputs.name }}
           draft: false
           make_latest: true
+          # The tag lands on the commit that was built, not on whatever main is by then.
+          target_commitish: ${{ github.sha }}
           files: |
             dist/Sentinel-${{ steps.tag.outputs.version }}.dmg
             dist/Sentinel-${{ steps.tag.outputs.version }}.dmg.sha256
