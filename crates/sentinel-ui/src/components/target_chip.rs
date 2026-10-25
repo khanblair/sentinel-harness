@@ -1,11 +1,9 @@
-//! The send-to chip: shows where the next message goes, and opens the target menu.
+//! The label of a send target. The composer chip now shows the chat's agent (`agent_chip`), so
+//! only the label of a `Target` is left here.
 
-use leptos::prelude::*;
 use sentinel_core::ToolInfo;
 
-use crate::components::icon::Icon;
-use crate::components::popover::toggle_popover;
-use crate::state::{Align, PopoverKind, Target, use_ui};
+use crate::state::Target;
 
 /// "Sentinel" routes by tier. An agent shows its name and its tier.
 pub fn target_label(target: &Target, tools: &[ToolInfo]) -> String {
@@ -15,19 +13,6 @@ pub fn target_label(target: &Target, tools: &[ToolInfo]) -> String {
             Some(tool) => format!("{} · {}", tool.name, tool.tier.ui_label()),
             None => id.as_str().to_owned(),
         },
-    }
-}
-
-#[component]
-pub fn TargetChip() -> impl IntoView {
-    let ui = use_ui();
-    view! {
-        <button id="targetChip" class="cbtn" aria-label="Send to"
-            on:click=move |_| toggle_popover(ui, "targetChip", Align::Right, PopoverKind::Target)>
-            <Icon name="agent" size=15 />
-            <span>{move || ui.snapshot.with(|s| target_label(&ui.target.get(), &s.tools))}</span>
-            <Icon name="down" size=12 />
-        </button>
     }
 }
 

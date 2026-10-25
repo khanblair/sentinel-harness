@@ -150,7 +150,11 @@ pub enum PopoverKind {
     Agents,
     Permission,
     Brain,
-    Target,
+    /// The agent of the open chat, opened from the agent chip.
+    ChatAgent,
+    /// The same agent menu, opened from a stopped-agent card. The choice also sends the last
+    /// message again.
+    SwitchAgent,
     More,
     Panel,
     Attach,

@@ -8,6 +8,7 @@ use sentinel_core::{BrainMode, PermissionMode, Snapshot, ToolId};
 
 use crate::api;
 use crate::brain::phone_may_pick;
+use crate::components::agent_chip::AgentMenu;
 use crate::components::agent_stack::{avatar_color, avatar_letter, ready_agents};
 use crate::components::attach_menu::attach_items;
 use crate::components::chat_menu::{ChatMenu, chat_from_anchor};
@@ -15,7 +16,7 @@ use crate::components::icon::Icon;
 use crate::components::panel_host::panel_icon;
 use crate::components::top_bar::{post_action, spend_label};
 use crate::layout::PanelId;
-use crate::state::{Modal, PopoverKind, Target, Ui};
+use crate::state::{Modal, PopoverKind, Ui};
 
 /// One popover body per kind.
 pub fn body(kind: PopoverKind, ui: Ui) -> AnyView {
@@ -24,7 +25,8 @@ pub fn body(kind: PopoverKind, ui: Ui) -> AnyView {
         PopoverKind::Agents => agents_menu(ui).into_any(),
         PopoverKind::Permission => permission_menu(ui).into_any(),
         PopoverKind::Brain => brain_menu(ui).into_any(),
-        PopoverKind::Target => target_menu(ui).into_any(),
+        PopoverKind::ChatAgent => view! { <AgentMenu resend=false /> }.into_any(),
+        PopoverKind::SwitchAgent => view! { <AgentMenu resend=true /> }.into_any(),
         PopoverKind::More => more_menu(ui).into_any(),
         PopoverKind::Panel => panel_menu(ui).into_any(),
         PopoverKind::Attach => attach_items(ui).into_any(),
@@ -266,44 +268,6 @@ fn pick_brain(ui: Ui, mode: BrainMode) {
         let result = api::post::<_, serde_json::Value>("/api/brain/mode", &request).await;
         crate::components::top_bar::settle(ui, result);
     });
-}
-
-fn target_menu(ui: Ui) -> impl IntoView {
-    let rows = ui.snapshot.with(agent_rows);
-    view! {
-        <MenuItem icon="shield" label="Sentinel"
-            desc="Routes by tier: cheap first, escalate on failure."
-            ticked={ui.target.get() == Target::Sentinel}
-            on_pick=move |()| pick_target(ui, Target::Sentinel) />
-        <div class="sep"></div>
-        {rows
-            .into_iter()
-            .map(|row| target_row(ui, row))
-            .collect_view()}
-        <div class="sep"></div>
-        <MenuItem icon="sliders" label="Task routing"
-            desc="Choose which agent handles easy, normal, and hard tasks"
-            on_pick=move |()| settings(ui, "agents") />
-    }
-}
-
-fn target_row(ui: Ui, row: AgentRow) -> impl IntoView {
-    let target = Target::Agent(row.id.clone());
-    let ticked = ui.target.get() == target;
-    view! {
-        <button class="mi" on:click=move |_| pick_target(ui, target.clone())>
-            <span class="av-a" style=format!("background:{}", row.color)>{row.letter}</span>
-            <span>
-                <span>{row.name}{ticked.then(tick_mark)}</span>
-                <div class="d">{row.detail}</div>
-            </span>
-        </button>
-    }
-}
-
-fn pick_target(ui: Ui, target: Target) {
-    close(ui);
-    ui.target.set(target);
 }
 
 fn more_menu(ui: Ui) -> impl IntoView {

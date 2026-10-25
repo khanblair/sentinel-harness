@@ -12,7 +12,7 @@ use serde::Serialize;
 
 use crate::api::{self, ApiFailure};
 use crate::chats::busy_notice;
-use crate::components::agent_stack::ready_agents;
+use crate::components::agent_chip::{choose_chat_agent, parse_agent_command};
 use crate::components::top_bar::{post_action, settle};
 use crate::layout::PanelId;
 use crate::skills::unknown_skill_text;
@@ -234,7 +234,7 @@ pub fn run_command(ui: Ui, command: SlashCommand) {
         SlashCommand::Kill(name) => kill_agent(ui, &name),
         SlashCommand::Cap(amount) => lower_cap(ui, amount),
         SlashCommand::Brain(mode) => set_brain(ui, mode),
-        SlashCommand::Agent(name) => choose_agent(ui, &name),
+        SlashCommand::Agent(name) => run_agent_command(ui, &name),
         SlashCommand::Focus(name) => focus_agent(ui, &name),
         SlashCommand::Report => ui.open_panel(PanelId::Report),
         SlashCommand::Skill(name) => add_skill(ui, &name),
@@ -332,20 +332,44 @@ pub fn set_brain(ui: Ui, mode: BrainMode) {
     });
 }
 
-pub fn choose_agent(ui: Ui, name: &str) {
-    if name == "sentinel" {
-        ui.target.set(Target::Sentinel);
+/// `/agent claude` and `/agent auto` set the open chat's agent.
+pub fn run_agent_command(ui: Ui, name: &str) {
+    match parse_agent_command(name) {
+        Some(agent) => choose_chat_agent(ui, agent.as_ref(), None),
+        None => ui.show_toast(
+            "Name an agent, for example /agent claude or /agent auto.",
+            ToastKind::Warn,
+        ),
+    }
+}
+
+/// Sends `text` as a new run with no type, as the stopped-agent card's Retry does. A live run
+/// refuses, as in `resend_as`.
+pub fn resend_text(ui: Ui, text: String) {
+    let open = ui.open_chat.get_untracked();
+    let (harness, live) = ui
+        .snapshot
+        .with_untracked(|s| (s.harness, s.run.as_ref().map(|run| run.chat.clone())));
+    if send_route(harness, live.as_ref(), open.as_ref()) != SendRoute::StartRun {
+        ui.show_toast(RESEND_WAIT, ToastKind::Warn);
         return;
     }
-    let ready = ui
-        .snapshot
-        .with_untracked(|s| ready_agents(s).iter().any(|tool| tool.id.as_str() == name));
-    if ready {
-        ui.target.set(Target::Agent(ToolId::new(name)));
-        ui.show_toast(format!("Messages now go to {name}."), ToastKind::Ok);
-    } else {
-        ui.show_toast(format!("No ready agent called {name}."), ToastKind::Warn);
-    }
+    spawn_local(async move {
+        match start_retry(open, text).await {
+            Ok(()) => refresh(ui),
+            Err(failure) => ui.show_toast(failure.to_string(), ToastKind::Danger),
+        }
+    });
+}
+
+/// Starts a run in `chat` with one text and no type.
+pub async fn start_retry(chat: Option<ChatId>, text: String) -> Result<(), ApiFailure> {
+    let request = RunRequest {
+        chat,
+        text: Some(text),
+        ..RunRequest::default()
+    };
+    api::start_run(&request).await.map(|_| ())
 }
 
 pub fn focus_agent(ui: Ui, name: &str) {

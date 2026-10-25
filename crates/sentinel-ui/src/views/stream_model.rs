@@ -92,6 +92,12 @@ pub enum Item {
         verified: u32,
         total: u32,
     },
+    /// The chat's agent stopped. `retry` is the last message of the chat, if there is one.
+    AgentStopped {
+        tool: ToolId,
+        reason: String,
+        retry: Option<String>,
+    },
 }
 
 /// The stream items for a snapshot, keyed by event id, oldest first. With a focused agent, the
@@ -157,6 +163,30 @@ fn item_for(events: &[EventRecord], index: usize) -> Option<Item> {
     run_item(event)
         .or_else(|| review_item(event))
         .or_else(|| intent_item(event))
+        .or_else(|| stop_item(events, index))
+}
+
+/// The card for a stopped agent. Its retry text is the last message before the stop.
+fn stop_item(events: &[EventRecord], index: usize) -> Option<Item> {
+    let Event::AgentStopped { tool, reason, .. } = &events[index].event else {
+        return None;
+    };
+    Some(Item::AgentStopped {
+        tool: tool.clone(),
+        reason: reason.clone(),
+        retry: last_owner_text(&events[..index]),
+    })
+}
+
+/// The text of the newest message from the owner. The daemon names the sender after the caller,
+/// so any sender but `sentinel` counts, the same rule the stream uses for user items.
+pub fn last_owner_text(events: &[EventRecord]) -> Option<String> {
+    events.iter().rev().find_map(|record| {
+        let Event::Message { from, text, .. } = &record.event else {
+            return None;
+        };
+        (from != "sentinel").then(|| text.clone())
+    })
 }
 
 /// The type a message got, with the reason the daemon gave.
@@ -339,6 +369,9 @@ fn event_agent(events: &[EventRecord], index: usize) -> Option<ToolId> {
     }
     if let Event::Checkpoint { task, .. } = event {
         return goes_to_agent(&events[..index], task);
+    }
+    if let Event::AgentStopped { tool, .. } = event {
+        return Some(tool.clone());
     }
     if let Event::TaskStatus {
         task,
@@ -812,5 +845,75 @@ mod tests {
                 reason: "A question about the fee logic.".to_owned(),
             }]
         );
+    }
+
+    fn owner(text: &str) -> Event {
+        Event::Message {
+            from: "phone".to_owned(),
+            to: None,
+            text: text.to_owned(),
+        }
+    }
+
+    fn stopped(agent: &str) -> Event {
+        Event::AgentStopped {
+            chat: ChatId::new("c1"),
+            tool: ToolId::new(agent),
+            reason: "Claude Code exited with an error.".to_owned(),
+        }
+    }
+
+    #[test]
+    fn a_stopped_agent_card_retries_the_last_owner_message() {
+        let shown = items(
+            vec![owner("fix the fee ledger"), stopped("claude")],
+            None,
+        );
+        assert_eq!(
+            shown[1],
+            Item::AgentStopped {
+                tool: ToolId::new("claude"),
+                reason: "Claude Code exited with an error.".to_owned(),
+                retry: Some("fix the fee ledger".to_owned()),
+            }
+        );
+    }
+
+    #[test]
+    fn a_stopped_agent_with_no_owner_message_has_nothing_to_retry() {
+        let shown = items(vec![stopped("claude")], None);
+        assert_eq!(
+            shown,
+            vec![Item::AgentStopped {
+                tool: ToolId::new("claude"),
+                reason: "Claude Code exited with an error.".to_owned(),
+                retry: None,
+            }]
+        );
+    }
+
+    #[test]
+    fn the_sentinel_lines_are_not_owner_messages() {
+        let events = vec![
+            owner("first"),
+            Event::Message {
+                from: "sentinel".to_owned(),
+                to: None,
+                text: "a note".to_owned(),
+            },
+        ];
+        let records: Vec<EventRecord> = snapshot(events).events;
+        assert_eq!(last_owner_text(&records), Some("first".to_owned()));
+    }
+
+    #[test]
+    fn a_focused_agent_keeps_its_own_stop_card_only() {
+        let events = vec![stopped("claude"), stopped("codex")];
+        let shown = items(events, Some("codex"));
+        assert_eq!(shown.len(), 1);
+        assert!(matches!(
+            &shown[0],
+            Item::AgentStopped { tool, .. } if tool.as_str() == "codex"
+        ));
     }
 }

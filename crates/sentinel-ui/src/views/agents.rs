@@ -5,12 +5,31 @@ use leptos::prelude::*;
 use leptos::task::spawn_local;
 use sentinel_core::api::RoutingUpdate;
 use sentinel_core::{Routing, Tier, ToolId, ToolInfo, ToolStatus};
+use serde::Serialize;
 
 use crate::api;
 use crate::components::tool_row::ToolRow;
 use crate::components::top_bar::settle;
 use crate::state::{Modal, Ui, use_ui};
 use crate::views::install::ScanButton;
+
+/// The body of `PUT /api/config/agent`.
+#[derive(Serialize)]
+struct DefaultAgentUpdate {
+    agent: String,
+}
+
+/// The options of the default agent: Auto-route, then each ready tool as `(value, label)`.
+pub fn default_choices(tools: &[ToolInfo]) -> Vec<(String, String)> {
+    let mut choices = vec![("auto".to_owned(), "Auto-route".to_owned())];
+    choices.extend(
+        tools
+            .iter()
+            .filter(|tool| tool.enabled && tool.status.is_ready())
+            .map(|tool| (tool.id.as_str().to_owned(), tool.name.clone())),
+    );
+    choices
+}
 
 /// The tiers in the routing section, easy first.
 pub const TIERS: [Tier; 3] = [Tier::Cheap, Tier::Mid, Tier::Smart];
@@ -116,6 +135,41 @@ fn RoutingRow(tier: Tier) -> impl IntoView {
     }
 }
 
+fn save_default_agent(ui: Ui, chosen: RwSignal<Option<String>>, value: String) {
+    chosen.set(Some(value.clone()));
+    let body = DefaultAgentUpdate { agent: value };
+    spawn_local(async move {
+        let result = api::send::<_, serde_json::Value>("PUT", "/api/config/agent", &body).await;
+        settle(ui, result);
+    });
+}
+
+/// The agent new chats start with. The snapshot does not carry the saved value, so the row shows
+/// `Not set` until the user picks one in this page.
+#[component]
+fn DefaultAgentRow() -> impl IntoView {
+    let ui = use_ui();
+    let chosen = RwSignal::new(None::<String>);
+    let choices = move || ui.snapshot.with(|s| default_choices(&s.tools));
+    view! {
+        <Show when=move || !ui.on_phone() fallback=|| ()>
+            <div class="fld">
+                <div class="l">
+                    <b>"Default agent for new chats"</b>
+                </div>
+                <select class="field" aria-label="Default agent for new chats"
+                    prop:value=move || chosen.get().unwrap_or_default()
+                    on:change=move |event| save_default_agent(ui, chosen, event_target_value(&event))>
+                    <option value="" disabled=true>"Not set"</option>
+                    {move || choices().into_iter().map(|(value, label)| {
+                        view! { <option value=value>{label}</option> }
+                    }).collect_view()}
+                </select>
+            </div>
+        </Show>
+    }
+}
+
 #[component]
 pub fn AgentsPanel() -> impl IntoView {
     let ui = use_ui();
@@ -132,6 +186,7 @@ pub fn AgentsPanel() -> impl IntoView {
                 "Manage in settings"
             </button>
         </div>
+        <DefaultAgentRow />
         <div class="psec" style="margin-top:1em">
             <h5>"Which agent does what"</h5>
             {TIERS.into_iter().map(|tier| view! { <RoutingRow tier=tier /> }).collect_view()}
@@ -193,6 +248,18 @@ mod tests {
         assert_eq!(next.cheap, Some(ToolId::new("a")));
         assert_eq!(next.smart, Some(ToolId::new("b")));
         assert_eq!(with_tier(&next, Tier::Cheap, None).cheap, None);
+    }
+
+    #[test]
+    fn default_choices_start_with_auto_and_list_only_ready_tools() {
+        let tools = vec![tool(ToolStatus::Ready), tool(ToolStatus::Missing)];
+        assert_eq!(
+            default_choices(&tools),
+            vec![
+                ("auto".to_owned(), "Auto-route".to_owned()),
+                ("claude".to_owned(), "Claude".to_owned()),
+            ]
+        );
     }
 
     #[test]

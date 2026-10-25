@@ -8,6 +8,7 @@ use wasm_bindgen::closure::Closure;
 use web_sys::{Element, Event as DomEvent, HtmlElement};
 
 use crate::components::agent_step_card::AgentStepCard;
+use crate::components::agent_stopped_card::AgentStoppedCard;
 use crate::components::approval_card::ApprovalCard;
 use crate::components::barrier_card::BarrierCard;
 use crate::components::blocked_write_card::{BlockedWriteCard, blocked_copy};
@@ -134,6 +135,19 @@ fn work_view(item: Item) -> AnyView {
     if let Item::BlockedWrite { path, restored } = item {
         let text = blocked_copy(&path, restored);
         return view! { <BlockedWriteCard text=text /> }.into_any();
+    }
+    stop_view(item)
+}
+
+/// The card for a stopped agent. Every other item goes on to the status stage.
+fn stop_view(item: Item) -> AnyView {
+    if let Item::AgentStopped {
+        tool,
+        reason,
+        retry,
+    } = item
+    {
+        return view! { <AgentStoppedCard tool=tool reason=reason retry=retry /> }.into_any();
     }
     status_view(item)
 }
