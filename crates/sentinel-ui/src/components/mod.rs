@@ -3,6 +3,7 @@ pub mod accent_picker;
 pub mod add_project;
 pub mod agent_stack;
 pub mod agent_step_card;
+pub mod agent_test_button;
 pub mod appearance_form;
 pub mod approval_card;
 pub mod attach_menu;

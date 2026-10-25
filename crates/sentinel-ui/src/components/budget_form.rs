@@ -7,11 +7,11 @@ use sentinel_core::api::{LowerCap, RoutingUpdate, ToolToggle};
 use sentinel_core::{Cost, Routing, Snapshot, Tier, ToolId, ToolInfo, ToolStatus};
 
 use crate::api;
-use crate::components::icon::Icon;
 use crate::components::status_badge::shape_markup;
 use crate::components::toggle::Toggle;
 use crate::components::top_bar::settle;
 use crate::state::{ToastKind, Ui, use_ui};
+use crate::views::install::ScanButton;
 use crate::views::settings::Field;
 
 /// The three routing rows of Settings, Agents and tools: the tier, its label, and its hint.
@@ -183,15 +183,13 @@ fn set_route(ui: Ui, tier: Tier, tool: String) {
 #[component]
 pub fn AgentsPage() -> impl IntoView {
     let ui = use_ui();
+    let scanning = RwSignal::new(false);
     view! {
         <h2>"Agents and tools"</h2>
         <p class="lead">"Sentinel found these CLIs on this PC. Enable at least 3 agents across 2 tools to run a full backlog."</p>
         <div class="row sp" style="margin-bottom:.4em">
             <span class="sub">{move || enabled_summary(&ui.snapshot.get().tools)}</span>
-            <button class="btn sm" on:click=move |_| rescan(ui)>
-                <Icon name="refresh" size=13 />
-                " Rescan"
-            </button>
+            <ScanButton ui=ui scanning=scanning idle="Rescan" />
         </div>
         {move || ui.snapshot.get().tools.into_iter().map(|tool| tool_row(ui, tool)).collect_view()}
         <RoutingFields />
@@ -256,16 +254,6 @@ fn toggle_tool(ui: Ui, id: String, enabled: bool) {
     spawn_local(async move {
         let path = format!("/api/tools/{id}");
         let result = api::send::<_, serde_json::Value>("PUT", &path, &ToolToggle { enabled }).await;
-        settle(ui, result);
-    });
-}
-
-fn rescan(ui: Ui) {
-    spawn_local(async move {
-        let result = api::post_empty::<Vec<ToolInfo>>("/api/tools/scan").await;
-        if result.is_ok() {
-            ui.show_toast("Rescanned.", ToastKind::Info);
-        }
         settle(ui, result);
     });
 }

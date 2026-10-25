@@ -9,6 +9,7 @@ use sentinel_core::api::{DoctorReport, ToolToggle};
 use sentinel_core::{ToolInfo, ToolStatus};
 
 use crate::api;
+use crate::components::agent_test_button::{AgentTestButton, AgentTestLine, TestSlot};
 use crate::components::icon::Icon;
 use crate::components::install_checklist::{InstallChecklist, all_found, missing_commands};
 use crate::components::install_log::{InstallLog, LogLine, copy_text, install_lines};
@@ -217,13 +218,14 @@ fn BuildByHand(os: RwSignal<OsTab>) -> impl IntoView {
 pub fn AgentsStep() -> impl IntoView {
     let wizard = use_wizard();
     let ui = wizard.ui;
-    Effect::new(move |_| scan_tools(ui));
+    let scanning = RwSignal::new(false);
+    Effect::new(move |_| run_scan(ui, scanning, false));
     view! {
         <h2>"Agents on this PC"</h2>
         <p class="lead">
             "Sentinel looked for coding agents on this computer. Turn on the ones you want to use. To run a full backlog you need at least 3 ready agents, from at least 2 different tools."
         </p>
-        <AgentCount />
+        <AgentCount scanning=scanning />
         <div class="card">
             {move || {
                 ui.snapshot
@@ -250,7 +252,7 @@ pub fn AgentsStep() -> impl IntoView {
 
 /// The count line and the scan button.
 #[component]
-fn AgentCount() -> impl IntoView {
+fn AgentCount(scanning: RwSignal<bool>) -> impl IntoView {
     let ui = use_ui();
     let ready = move || {
         ui.snapshot.with(|s| {
@@ -270,23 +272,65 @@ fn AgentCount() -> impl IntoView {
                     }}
                     <span>{move || format!("{} turned on and ready", ready())}</span>
                 </span>
-                <button class="btn sm" on:click=move |_| scan_tools(ui)>
-                    <Icon name="refresh" size=13 />
-                    " Scan again"
-                </button>
+                <ScanButton ui=ui scanning=scanning idle="Scan again" />
             </div>
         </div>
     }
 }
 
-/// Searches for agents, then reloads the snapshot so the list shows what was found.
-pub fn scan_tools(ui: Ui) {
+/// The scan button. It reads Scanning, with the refresh icon, until the call ends.
+#[component]
+pub fn ScanButton(ui: Ui, scanning: RwSignal<bool>, idle: &'static str) -> impl IntoView {
+    view! {
+        <button class="btn sm" disabled=move || scanning.get() on:click=move |_| scan_tools(ui, scanning)>
+            <Icon name="refresh" size=13 />
+            {move || format!(" {}", if scanning.get() { "Scanning" } else { idle })}
+        </button>
+    }
+}
+
+/// The toast text after a scan: how many agents are ready and how many are missing.
+pub fn scan_summary(tools: &[ToolInfo]) -> String {
+    if tools.is_empty() {
+        return "Scanned. No agents found.".to_owned();
+    }
+    let ready = tools.iter().filter(|tool| tool.status.is_ready()).count();
+    let missing = tools
+        .iter()
+        .filter(|tool| tool.status == ToolStatus::Missing)
+        .count();
+    let word = if ready == 1 { "agent" } else { "agents" };
+    format!("Scanned. {ready} {word} ready, {missing} missing.")
+}
+
+/// The scan button's action: a user scan announces the counts, the mount scan stays quiet.
+/// The snapshot reloads after a good answer, and a failure shows as a Danger toast.
+fn run_scan(ui: Ui, scanning: RwSignal<bool>, announce: bool) {
+    scanning.set(true);
     spawn_local(async move {
-        match api::post_empty::<serde_json::Value>("/api/tools/scan").await {
-            Ok(_) => refresh(ui),
-            Err(error) => ui.show_toast(error.to_string(), ToastKind::Danger),
-        }
+        let result = api::post_empty::<Vec<ToolInfo>>("/api/tools/scan").await;
+        scanning.set(false);
+        finish_scan(ui, result, announce);
     });
+}
+
+fn finish_scan(ui: Ui, result: Result<Vec<ToolInfo>, api::ApiFailure>, announce: bool) {
+    let tools = match result {
+        Ok(tools) => tools,
+        Err(error) => {
+            ui.show_toast(error.to_string(), ToastKind::Danger);
+            return;
+        }
+    };
+    refresh(ui);
+    if announce {
+        ui.show_toast(scan_summary(&tools), ToastKind::Info);
+    }
+}
+
+/// Searches for agents and shows the counts. The wizard, Settings, and the budget page share it.
+pub fn scan_tools(ui: Ui, scanning: RwSignal<bool>) {
+    run_scan(ui, scanning, true);
 }
 
 /// One agent: its status shape, name, path, and the switch that turns it on or off.
@@ -302,6 +346,11 @@ fn AgentToggleRow(tool: ToolInfo) -> impl IntoView {
     let toggle_id = tool.id.as_str().to_string();
     let next = !tool.enabled;
     let on_toggle = move |_| toggle_tool(ui, toggle_id.clone(), next);
+    let test = TestSlot {
+        running: RwSignal::new(false),
+        outcome: RwSignal::new(None),
+    };
+    let status = tool.status;
     view! {
         <div class="chk">
             <CheckShape class=class />
@@ -310,6 +359,7 @@ fn AgentToggleRow(tool: ToolInfo) -> impl IntoView {
                 <small class="mono">{path}</small>
             </div>
             <span class="sub">{tool_status_label(tool.status)}</span>
+            <AgentTestButton tool=tool.clone() test=test />
             <button
                 class="tog"
                 role="switch"
@@ -319,6 +369,7 @@ fn AgentToggleRow(tool: ToolInfo) -> impl IntoView {
                 on:click=on_toggle
             ></button>
         </div>
+        <AgentTestLine test=test status=status />
     }
 }
 
@@ -385,6 +436,25 @@ mod tests {
     fn a_missing_tool_has_a_danger_color() {
         assert_eq!(tool_status_class(ToolStatus::Missing), "danger");
         assert_eq!(tool_status_label(ToolStatus::NeedsCommand), "Needs command");
+    }
+
+    #[test]
+    fn a_scan_with_no_agents_says_none_were_found() {
+        assert_eq!(scan_summary(&[]), "Scanned. No agents found.");
+    }
+
+    #[test]
+    fn a_scan_counts_ready_and_missing_agents() {
+        let mut tools = vec![
+            tool("claude", ToolStatus::Ready, true),
+            tool("codex", ToolStatus::Ready, true),
+            tool("gemini", ToolStatus::Ready, true),
+            tool("aider", ToolStatus::Missing, false),
+            tool("goose", ToolStatus::NeedsLogin, false),
+        ];
+        assert_eq!(scan_summary(&tools), "Scanned. 3 agents ready, 1 missing.");
+        tools.truncate(1);
+        assert_eq!(scan_summary(&tools), "Scanned. 1 agent ready, 0 missing.");
     }
 
     #[test]
