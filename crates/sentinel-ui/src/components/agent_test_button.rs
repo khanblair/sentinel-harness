@@ -3,20 +3,12 @@
 
 use leptos::prelude::*;
 use leptos::task::spawn_local;
+use sentinel_core::api::ToolTest;
 use sentinel_core::{ToolInfo, ToolStatus};
-use serde::Deserialize;
 
 use crate::api::{self, ApiFailure};
 use crate::components::status_badge::shape_markup;
 use crate::state::use_ui;
-
-/// The daemon's answer to a test. The core type is not shared yet, so the page keeps the two
-/// fields it shows. Serde skips the rest of the answer.
-#[derive(Debug, Clone, Deserialize)]
-pub struct ToolTest {
-    pub ok: bool,
-    pub message: String,
-}
 
 /// What the line under a row shows after a test: the daemon's sentence, or a failure.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -7,6 +7,7 @@ use sentinel_core::api::ToolToggle;
 use sentinel_core::{ToolInfo, ToolStatus};
 
 use crate::api;
+use crate::components::agent_test_button::{AgentTestButton, AgentTestLine, TestSlot};
 use crate::components::status_badge::shape_markup;
 use crate::components::top_bar::settle;
 use crate::state::{ToastKind, Ui, use_ui};
@@ -20,6 +21,22 @@ fn status_line(status: ToolStatus) -> impl IntoView {
             <svg class="shp" viewBox="0 0 12 12" aria-hidden="true" inner_html=shape_markup(shape, color)></svg>
             <span>{label}</span>
         </span>
+    }
+}
+
+/// The top line of a row: the name, then the status and the Test button.
+#[component]
+fn ToolHead(tool: ToolInfo, test: TestSlot) -> impl IntoView {
+    let name = tool.name.clone();
+    let status = status_line(tool.status);
+    view! {
+        <div class="row sp">
+            <span class="row"><b>{name}</b></span>
+            <span class="row" style="gap:.5em">
+                {status}
+                <AgentTestButton tool=tool test=test />
+            </span>
+        </div>
     }
 }
 
@@ -47,13 +64,15 @@ pub fn ToolRow(tool: ToolInfo) -> impl IntoView {
         (tool.version != "unknown" && !tool.version.is_empty()).then(|| tool.version.clone());
     let enabled = tool.enabled;
     let name = tool.name.clone();
-    let status = status_line(tool.status);
+    let head = tool.clone();
+    let test = TestSlot {
+        running: RwSignal::new(false),
+        outcome: RwSignal::new(None),
+    };
+    let status = tool.status;
     view! {
         <div class="tcard">
-            <div class="row sp">
-                <span class="row"><b>{name.clone()}</b></span>
-                {status}
-            </div>
+            <ToolHead tool=head test=test />
             <div class="meta">
                 <span class="mono">{path}</span>
                 {version.map(|text| view! { <span>{text}</span> })}
@@ -68,6 +87,7 @@ pub fn ToolRow(tool: ToolInfo) -> impl IntoView {
                     </button>
                 })}
             </div>
+            <AgentTestLine test=test status=status />
         </div>
     }
 }
