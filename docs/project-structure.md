@@ -121,6 +121,7 @@ xtask/
 crates/sentinel-core/
   Cargo.toml                           manifest
   src/api.rs                           typed API client
+  src/api_projects.rs                  Project, data-reset, and key bodies of the HTTP API. `api.rs` re-exports them, so each one keeps
   src/brain_api.rs                     Request and response bodies of the Brain routes (`docs/architecture.md`, API). The daemon
   src/chat.rs                          Chats and attachments (`docs/product-scope.md`, F23). A chat is one conversation in a project
   src/context.rs                       retry prompt builder, failure summary, output truncation, loop compaction
@@ -363,9 +364,11 @@ crates/sentinel-daemon/
   src/dry_run.rs                       The dry run: a rehearsal on a sample project that ships with Sentinel. A second engine runs the
   src/engine.rs                        The engine: one handle that owns the state of a Sentinel daemon. The HTTP layer, the CLI, and the
   src/folders.rs                       native folder dialog, phone folder browser, repo checks
+  src/folders_tree.rs                  The repository tree that the folder browser lists. `folders.rs` re-exports `repo_tree` and
   src/hashing.rs                       Device tokens: generation, hashing, and comparison
   src/host.rs                          The always-on host (`docs/product-scope.md`, F21). The daemon writes a heartbeat every few
   src/hub.rs                           Many projects in one app. Each project is a folder with its own engine and its own `.sentinel`
+  src/hub_error.rs                     The errors of the project list. `hub.rs` re-exports `HubError`, so `hub::HubError` keeps working
   src/keys.rs                          Keys for the model providers: the provider table, the rows the UI shows, the live check of a
   src/lib.rs                           exports
   src/live.rs                          What the engine keeps while a run is live: control channels, the budget, and the questions the
