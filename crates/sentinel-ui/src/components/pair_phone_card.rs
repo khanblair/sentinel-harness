@@ -84,6 +84,7 @@ pub fn countdown_text(seconds: u32) -> String {
 /// The link with the machine name in place of the address, for a phone with `MagicDNS` on. The
 /// port stays, because the daemon listens on it. `None` when no machine name is known.
 pub fn magic_dns_link(url: &str, machine: &str) -> Option<String> {
+    let machine = dns_label(machine);
     if machine.is_empty() {
         return None;
     }
@@ -91,6 +92,22 @@ pub fn magic_dns_link(url: &str, machine: &str) -> Option<String> {
     let (host_port, path) = rest.split_once('/')?;
     let (_, port) = host_port.rsplit_once(':')?;
     Some(format!("http://{machine}:{port}/{path}"))
+}
+
+/// The machine name as `MagicDNS` writes it: lower case letters and digits, with a hyphen for each
+/// run of spaces or other marks. "Kolaborate's MacBook Air" becomes "kolaborates-macbook-air".
+pub fn dns_label(name: &str) -> String {
+    let mut label = String::new();
+    for ch in name.chars() {
+        if ch.is_alphanumeric() {
+            label.extend(ch.to_lowercase());
+        } else if ch.is_whitespace() || ch == '-' || ch == '_' {
+            if !label.ends_with('-') && !label.is_empty() {
+                label.push('-');
+            }
+        }
+    }
+    label.trim_end_matches('-').to_owned()
 }
 
 /// Runs `action` every `interval_ms` until `alive` turns false. The loop ends with the card.
@@ -307,6 +324,13 @@ mod tests {
             magic_dns_link("http://100.64.0.9:8080/pair", "work-laptop"),
             Some("http://work-laptop:8080/pair".to_owned())
         );
+    }
+
+    #[test]
+    fn a_machine_name_becomes_a_dns_label() {
+        assert_eq!(dns_label("Kolaborate\u{2019}s MacBook Air"), "kolaborates-macbook-air");
+        assert_eq!(dns_label("work-laptop"), "work-laptop");
+        assert_eq!(dns_label("  "), "");
     }
 
     #[test]
