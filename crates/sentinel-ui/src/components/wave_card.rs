@@ -6,7 +6,7 @@ use sentinel_core::{Snapshot, TaskId, ToolId};
 use crate::components::agent_stack::{avatar_color, avatar_letter};
 use crate::components::icon::Icon;
 use crate::state::use_ui;
-use crate::views::stream_model::goes_to_agent;
+use crate::views::stream_agent::goes_to_agent;
 
 /// One task row in a wave, read from the snapshot.
 pub struct WaveRow {

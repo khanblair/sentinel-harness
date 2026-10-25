@@ -6,6 +6,7 @@ use sentinel_core::{
 };
 
 use crate::components::intent_chip::TypeChoice;
+use crate::views::stream_agent::{agent_after, agent_state, goes_to_agent};
 
 /// Where an agent's attempt stands, read from the events after it started.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -320,57 +321,6 @@ fn running_item(events: &[EventRecord], index: usize, task: &TaskId) -> Option<I
         agent,
         state: agent_state(rest, task),
     })
-}
-
-/// The agent a message such as "T-01 goes to claude" names for this task.
-pub fn goes_to_agent(events: &[EventRecord], task: &TaskId) -> Option<ToolId> {
-    events
-        .iter()
-        .rev()
-        .find_map(|record| routed_agent(&record.event, task))
-}
-
-fn agent_after(rest: &[EventRecord], task: &TaskId) -> Option<ToolId> {
-    rest.iter()
-        .find_map(|record| routed_agent(&record.event, task))
-}
-
-fn routed_agent(event: &Event, task: &TaskId) -> Option<ToolId> {
-    let Event::Message {
-        to: Some(agent),
-        text,
-        ..
-    } = event
-    else {
-        return None;
-    };
-    let prefix = format!("{task} goes to ");
-    text.starts_with(&prefix).then(|| agent.clone())
-}
-
-fn agent_state(rest: &[EventRecord], task: &TaskId) -> AgentState {
-    rest.iter()
-        .find_map(|record| attempt_end(&record.event, task))
-        .unwrap_or(AgentState::Running)
-}
-
-fn attempt_end(event: &Event, task: &TaskId) -> Option<AgentState> {
-    if let Event::Checkpoint { task: done, .. } = event {
-        return (done == task).then_some(AgentState::Done);
-    }
-    if let Event::Message { from, text, .. } = event {
-        let kill = from == "sentinel" && text.contains(task.as_str()) && text.contains("killed");
-        return kill.then_some(AgentState::Killed);
-    }
-    if let Event::TaskStatus {
-        task: moved,
-        status,
-    } = event
-    {
-        let failed = matches!(status, TaskStatus::Ready | TaskStatus::Blocked);
-        return (moved == task && failed).then_some(AgentState::Failed);
-    }
-    None
 }
 
 /// Whether an event belongs in the stream for the focused agent. Events without an agent always

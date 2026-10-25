@@ -25,6 +25,7 @@ pub mod reserved;
 pub mod settings;
 pub mod settings_pages;
 pub mod stream;
+pub mod stream_agent;
 pub mod stream_model;
 pub mod telegram_panel;
 pub mod telegram {
