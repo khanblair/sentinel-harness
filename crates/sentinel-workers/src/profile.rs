@@ -179,7 +179,7 @@ impl Profile {
     }
 }
 
-/// True when a model name marks a free model. OpenRouter and OpenCode add `:free` or `-free`.
+/// True when a model name marks a free model. `OpenRouter` and `OpenCode` add `:free` or `-free`.
 #[must_use]
 pub fn is_free_name(model: &str) -> bool {
     model.ends_with("-free") || model.ends_with(":free")
@@ -461,7 +461,11 @@ mod tests {
         let cost = cost_from_tokens(price, 500_000, 250_000);
         assert_eq!(cost.micro_usd(), 1_000_000);
         assert!(cost.is_estimated());
-        assert_eq!(cost_from_tokens(price, 1, 0).micro_usd(), 0);
+        let cheap = TokenPrice {
+            input_per_million: 1,
+            output_per_million: 1,
+        };
+        assert_eq!(cost_from_tokens(cheap, 1, 0).micro_usd(), 0);
     }
 
     #[test]

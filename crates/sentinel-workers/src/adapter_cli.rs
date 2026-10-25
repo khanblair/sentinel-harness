@@ -53,7 +53,7 @@ fn goose_model(line: &str) -> Option<String> {
     first_word(rest)
 }
 
-/// OpenCode prints `build · <model>` or `plan · <model>`.
+/// `OpenCode` prints `build · <model>` or `plan · <model>`.
 fn opencode_model(line: &str) -> Option<String> {
     let (_, rest) = line
         .split_once("build · ")
@@ -204,7 +204,10 @@ mod tests {
 
     #[test]
     fn goose_ignores_an_openrouter_mention_outside_a_session_line() {
-        assert_eq!(model_from_line("goose", "using openrouter for this call"), None);
+        assert_eq!(
+            model_from_line("goose", "using openrouter for this call"),
+            None
+        );
     }
 
     #[test]
@@ -225,8 +228,14 @@ mod tests {
 
     #[test]
     fn a_line_from_another_adapter_names_no_model() {
-        assert_eq!(model_from_line("claude", "build · glm-5.3-flash-free"), None);
-        assert_eq!(model_from_line("opencode", "new session · openrouter x:free"), None);
+        assert_eq!(
+            model_from_line("claude", "build · glm-5.3-flash-free"),
+            None
+        );
+        assert_eq!(
+            model_from_line("opencode", "new session · openrouter x:free"),
+            None
+        );
     }
 
     #[test]
