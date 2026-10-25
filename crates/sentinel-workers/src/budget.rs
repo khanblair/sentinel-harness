@@ -15,6 +15,7 @@ const NO_NEW_TASKS_PERCENT: u8 = 70;
 const KILL_PERCENT: u8 = 95;
 /// How many times a tier's typical task cost a task may spend before it is killed.
 const CEILING_FACTOR: u64 = 2;
+const SECONDS_PER_HOUR: u64 = 3_600;
 
 #[derive(Debug, Error, PartialEq, Eq)]
 pub enum BudgetError {
@@ -135,20 +136,9 @@ impl Budget {
     /// (a ceiling event repeats while the task stays over its ceiling).
     pub fn record(&self, task: &TaskId, cost: Cost) -> Vec<BudgetEvent> {
         let mut state = self.lock();
-        state.spent = state.spent + cost;
         let task_total = state.per_task.get(task).copied().unwrap_or(Cost::ZERO) + cost;
         state.per_task.insert(task.clone(), task_total);
-        let percent = state.spent.percent_of(state.cap);
-        let mut events = Vec::new();
-        if percent >= NO_NEW_TASKS_PERCENT && !state.fired_70 {
-            state.fired_70 = true;
-            events.push(BudgetEvent::Threshold70);
-        }
-        if percent >= KILL_PERCENT && !state.fired_95 {
-            state.fired_95 = true;
-            self.kill.send_replace(true);
-            events.push(BudgetEvent::Threshold95);
-        }
+        let mut events = self.add_spend(&mut state, cost);
         if let Some(ceiling) = state
             .ceilings
             .get(task)
@@ -162,6 +152,32 @@ impl Budget {
             });
         }
         state.pending.extend(events.iter().cloned());
+        events
+    }
+
+    /// Add a time guess to the total spend. A guess never counts toward a task's ceiling, so it
+    /// cannot end a run by itself. The cap still sees it.
+    pub fn record_guess(&self, cost: Cost) -> Vec<BudgetEvent> {
+        let mut state = self.lock();
+        let events = self.add_spend(&mut state, cost);
+        state.pending.extend(events.iter().cloned());
+        events
+    }
+
+    /// Count spend toward the cap. Fires the 70 and 95 percent thresholds once each.
+    fn add_spend(&self, state: &mut State, cost: Cost) -> Vec<BudgetEvent> {
+        state.spent = state.spent + cost;
+        let percent = state.spent.percent_of(state.cap);
+        let mut events = Vec::new();
+        if percent >= NO_NEW_TASKS_PERCENT && !state.fired_70 {
+            state.fired_70 = true;
+            events.push(BudgetEvent::Threshold70);
+        }
+        if percent >= KILL_PERCENT && !state.fired_95 {
+            state.fired_95 = true;
+            self.kill.send_replace(true);
+            events.push(BudgetEvent::Threshold95);
+        }
         events
     }
 
@@ -188,12 +204,21 @@ pub fn default_ceiling(tier: Tier) -> Cost {
 
 /// A high guess for a CLI that reports no dollar figure: a rate per second by tier.
 pub fn estimate_by_time(tier: Tier, elapsed: Duration) -> Cost {
-    let micro_per_second: u64 = match tier {
+    Cost::from_micro_usd(guess_micro_per_second(tier).saturating_mul(elapsed.as_secs()), true)
+}
+
+/// The guess for one hour of running. A run on a time guess alone shows this rate to the user.
+pub fn guess_per_hour(tier: Tier) -> Cost {
+    let micro = guess_micro_per_second(tier).saturating_mul(SECONDS_PER_HOUR);
+    Cost::from_micro_usd(micro, true)
+}
+
+fn guess_micro_per_second(tier: Tier) -> u64 {
+    match tier {
         Tier::Cheap => 150,
         Tier::Mid => 500,
         Tier::Smart => 1_500,
-    };
-    Cost::from_micro_usd(micro_per_second.saturating_mul(elapsed.as_secs()), true)
+    }
 }
 
 #[cfg(test)]
@@ -307,5 +332,29 @@ mod tests {
         assert!(estimate_by_time(Tier::Smart, minute) > estimate_by_time(Tier::Cheap, minute));
         assert!(estimate_by_time(Tier::Cheap, minute * 2) > estimate_by_time(Tier::Cheap, minute));
         assert!(estimate_by_time(Tier::Mid, minute).is_estimated());
+    }
+
+    #[test]
+    fn a_cheap_agent_guess_reads_as_54_cents_an_hour() {
+        assert_eq!(guess_per_hour(Tier::Cheap).to_string(), "$0.54");
+    }
+
+    #[test]
+    fn a_guess_never_fires_the_task_ceiling() {
+        let (budget, _kill) = Budget::new(usd("10.00"));
+        budget.set_ceiling(&task(), usd("0.10"));
+        assert_eq!(budget.record_guess(usd("0.50")), Vec::<BudgetEvent>::new());
+        assert_eq!(budget.task_spent(&task()), Cost::ZERO);
+        assert_eq!(budget.spent(), usd("0.50"));
+    }
+
+    #[test]
+    fn a_guess_still_fires_the_cap_threshold_and_the_kill_signal() {
+        let (budget, kill) = Budget::new(usd("1.00"));
+        assert_eq!(
+            budget.record_guess(usd("0.96")),
+            vec![BudgetEvent::Threshold70, BudgetEvent::Threshold95]
+        );
+        assert!(*kill.borrow());
     }
 }
