@@ -6,6 +6,10 @@ mod commands;
 mod doctor_host;
 mod serve;
 mod service;
+#[cfg(all(feature = "window", target_os = "macos"))]
+mod window;
+#[cfg(all(feature = "window", target_os = "macos"))]
+mod window_menu;
 mod writeup;
 
 use std::path::PathBuf;
@@ -141,18 +145,42 @@ enum KeysCommand {
     Status { name: String },
 }
 
-#[tokio::main]
-async fn main() -> ExitCode {
+fn main() -> ExitCode {
     let Some(command) = Cli::parse().command.or_else(default_command) else {
         return show_help();
     };
-    match dispatch(command).await {
-        Ok(code) => code,
-        Err(error) => {
-            eprintln!("error: {error:#}");
-            ExitCode::from(2)
-        }
+    run(command)
+}
+
+/// The window owns the main thread on macOS, so it cannot sit inside a tokio runtime.
+fn run(command: Command) -> ExitCode {
+    match command {
+        #[cfg(all(feature = "window", target_os = "macos"))]
+        Command::App { repo } => match window::run(repo) {
+            Ok(code) => code,
+            Err(error) => report(error),
+        },
+        other => run_commands(other),
     }
+}
+
+fn run_commands(command: Command) -> ExitCode {
+    let runtime = match tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .build()
+    {
+        Ok(runtime) => runtime,
+        Err(error) => return report(error),
+    };
+    match runtime.block_on(dispatch(command)) {
+        Ok(code) => code,
+        Err(error) => report(error),
+    }
+}
+
+fn report(error: impl std::fmt::Display) -> ExitCode {
+    eprintln!("error: {error:#}");
+    ExitCode::from(2)
 }
 
 /// Finder starts an app with no arguments. Inside a `.app` bundle that means: open Sentinel.

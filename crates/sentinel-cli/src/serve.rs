@@ -115,7 +115,7 @@ pub(crate) async fn stop(repo: Option<PathBuf>) -> Result<ExitCode> {
 }
 
 /// The address of the running daemon and this computer's token.
-fn daemon_access(repo: &Path) -> Result<(String, String)> {
+pub(crate) fn daemon_access(repo: &Path) -> Result<(String, String)> {
     let addr = std::fs::read_to_string(addr_file(repo))
         .context("no daemon is running here. Start one with: sentinel daemon")?;
     let token = std::fs::read_to_string(repo.join(".sentinel/desktop.token"))

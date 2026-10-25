@@ -27,7 +27,7 @@ fn remembered_repo() -> Option<PathBuf> {
     path.join(".git").exists().then_some(path)
 }
 
-fn remember(repo: &Path) {
+pub(crate) fn remember(repo: &Path) {
     let file = last_repo_file();
     if let Some(folder) = file.parent() {
         let _ = std::fs::create_dir_all(folder);
@@ -38,7 +38,7 @@ fn remember(repo: &Path) {
 
 /// The project to serve: the one named, the last one, or one the owner picks. `None` when the
 /// owner closes the dialog.
-fn choose_repo(named: Option<PathBuf>) -> Result<Option<PathBuf>> {
+pub(crate) fn choose_repo(named: Option<PathBuf>) -> Result<Option<PathBuf>> {
     let picked = match named.or_else(remembered_repo) {
         Some(path) => path,
         None => match pick_native(Some(&home_dir())) {
@@ -61,7 +61,7 @@ fn choose_repo(named: Option<PathBuf>) -> Result<Option<PathBuf>> {
 
 /// The tailnet address when Tailscale is up, so a phone can reach it. Otherwise this computer
 /// only: 127.0.0.1, which nothing else can reach. Port 7878, or a free one when it is taken.
-async fn bind_here(engine: &Engine) -> Result<BoundServer> {
+pub(crate) async fn bind_here(engine: &Engine) -> Result<BoundServer> {
     let attempts = [
         (BindMode::Tailscale, PORT),
         (BindMode::DevLoopback, PORT),
