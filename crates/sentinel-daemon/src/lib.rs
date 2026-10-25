@@ -31,6 +31,7 @@ pub mod engine;
 pub mod folders;
 pub mod hashing;
 pub mod host;
+pub mod hub;
 pub mod live;
 pub mod onboarding;
 mod openrouter_tool;

@@ -244,8 +244,17 @@ impl Engine {
         Ok(token)
     }
 
+    /// Take the paired devices from another engine, so a token that signs in there signs in here.
+    pub fn use_devices_of(&self, primary: &Engine) {
+        *crate::engine::lock(&self.inner.devices_from) = Some(primary.clone());
+    }
+
     /// Who owns this token, if it is a valid, unrevoked device token.
     pub fn authenticate(&self, token: &str) -> Option<sentinel_store::Device> {
+        let source = crate::engine::lock(&self.inner.devices_from).clone();
+        if let Some(primary) = source {
+            return primary.authenticate(token);
+        }
         let hash = crate::hashing::hash_token(token);
         self.inner.store.device_by_token_hash(&hash).ok().flatten()
     }

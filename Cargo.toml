@@ -53,6 +53,7 @@ time = { version = "0.3.55", features = ["serde", "serde-well-known", "macros", 
 tokio = { version = "1.54.1", features = ["rt-multi-thread", "macros", "process", "sync", "time", "fs", "signal", "io-util", "io-std", "net"] }
 tokio-util = "0.7.20"
 toml = "1.1.8"
+tower = { version = "0.5.3", default-features = false, features = ["util"] }
 tower-http = { version = "0.7.1", features = ["fs", "trace", "limit"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }

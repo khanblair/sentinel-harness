@@ -11,6 +11,7 @@ use tower_http::limit::RequestBodyLimitLayer;
 use crate::assets;
 use crate::auth;
 use crate::engine::Engine;
+use crate::hub::{Hub, hub_router};
 use crate::routes;
 use crate::tailscale::{self, BindError, BindMode};
 use crate::ws;
@@ -49,8 +50,15 @@ impl BoundServer {
     }
 }
 
-/// Picks the tailnet address from Tailscale and binds to it. A wildcard address is refused.
+/// Picks the tailnet address from Tailscale and binds to it. A wildcard address is refused. One
+/// project only: use [`bind_hub`] to serve several.
 pub async fn bind(engine: Engine, options: &ServerOptions) -> Result<BoundServer, ServerError> {
+    bind_hub(Hub::new(engine, None), options).await
+}
+
+/// Like [`bind`], for the projects of a hub. The primary project decides the address.
+pub async fn bind_hub(hub: Hub, options: &ServerOptions) -> Result<BoundServer, ServerError> {
+    let engine = hub.primary().clone();
     let status = engine.tailscale_status().await;
     let ip = tailscale::bind_address(&status, options.bind)?;
     let listener = TcpListener::bind(SocketAddr::new(ip, options.port)).await?;
@@ -58,7 +66,7 @@ pub async fn bind(engine: Engine, options: &ServerOptions) -> Result<BoundServer
     Ok(BoundServer {
         addr,
         listener,
-        router: router(engine),
+        router: hub_router(hub),
     })
 }
 

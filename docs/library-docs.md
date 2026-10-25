@@ -18,6 +18,7 @@
 | `tokio` | 1.54.1 | Async runtime, processes, channels, timers | Standard, needed for many concurrent agents |
 | `tokio-util` | 0.7.20 | Cancellation helpers, codecs | Small, pairs with tokio |
 | `axum` | 0.8.9 | HTTP API, WebSocket | Fits tokio, small |
+| `tower` | 0.5.3 | Hands one request to the router of the right project (`ServiceExt::oneshot`) | Already inside axum. Only the `util` feature |
 | `tower-http` | 0.7.1 | Static files, tracing, limits | Standard axum companion |
 | `futures` | 0.3.34 | Stream helpers | Needed for event streams |
 

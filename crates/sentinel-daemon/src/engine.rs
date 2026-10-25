@@ -89,6 +89,9 @@ pub(crate) struct Inner {
     pub quit: tokio::sync::Notify,
     /// When this daemon started.
     pub started: OffsetDateTime,
+    /// The engine that knows the paired devices, when this project is not the primary one. One
+    /// sign-in then works in every project.
+    pub devices_from: Mutex<Option<Engine>>,
 }
 
 #[derive(Clone)]
@@ -125,6 +128,7 @@ impl Engine {
                 headless: std::sync::atomic::AtomicBool::new(false),
                 quit: tokio::sync::Notify::new(),
                 started: OffsetDateTime::now_utc(),
+                devices_from: Mutex::new(None),
             }),
         };
         engine.refresh_repo();
