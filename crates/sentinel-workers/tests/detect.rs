@@ -303,3 +303,25 @@ async fn with_no_search_path_the_real_path_is_used() {
     assert_eq!(found[0].status, ToolStatus::Ready);
     assert_ne!(found[0].path, "");
 }
+
+#[tokio::test]
+async fn slow_tools_are_detected_at_the_same_time_in_profile_order() {
+    let temp = TempDir::new().expect("temp dir");
+    let bin_dir = temp.path().to_path_buf();
+    write_fake_binary(temp.path(), "slowa", "sleep 1\necho \"slowa 1.0.0\"").await;
+    write_fake_binary(temp.path(), "slowb", "sleep 1\necho \"slowb 1.0.0\"").await;
+    let profiles = vec![
+        base_profile("slowa", "SlowA", false, LoginKind::None, "", false),
+        base_profile("slowb", "SlowB", false, LoginKind::None, "", false),
+    ];
+    let options = make_options(&bin_dir, temp.path(), vec![]);
+
+    let started = std::time::Instant::now();
+    let results = detect_all(&profiles, &options).await;
+    let elapsed = started.elapsed();
+
+    let ids: Vec<&str> = results.iter().map(|i| i.id.as_str()).collect();
+    assert_eq!(ids, ["slowa", "slowb"]);
+    assert!(results.iter().all(|i| i.status == ToolStatus::Ready));
+    assert!(elapsed < Duration::from_secs(2), "scan took {elapsed:?}");
+}
