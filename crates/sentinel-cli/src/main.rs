@@ -4,6 +4,7 @@
 mod app;
 mod commands;
 mod doctor_host;
+mod login_path;
 mod serve;
 mod service;
 #[cfg(all(feature = "window", target_os = "macos"))]
@@ -149,6 +150,10 @@ fn main() -> ExitCode {
     let Some(command) = Cli::parse().command.or_else(default_command) else {
         return show_help();
     };
+    // The app and the daemon need the agent CLIs on PATH. Other commands stay fast.
+    if matches!(command, Command::App { .. } | Command::Daemon { .. }) {
+        login_path::ensure_login_path();
+    }
     run(command)
 }
 
