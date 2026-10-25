@@ -3,9 +3,15 @@
 //! `InstallChecklist` and `PairChecklist` (`docs/ui-registry.md`, Settings and Setup).
 
 use leptos::prelude::*;
-use sentinel_core::api::{CheckRow, CheckStatus};
+use sentinel_core::api::{CheckRow, CheckStatus, RepoCheckResponse};
 
 use crate::components::status_badge::shape_markup;
+
+/// Whether the wizard may continue past the repository step. The daemon decides `usable`: only
+/// the git row is a hard requirement, so a dirty tree or a missing backlog does not block.
+pub fn can_continue(check: &RepoCheckResponse) -> bool {
+    check.usable
+}
 
 /// The color class and the text of one row. A row without detail gets a plain word.
 pub fn describe_check(row: &CheckRow) -> (&'static str, String) {
@@ -162,5 +168,37 @@ mod tests {
     #[test]
     fn a_row_without_a_special_fix_only_rechecks() {
         assert_eq!(fix_action("Git repository", "Retry"), FixAction::Recheck);
+    }
+
+    fn check(usable: bool, rows: Vec<CheckRow>) -> RepoCheckResponse {
+        RepoCheckResponse {
+            path: "/code/app".to_string(),
+            rows,
+            usable,
+        }
+    }
+
+    #[test]
+    fn a_repo_with_a_dirty_tree_and_no_backlog_can_continue() {
+        let rows = vec![
+            CheckRow {
+                name: "Git repository".to_string(),
+                status: CheckStatus::Ok,
+                detail: String::new(),
+                fix: None,
+            },
+            row(CheckStatus::NeedsAction, "No backlog.md."),
+            row(CheckStatus::NeedsAction, "Uncommitted changes: a.md."),
+        ];
+        assert!(can_continue(&check(true, rows)));
+    }
+
+    #[test]
+    fn a_folder_without_git_cannot_continue() {
+        let rows = vec![row(
+            CheckStatus::NeedsAction,
+            "No .git entry in this folder",
+        )];
+        assert!(!can_continue(&check(false, rows)));
     }
 }

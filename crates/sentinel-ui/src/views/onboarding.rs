@@ -14,6 +14,7 @@ use crate::components::install_checklist::all_found;
 use crate::components::onboarding_stepper::{
     OnboardingStepper, WizardState, WizardStep, can_continue, next_step, skippable,
 };
+use crate::components::repo_checks;
 use crate::state::{ToastKind, Ui, refresh, use_ui};
 use crate::views::budget_step::{BudgetStep, CapUpdate};
 use crate::views::dry_run::DryRunStep;
@@ -108,7 +109,7 @@ impl Wizard {
         }
         if self
             .repo
-            .with(|repo| repo.as_ref().is_some_and(|r| r.usable))
+            .with(|repo| repo.as_ref().is_some_and(repo_checks::can_continue))
         {
             ready.push(WizardStep::Repository);
         }
