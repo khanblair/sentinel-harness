@@ -70,8 +70,8 @@ jobs:
       - name: Build the UI, then the binary for each Mac that embeds it
         run: |
           (cd crates/sentinel-ui && trunk build --release)
-          cargo build --release -p sentinel-cli --target aarch64-apple-darwin
-          cargo build --release -p sentinel-cli --target x86_64-apple-darwin
+          cargo build --release -p sentinel-cli --features window --target aarch64-apple-darwin
+          cargo build --release -p sentinel-cli --features window --target x86_64-apple-darwin
 
       - name: Join the two binaries into one universal binary
         run: |
@@ -126,6 +126,41 @@ jobs:
       - name: Notarize the disk image
         if: env.APPLE_CERTIFICATE != '' && env.APPLE_ID != '' && env.APPLE_TEAM_ID != '' && env.APPLE_APP_PASSWORD != ''
         run: packaging/macos/notarize.sh "dist/Sentinel-${{ steps.tag.outputs.version }}.dmg"
+
+      # A real launch catches a broken window or web view that a compile cannot. The daemon is
+      # stopped through the same quit path a person uses, and a failure here never blocks a release.
+      - name: Launch the app once
+        continue-on-error: true
+        run: |
+          dmg="dist/Sentinel-${{ steps.tag.outputs.version }}.dmg"
+          mount="$RUNNER_TEMP/sentinel-dmg"
+          repo="$RUNNER_TEMP/smoke-repo"
+          log="$RUNNER_TEMP/window-smoke.log"
+          mkdir -p "$mount"
+          set +e
+          {
+            hdiutil attach "$dmg" -mountpoint "$mount" -nobrowse -readonly &&
+            cp -R "$mount/Sentinel.app" "$RUNNER_TEMP/Sentinel.app" &&
+            hdiutil detach "$mount" &&
+            git init -b main "$repo" &&
+            git -C "$repo" config user.name "Sentinel" &&
+            git -C "$repo" config user.email "sentinel@example.invalid" &&
+            git -C "$repo" commit --allow-empty -m "smoke" &&
+            SENTINEL_WINDOW_SMOKE=1 perl -e 'alarm 90; exec @ARGV' \
+              "$RUNNER_TEMP/Sentinel.app/Contents/MacOS/sentinel" app --repo "$repo" > "$log" 2>&1
+          }
+          status=$?
+          if grep -q WINDOW_LOADED "$log" 2>/dev/null; then
+            echo "Window smoke: the page loaded and the app quit." >> "$GITHUB_STEP_SUMMARY"
+          elif [ "$status" -eq 142 ] || [ "$status" -eq 124 ]; then
+            echo "Window smoke: timed out after 90 seconds." >> "$GITHUB_STEP_SUMMARY"
+            tail -20 "$log" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          else
+            echo "Window smoke: the page did not load (exit $status)." >> "$GITHUB_STEP_SUMMARY"
+            tail -20 "$log" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
 
       - name: Say what was built
         run: |

@@ -10,6 +10,9 @@ license.workspace = true
 name = "sentinel"
 path = "src/main.rs"
 
+[features]
+window = ["dep:tao", "dep:wry", "dep:muda"]
+
 [dependencies]
 sentinel-core = { path = "../sentinel-core" }
 sentinel-daemon = { path = "../sentinel-daemon" }
@@ -19,6 +22,11 @@ clap = { workspace = true }
 reqwest = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+muda = { workspace = true, optional = true }
+tao = { workspace = true, optional = true }
+wry = { workspace = true, optional = true }
 
 [dev-dependencies]
 assert_cmd = { workspace = true }

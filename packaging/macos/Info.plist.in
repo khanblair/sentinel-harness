@@ -15,6 +15,11 @@
     <key>LSApplicationCategoryType</key><string>public.app-category.developer-tools</string>
     <key>LSMinimumSystemVersion</key><string>11.0</string>
     <key>NSHighResolutionCapable</key><true/>
+    <key>NSAppTransportSecurity</key>
+    <dict>
+        <!-- The window loads the UI from the daemon on this Mac over plain http. -->
+        <key>NSAllowsLocalNetworking</key><true/>
+    </dict>
     <key>NSHumanReadableCopyright</key><string>MIT License</string>
 </dict>
 </plist>
