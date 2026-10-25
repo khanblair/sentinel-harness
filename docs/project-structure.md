@@ -334,6 +334,7 @@ crates/sentinel-daemon/
   Cargo.toml                           manifest
   build.rs                             The daemon embeds the built UI from `crates/sentinel-ui/dist/`. On a fresh clone that folder
   src/access.rs                        Engine methods for getting at the daemon: Tailscale, pairing, devices, the install check,
+  src/agent_test.rs                    Test one agent CLI for real: one tiny headless prompt through the same worker a task uses, in an
   src/agents.rs                        Finding the agent CLIs on this computer, turning them into workers, and asking one of them
   src/agents_config.rs                 Pure helpers that pick the tools and the routing from one scan. They take no engine, so the
   src/ask.rs                           Questions the run loop puts to the user: approval cards and decisions. Each one waits for an
@@ -364,6 +365,7 @@ crates/sentinel-daemon/
   src/dry_run.rs                       The dry run: a rehearsal on a sample project that ships with Sentinel. A second engine runs the
   src/engine.rs                        The engine: one handle that owns the state of a Sentinel daemon. The HTTP layer, the CLI, and the
   src/folders.rs                       native folder dialog, phone folder browser, repo checks
+  src/folders_git.rs                   The git half of the repository check: the clean working tree row, and the commit that takes
   src/folders_tree.rs                  The repository tree that the folder browser lists. `folders.rs` re-exports `repo_tree` and
   src/hashing.rs                       Device tokens: generation, hashing, and comparison
   src/host.rs                          The always-on host (`docs/product-scope.md`, F21). The daemon writes a heartbeat every few
@@ -418,6 +420,7 @@ crates/sentinel-daemon/
   src/verify_phase.rs                  After the barrier: check each checkpointed task of the wave and give it a status. Only
   src/wave.rs                          One wave: reserve files, run the tasks together, wait at the barrier, run the full suite on a
   src/ws.rs                            The live stream on `GET /ws`. The first frame must authenticate. Then the client subscribes
+  tests/agent_test.rs                  The agent test route over HTTP. The answers that need no agent program are checked here: an
   tests/api.rs                         The HTTP API, served on a real listener and called with `reqwest`. The WebSocket framing is
   tests/brain_api.rs                   The Brain API, served on a real listener and called with `reqwest`. Notes are written through the
   tests/brain_api/support.rs           Helpers for the Brain API tests: an engine on a temporary repository, a listener, requests with a
@@ -494,6 +497,7 @@ crates/sentinel-ui/
   src/components/add_project.rs        `AddProjectButton` and the project dialogs: the New project flow, the folder browser for a host
   src/components/agent_stack.rs        `AgentStack`: avatars of the ready agents in the top bar, each with a state dot. Opens the
   src/components/agent_step_card.rs    One agent's card for one attempt at one task. The steps are not in the events, so the card
+  src/components/agent_test_button.rs  The Test button of an agent row and the line that shows its answer. A test sends one tiny
   src/components/appearance_form.rs    The controls of Settings, Appearance, from theme down to corner radius. The density choices
   src/components/approval_card.rs      An approval card: an agent asks for one more file, or the user approves a wave or the plan
   src/components/attach_menu.rs        The entries of the composer's plus menu. Each entry opens one add dialog
