@@ -41,6 +41,8 @@ pub mod host_card;
 pub mod icon;
 pub mod install_checklist;
 pub mod install_log;
+pub mod key_card;
+pub mod keys_section;
 pub mod kill_button;
 pub mod lesson_card;
 pub mod menus;

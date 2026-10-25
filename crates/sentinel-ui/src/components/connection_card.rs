@@ -1,6 +1,6 @@
 //! The Connections page and the Devices page of Settings (`docs/product-scope.md`, F18). Each
 //! connection row shows the daemon's state and a Test button that asks the daemon to check it
-//! again. The `OpenRouter` key goes to the daemon's keychain route and is never shown back.
+//! again. The API keys section sits above the list and holds the keys themselves.
 
 use leptos::prelude::*;
 use leptos::task::spawn_local;
@@ -9,6 +9,7 @@ use serde::Deserialize;
 
 use crate::api;
 use crate::components::icon::Icon;
+use crate::components::keys_section::KeysSection;
 use crate::components::pair_phone_card::PairPhoneCard;
 use crate::components::status_badge::shape_markup;
 use crate::components::top_bar::settle;
@@ -125,6 +126,7 @@ pub fn ConnectionsPage() -> impl IntoView {
     view! {
         <h2>"Connections"</h2>
         <p class="lead">"What Sentinel needs to reach, and its state right now."</p>
+        <KeysSection />
         {move || connections_body(ui, load)}
     }
 }
@@ -155,7 +157,6 @@ fn connection_card(ui: Ui, load: RwSignal<Load>, row: ConnectionRow) -> impl Int
     let look = state_look(row.state);
     let label = connection_label(&row.name);
     let icon = connection_icon(&row.name);
-    let is_openrouter = row.name.eq_ignore_ascii_case("openrouter");
     let test_path = format!("/api/connections/{}/test", row.name.to_ascii_lowercase());
     let status_style = format!("color:var(--{})", look.color);
     view! {
@@ -168,7 +169,6 @@ fn connection_card(ui: Ui, load: RwSignal<Load>, row: ConnectionRow) -> impl Int
                 </span>
             </div>
             <div class="sub" style="margin:.35em 0">{row.detail}</div>
-            {is_openrouter.then(|| view! { <OpenRouterKey /> })}
             <div class="row">
                 <button class="btn" on:click=move |_| test_connection(ui, load, test_path.clone())>
                     "Test"
@@ -187,47 +187,6 @@ fn test_connection(ui: Ui, load: RwSignal<Load>, path: String) {
             }
             Err(failure) => ui.show_toast(failure.to_string(), ToastKind::Danger),
         }
-    });
-}
-
-/// The OpenRouter key field. The text is cleared after a save and never sent back to the page.
-#[component]
-fn OpenRouterKey() -> impl IntoView {
-    let ui = use_ui();
-    let key = RwSignal::new(String::new());
-    view! {
-        <div class="row wrap">
-            <input
-                class="field"
-                type="password"
-                placeholder="Paste API key"
-                aria-label="OpenRouter API key"
-                autocomplete="off"
-                style="max-width:16em"
-                prop:value=key
-                on:input=move |ev| key.set(event_target_value(&ev))
-            />
-            <button class="btn" on:click=move |_| save_key(ui, key)>"Save key"</button>
-        </div>
-        <div class="sub">"The key goes to your keychain."</div>
-    }
-}
-
-fn save_key(ui: Ui, key: RwSignal<String>) {
-    let value = key.get_untracked();
-    if value.trim().is_empty() {
-        ui.show_toast("Paste a key first.", ToastKind::Warn);
-        return;
-    }
-    spawn_local(async move {
-        let body = serde_json::json!({ "key": value });
-        let result =
-            api::send::<_, serde_json::Value>("PUT", "/api/secrets/openrouter", &body).await;
-        if result.is_ok() {
-            key.set(String::new());
-            ui.show_toast("Key saved.", ToastKind::Ok);
-        }
-        settle(ui, result);
     });
 }
 
