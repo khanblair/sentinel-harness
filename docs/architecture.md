@@ -240,6 +240,7 @@ Money is stored as integer micro-dollars.
 | `POST /api/brain/lessons/:id/review` | Approve, reject, or retire a lesson note |
 | `POST /api/brain/mode` | Move the Brain mode to a stricter value (`learn` to `read-only` to `off`) |
 | `GET /api/brain/proposals`, `POST /api/brain/proposals/:id` | List proposals. Accept or dismiss one |
+| `POST /api/brain/seed` | Write linked notes from the project (project, areas, README, conventions, agents). Computer only. Learn mode only. Never overwrites a note |
 | `GET /api/brain/care`, `PUT /api/brain/care`, `POST /api/brain/care/run` | Care schedule, settings, and run now |
 | `GET /api/tasks/:id/quality` | Quality notes for a task |
 | `GET /api/permissions`, `PUT /api/permissions` | Permission mode and the per-agent capability matrix |
@@ -270,6 +271,11 @@ Money is stored as integer micro-dollars.
 | `GET /api/fs/list?path=` | Folder browser for a phone, limited to the home folder. Allowed from a phone |
 | `POST /api/repo/check` | Check git, backlog.md, and a clean tree for a folder |
 | `POST /api/repo/starter-backlog` | Create a starter backlog.md with example tasks |
+| `GET /api/repo/tree?path=` | The folders of one level of the project, with file counts and the parent path. Used by the Add a folder browser |
+| `GET /api/context?chat=` | Estimated tokens per category (messages, instructions, Brain notes, skills, attachments, backlog) against the agent's window |
+| `GET /api/changes` | The working tree now: changed files with status and line counts |
+| `GET /api/changes/diff?path=` | The diff of one changed file, at most 200 KB |
+| `GET /api/backlog/tasks` | The tasks of the backlog file, before a run plans them |
 
 ### WebSocket `/ws`
 
