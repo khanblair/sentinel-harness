@@ -2,16 +2,13 @@
 //! A phone may only tighten the mode, the same rule as the Brain menu.
 
 use leptos::prelude::*;
-use leptos::task::spawn_local;
 use sentinel_core::BrainMode;
-use sentinel_core::api::SetBrainMode;
 
-use crate::api;
 use crate::brain::phone_may_pick;
 use crate::components::care_settings::CareSettings;
 use crate::components::icon::Icon;
-use crate::components::top_bar::settle;
 use crate::state::{Ui, use_ui};
+use crate::views::brain::set_brain_mode;
 use crate::views::settings::Field;
 use crate::views::settings_pages::setting_or;
 
@@ -68,7 +65,7 @@ fn mode_button(ui: Ui, mode: BrainMode, label: &'static str, hint: &'static str)
         !phone_may_pick(current, mode, ui.on_phone())
     };
     view! {
-        <button aria-pressed=pressed disabled=disabled on:click=move |_| set_mode(ui, mode)>
+        <button aria-pressed=pressed disabled=disabled on:click=move |_| set_brain_mode(ui, mode)>
             <span><Icon name="brain" size=17 /></span>
             <div>
                 <b>{label}</b>
@@ -76,12 +73,4 @@ fn mode_button(ui: Ui, mode: BrainMode, label: &'static str, hint: &'static str)
             </div>
         </button>
     }
-}
-
-fn set_mode(ui: Ui, mode: BrainMode) {
-    spawn_local(async move {
-        let result =
-            api::post::<_, serde_json::Value>("/api/brain/mode", &SetBrainMode { mode }).await;
-        settle(ui, result);
-    });
 }

@@ -36,16 +36,57 @@ pub fn mode_name(mode: BrainMode) -> &'static str {
     }
 }
 
-/// One sentence about the mode, from the prototype.
+/// The panel's one line about the mode.
 pub fn mode_sentence(mode: BrainMode) -> &'static str {
     match mode {
-        BrainMode::Off => "Off. Nothing is read or written.",
-        BrainMode::ReadOnly => {
-            "Read only. Agents read notes. Nothing is written. Best for live runs."
-        }
-        BrainMode::Learn => {
-            "Learn. Agents read notes. Every run writes a journal and lesson candidates."
-        }
+        BrainMode::Off => "Off",
+        BrainMode::ReadOnly => "Read-only: agents read notes and write nothing",
+        BrainMode::Learn => "Learn: runs add notes and lesson candidates",
+    }
+}
+
+pub const LOADING_NOTES: &str = "Loading notes...";
+pub const LOADING_NOTE: &str = "Loading the note...";
+pub const LOADING_GRAPH: &str = "Loading the graph...";
+pub const LOADING_PROPOSALS: &str = "Loading proposals...";
+pub const NO_NOTES_TEXT: &str = "The Brain has no notes yet.";
+pub const NO_NOTES_MATCH: &str = "No notes match.";
+pub const BUILD_NOTES_LABEL: &str = "Build notes from this project";
+pub const READING_PROJECT_LABEL: &str = "Reading the project";
+pub const ASK_COMPUTER_BUILD_TEXT: &str = "Ask the computer to build the notes.";
+pub const LEARN_SWITCH_TEXT: &str = "This turns the Brain to Learn mode so it may write notes.";
+pub const SWITCH_TO_LEARN_LABEL: &str = "Switch to Learn";
+pub const NO_LINKS_TEXT: &str = "No links yet. Build notes from this project, or write a note that links another with [[its name]].";
+pub const NOTHING_TO_REVIEW_TEXT: &str =
+    "Nothing to review. Run care now to check the notes against the project.";
+pub const RUN_CARE_LABEL: &str = "Run care now";
+
+/// The toast after a seed. The switch sentence comes first when the Brain had to change mode.
+pub fn seed_done_text(switched: bool, created: u32) -> String {
+    let word = if created == 1 { "note" } else { "notes" };
+    let made = format!("Created {created} {word}.");
+    if switched {
+        format!("Brain switched to Learn. {made}")
+    } else {
+        made
+    }
+}
+
+/// The toast after a care run, with the number of proposals it returned.
+pub fn care_done_text(count: u64) -> String {
+    match count {
+        0 => "Brain care found nothing to propose.".to_owned(),
+        1 => "Brain care found 1 proposal.".to_owned(),
+        many => format!("Brain care found {many} proposals."),
+    }
+}
+
+/// `1 link`, `3 links`, or `No links` for a note's link count.
+pub fn links_text(count: usize) -> String {
+    match count {
+        0 => "No links".to_owned(),
+        1 => "1 link".to_owned(),
+        many => format!("{many} links"),
     }
 }
 
@@ -205,5 +246,41 @@ mod tests {
     fn a_new_note_needs_a_title() {
         assert!(new_note_error("   ").is_some());
         assert_eq!(new_note_error("Fees"), None);
+    }
+
+    #[test]
+    fn each_mode_has_its_own_sentence() {
+        assert_eq!(mode_sentence(BrainMode::Off), "Off");
+        assert_eq!(
+            mode_sentence(BrainMode::ReadOnly),
+            "Read-only: agents read notes and write nothing"
+        );
+        assert_eq!(
+            mode_sentence(BrainMode::Learn),
+            "Learn: runs add notes and lesson candidates"
+        );
+    }
+
+    #[test]
+    fn the_seed_toast_says_when_the_brain_switched_to_learn() {
+        assert_eq!(
+            seed_done_text(true, 12),
+            "Brain switched to Learn. Created 12 notes."
+        );
+        assert_eq!(seed_done_text(false, 1), "Created 1 note.");
+    }
+
+    #[test]
+    fn the_care_toast_counts_the_proposals() {
+        assert_eq!(care_done_text(0), "Brain care found nothing to propose.");
+        assert_eq!(care_done_text(1), "Brain care found 1 proposal.");
+        assert_eq!(care_done_text(4), "Brain care found 4 proposals.");
+    }
+
+    #[test]
+    fn a_link_count_reads_in_words() {
+        assert_eq!(links_text(0), "No links");
+        assert_eq!(links_text(1), "1 link");
+        assert_eq!(links_text(3), "3 links");
     }
 }

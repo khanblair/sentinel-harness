@@ -1,26 +1,27 @@
-//! The Graph tab: the note graph from `GET /api/brain/graph`, a legend of the types, and one
-//! sentence on how to read it.
+//! The Graph tab: the note graph the panel header loaded, a legend of the types, and one sentence on
+//! how to read it. With no notes it shows the empty text in place of the canvas.
 
 use leptos::prelude::*;
-use leptos::task::spawn_local;
-use sentinel_core::brain_api::GraphView as GraphData;
 
-use crate::api;
-use crate::brain::{NOTE_TYPES, type_color_token, type_label};
+use crate::brain::{
+    LOADING_GRAPH, LoadState, NO_LINKS_TEXT, NOTE_TYPES, graph_is_empty, type_color_token,
+    type_label,
+};
 use crate::components::graph_view::GraphView;
-use crate::views::brain::{BrainCtx, report_failure};
+use crate::views::brain::{BrainCtx, load_notice};
 
 const READ_HELP: &str = "Each dot is a note. Lines are links. Bigger dots have more links pointing at them. Tap a dot to open the note.";
 
 #[component]
 pub fn GraphTab(ctx: BrainCtx) -> impl IntoView {
-    let graph = RwSignal::new(None::<GraphData>);
-    Effect::new(move |_| {
-        ctx.revision.track();
-        load_graph(ctx, graph);
-    });
     view! {
-        {move || graph.get().map(|data| view! { <GraphView graph=data ctx=ctx /> })}
+        {move || match ctx.graph.get() {
+            LoadState::Ready(data) if graph_is_empty(&data.nodes) => no_links_card().into_any(),
+            LoadState::Ready(data) => view! { <GraphView graph=data ctx=ctx /> }.into_any(),
+            state @ (LoadState::Loading | LoadState::Failed(_)) => {
+                load_notice(&state, LOADING_GRAPH)
+            }
+        }}
         <div class="row wrap" style="gap:.5em;margin:.6em 0">
             {NOTE_TYPES
                 .into_iter()
@@ -36,11 +37,8 @@ pub fn GraphTab(ctx: BrainCtx) -> impl IntoView {
     }
 }
 
-fn load_graph(ctx: BrainCtx, graph: RwSignal<Option<GraphData>>) {
-    spawn_local(async move {
-        match api::get::<GraphData>("/api/brain/graph").await {
-            Ok(data) => graph.set(Some(data)),
-            Err(failure) => report_failure(ctx.ui, ctx.missing, &failure),
-        }
-    });
+fn no_links_card() -> impl IntoView {
+    view! {
+        <div class="note"><span>{NO_LINKS_TEXT}</span></div>
+    }
 }

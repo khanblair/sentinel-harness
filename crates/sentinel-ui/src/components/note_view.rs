@@ -8,18 +8,18 @@ use sentinel_core::brain_api::{NoteDetail, NoteLink, NoteSummary, PinNote};
 
 use crate::api;
 use crate::brain::{
-    Segment, link_segments, note_meta_line, pin_done_text, type_color_token, type_label,
+    LOADING_NOTE, LoadState, note_meta_line, pin_done_text, type_color_token, type_label,
 };
 use crate::components::icon::Icon;
 use crate::components::lesson_card::LessonCard;
 use crate::components::note_editor::NoteEditor;
 use crate::components::strength_bar::StrengthBar;
 use crate::state::{ToastKind, use_ui};
-use crate::views::brain::{BrainCtx, bump, load_note, open_note, report_failure};
+use crate::views::brain::{BrainCtx, bump, load_note, load_notice, open_note, report_failure};
 
 #[component]
 pub fn NoteView(id: NoteId, ctx: BrainCtx) -> impl IntoView {
-    let detail = RwSignal::new(None::<NoteDetail>);
+    let detail = RwSignal::new(LoadState::Loading);
     Effect::new(move |_| {
         ctx.revision.track();
         load_note(ctx, id.clone(), detail);
@@ -28,7 +28,12 @@ pub fn NoteView(id: NoteId, ctx: BrainCtx) -> impl IntoView {
         <button class="btn sm" on:click=move |_| ctx.open_note.set(None)>
             <Icon name="back" size=13 />" All notes"
         </button>
-        {move || detail.get().map(|note| view! { <NoteDetailView note=note ctx=ctx /> })}
+        {move || match detail.get() {
+            LoadState::Ready(note) => view! { <NoteDetailView note=note ctx=ctx /> }.into_any(),
+            state @ (LoadState::Loading | LoadState::Failed(_)) => {
+                load_notice(&state, LOADING_NOTE)
+            }
+        }}
     }
 }
 
@@ -174,4 +179,102 @@ fn toggle_pin(ctx: BrainCtx, id: &NoteId, pinned: bool) {
             Err(failure) => report_failure(ctx.ui, ctx.missing, &failure),
         }
     });
+}
+
+/// One piece of a note body: plain text, or a `[[id]]` or `[[id|label]]` link.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Segment {
+    Text(String),
+    Link { id: String, label: Option<String> },
+}
+
+/// Splits a note body into text and links. An unclosed `[[` stays as text.
+pub fn link_segments(body: &str) -> Vec<Segment> {
+    let mut segments = Vec::new();
+    let mut rest = body;
+    while let Some(start) = rest.find("[[") {
+        let after = &rest[start + 2..];
+        let Some(end) = after.find("]]") else {
+            break;
+        };
+        if start > 0 {
+            segments.push(Segment::Text(rest[..start].to_owned()));
+        }
+        segments.push(link_segment(&after[..end]));
+        rest = &after[end + 2..];
+    }
+    if !rest.is_empty() {
+        segments.push(Segment::Text(rest.to_owned()));
+    }
+    segments
+}
+
+fn link_segment(inner: &str) -> Segment {
+    match inner.split_once('|') {
+        Some((id, label)) => Segment::Link {
+            id: id.trim().to_owned(),
+            label: non_empty(label.trim()),
+        },
+        None => Segment::Link {
+            id: inner.trim().to_owned(),
+            label: None,
+        },
+    }
+}
+
+fn non_empty(text: &str) -> Option<String> {
+    (!text.is_empty()).then(|| text.to_owned())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn link(id: &str, label: Option<&str>) -> Segment {
+        Segment::Link {
+            id: id.to_owned(),
+            label: label.map(str::to_owned),
+        }
+    }
+
+    #[test]
+    fn plain_text_is_one_text_segment() {
+        assert_eq!(
+            link_segments("Run the tests."),
+            vec![Segment::Text("Run the tests.".to_owned())]
+        );
+    }
+
+    #[test]
+    fn a_link_splits_the_text_around_it() {
+        assert_eq!(
+            link_segments("See [[conv-tests]] first."),
+            vec![
+                Segment::Text("See ".to_owned()),
+                link("conv-tests", None),
+                Segment::Text(" first.".to_owned()),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_pipe_label_names_the_link() {
+        assert_eq!(
+            link_segments("[[conv-tests|the test rule]]"),
+            vec![link("conv-tests", Some("the test rule"))]
+        );
+    }
+
+    #[test]
+    fn an_unclosed_link_stays_as_text() {
+        assert_eq!(
+            link_segments("open [[never closed"),
+            vec![Segment::Text("open [[never closed".to_owned())]
+        );
+    }
+
+    #[test]
+    fn an_empty_body_has_no_segments() {
+        assert_eq!(link_segments(""), Vec::new());
+    }
 }

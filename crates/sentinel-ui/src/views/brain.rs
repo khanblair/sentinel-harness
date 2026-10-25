@@ -4,16 +4,19 @@
 
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use sentinel_core::NoteId;
-use sentinel_core::brain_api::{NoteDetail, NoteList, ProposalView};
+use sentinel_core::api::{SeedReport, SetBrainMode};
+use sentinel_core::brain_api::{GraphView as GraphData, NoteDetail, NoteList, ProposalView};
+use sentinel_core::{BrainMode, NoteId};
 use wasm_bindgen_futures::JsFuture;
 
 use crate::api::{self, ApiFailure};
 use crate::brain::{
-    BrainTab, UNAVAILABLE, is_missing, mode_name, mode_sentence, proposals_tab_label,
+    BrainTab, LoadState, SWITCH_TO_LEARN_LABEL, UNAVAILABLE, care_done_text, is_missing, mode_name,
+    mode_needs_switch, mode_sentence, proposals_tab_label, seed_done_text,
 };
 use crate::components::icon::Icon;
-use crate::state::{ToastKind, Ui, use_ui};
+use crate::components::top_bar::settle;
+use crate::state::{self, ToastKind, Ui, use_ui};
 use crate::views::brain_graph::GraphTab;
 use crate::views::brain_notes::NotesTab;
 use crate::views::brain_proposals::ProposalsTab;
@@ -30,6 +33,10 @@ pub struct BrainCtx {
     pub vault_path: RwSignal<String>,
     pub note_count: RwSignal<usize>,
     pub open_proposals: RwSignal<usize>,
+    /// The note graph, shared by the Notes tab (link counts) and the Graph tab.
+    pub graph: RwSignal<LoadState<GraphData>>,
+    /// True while the notes are being built from the project.
+    pub seeding: RwSignal<bool>,
 }
 
 impl BrainCtx {
@@ -43,6 +50,8 @@ impl BrainCtx {
             vault_path: RwSignal::new(String::new()),
             note_count: RwSignal::new(0),
             open_proposals: RwSignal::new(0),
+            graph: RwSignal::new(LoadState::Loading),
+            seeding: RwSignal::new(false),
         }
     }
 }
@@ -70,6 +79,29 @@ pub fn failure_text(failure: &ApiFailure) -> String {
     }
 }
 
+/// A failed load shows its text in the view, and a toast too, so the page never looks empty.
+pub fn fail_load<T: Send + Sync + 'static>(
+    ctx: BrainCtx,
+    state: RwSignal<LoadState<T>>,
+    failure: &ApiFailure,
+) {
+    report_failure(ctx.ui, ctx.missing, failure);
+    state.set(LoadState::Failed(failure_text(failure)));
+}
+
+/// The line a list or a note shows until it has an answer, or the text of its failure. A loaded
+/// list shows nothing here.
+pub fn load_notice<T>(state: &LoadState<T>, loading: &'static str) -> AnyView {
+    match state {
+        LoadState::Loading => view! { <div class="sub">{loading}</div> }.into_any(),
+        LoadState::Failed(text) => view! {
+            <div class="note" style="color:var(--danger)"><span>{text.clone()}</span></div>
+        }
+        .into_any(),
+        LoadState::Ready(_) => ().into_any(),
+    }
+}
+
 /// Show a note in the Notes tab.
 pub fn open_note(ctx: BrainCtx, id: NoteId) {
     ctx.tab.set(BrainTab::Notes);
@@ -77,22 +109,75 @@ pub fn open_note(ctx: BrainCtx, id: NoteId) {
 }
 
 /// Fill one note from `GET /api/brain/notes/:id`.
-pub fn load_note(ctx: BrainCtx, id: NoteId, detail: RwSignal<Option<NoteDetail>>) {
+pub fn load_note(ctx: BrainCtx, id: NoteId, detail: RwSignal<LoadState<NoteDetail>>) {
     spawn_local(async move {
         match api::get::<NoteDetail>(&format!("/api/brain/notes/{id}")).await {
-            Ok(note) => detail.set(Some(note)),
-            Err(failure) => report_failure(ctx.ui, ctx.missing, &failure),
+            Ok(note) => detail.set(LoadState::Ready(note)),
+            Err(failure) => fail_load(ctx, detail, &failure),
         }
     });
 }
 
-/// Start a care run now. Shared by the proposals tab and the settings page.
-pub fn run_care(ui: Ui, missing: RwSignal<bool>) {
+/// Start a care run now. The daemon answers with the number of proposals it made, and `reload`
+/// runs after the toast so the open lists show them.
+pub fn run_care(ui: Ui, missing: RwSignal<bool>, reload: impl FnOnce() + 'static) {
     spawn_local(async move {
         match api::post_empty::<serde_json::Value>("/api/brain/care/run").await {
-            Ok(_) => ui.show_toast("Brain care started.", ToastKind::Ok),
+            Ok(reply) => {
+                let count = reply
+                    .get("proposals")
+                    .and_then(serde_json::Value::as_u64)
+                    .unwrap_or(0);
+                ui.show_toast(care_done_text(count), ToastKind::Ok);
+                reload();
+            }
             Err(failure) => report_failure(ui, missing, &failure),
         }
+    });
+}
+
+/// Set the Brain mode and wait for the daemon to take it.
+pub async fn post_brain_mode(mode: BrainMode) -> Result<serde_json::Value, ApiFailure> {
+    api::post::<_, serde_json::Value>("/api/brain/mode", &SetBrainMode { mode }).await
+}
+
+/// Set the Brain mode from a button, then refresh the snapshot so the header shows it.
+pub fn set_brain_mode(ui: Ui, mode: BrainMode) {
+    spawn_local(async move {
+        settle(ui, post_brain_mode(mode).await);
+    });
+}
+
+/// Build the notes from the project. Only learn mode may write, so the Brain switches to learn
+/// first. The button stays disabled until the seed answers.
+pub fn build_notes(ctx: BrainCtx) {
+    if ctx.seeding.get_untracked() {
+        return;
+    }
+    ctx.seeding.set(true);
+    let mode = ctx
+        .ui
+        .snapshot
+        .with_untracked(|snapshot| snapshot.brain_mode);
+    spawn_local(async move {
+        let switched = mode_needs_switch(mode);
+        if switched {
+            if let Err(failure) = post_brain_mode(BrainMode::Learn).await {
+                report_failure(ctx.ui, ctx.missing, &failure);
+                ctx.seeding.set(false);
+                return;
+            }
+            state::refresh(ctx.ui);
+        }
+        match api::post_empty::<SeedReport>("/api/brain/seed").await {
+            Ok(report) => {
+                ctx.ui
+                    .show_toast(seed_done_text(switched, report.created), ToastKind::Ok);
+                bump(ctx);
+            }
+            Err(failure) => report_failure(ctx.ui, ctx.missing, &failure),
+        }
+        ctx.seeding.set(false);
     });
 }
 
@@ -110,6 +195,12 @@ fn load_header(ctx: BrainCtx) {
         match api::get::<Vec<ProposalView>>("/api/brain/proposals").await {
             Ok(proposals) => ctx.open_proposals.set(proposals.len()),
             Err(failure) => report_failure(ctx.ui, ctx.missing, &failure),
+        }
+    });
+    spawn_local(async move {
+        match api::get::<GraphData>("/api/brain/graph").await {
+            Ok(graph) => ctx.graph.set(LoadState::Ready(graph)),
+            Err(failure) => fail_load(ctx, ctx.graph, &failure),
         }
     });
 }
@@ -180,6 +271,11 @@ fn PanelHeader(ctx: BrainCtx) -> impl IntoView {
                 <button class="btn sm" on:click=move |_| copy_vault_path(ctx)>
                     "Open in Obsidian"
                 </button>
+                {move || (!ctx.ui.on_phone() && mode_needs_switch(mode())).then(|| view! {
+                    <button class="btn sm" on:click=move |_| set_brain_mode(ctx.ui, BrainMode::Learn)>
+                        {SWITCH_TO_LEARN_LABEL}
+                    </button>
+                })}
             </div>
         </div>
     }

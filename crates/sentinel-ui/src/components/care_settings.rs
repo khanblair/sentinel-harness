@@ -4,17 +4,47 @@
 
 use leptos::prelude::*;
 use leptos::task::spawn_local;
-use sentinel_core::brain_api::CareSettings as CareData;
+use sentinel_core::brain_api::{CareFrequency, CareSettings as CareData};
 
 use crate::api;
-use crate::brain::{
-    FREQUENCY_CHOICES, UNAVAILABLE, budget_error, frequency_from_value, frequency_value,
-};
+use crate::brain::{UNAVAILABLE, budget_error};
 use crate::components::icon::Icon;
 use crate::components::toggle::Toggle;
 use crate::state::{ToastKind, Ui, use_ui};
 use crate::views::brain::{report_failure, run_care};
 use crate::views::settings::Field;
+
+/// Notes a care run adds to the schedule when it runs after every N runs.
+const CARE_RUNS: u32 = 5;
+
+/// The choices of the schedule select, as (value, label).
+const FREQUENCY_CHOICES: [(&str, &str); 5] = [
+    ("off", "Off"),
+    ("daily", "Daily"),
+    ("weekly", "Weekly"),
+    ("monthly", "Monthly"),
+    ("runs", "After every 5 runs"),
+];
+
+fn frequency_value(frequency: CareFrequency) -> &'static str {
+    match frequency {
+        CareFrequency::Off => "off",
+        CareFrequency::Daily => "daily",
+        CareFrequency::Weekly => "weekly",
+        CareFrequency::Monthly => "monthly",
+        CareFrequency::AfterRuns(_) => "runs",
+    }
+}
+
+fn frequency_from_value(value: &str) -> CareFrequency {
+    match value {
+        "daily" => CareFrequency::Daily,
+        "weekly" => CareFrequency::Weekly,
+        "monthly" => CareFrequency::Monthly,
+        "runs" => CareFrequency::AfterRuns(CARE_RUNS),
+        _ => CareFrequency::Off,
+    }
+}
 
 /// The form: the loaded settings, the draft fields, and the budget message.
 #[derive(Clone, Copy)]
@@ -191,10 +221,32 @@ fn CareActions(form: CareForm) -> impl IntoView {
         <div class="row wrap" style="margin-top:1em">
             <button class="btn pri" on:click=move |_| save_care(form)>"Save changes"</button>
             {move || (!form.ui.on_phone()).then(|| view! {
-                <button class="btn" on:click=move |_| run_care(form.ui, form.missing)>
+                <button class="btn" on:click=move |_| run_care(form.ui, form.missing, || {})>
                     <Icon name="play" size=14 />" Run care now"
                 </button>
             })}
         </div>
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_care_schedule_value_round_trips() {
+        assert_eq!(frequency_value(frequency_from_value("runs")), "runs");
+        assert_eq!(
+            frequency_from_value("runs"),
+            CareFrequency::AfterRuns(CARE_RUNS)
+        );
+        assert_eq!(frequency_from_value("unknown"), CareFrequency::Off);
+    }
+
+    #[test]
+    fn every_schedule_choice_maps_to_a_frequency_and_back() {
+        for (value, _) in FREQUENCY_CHOICES {
+            assert_eq!(frequency_value(frequency_from_value(value)), value);
+        }
     }
 }
