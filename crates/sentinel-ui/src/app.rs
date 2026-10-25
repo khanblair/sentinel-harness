@@ -13,6 +13,7 @@ use crate::components::icon::Icon;
 use crate::components::modal::ModalHost;
 use crate::components::panel_host::PanelHost;
 use crate::components::popover::{PopoverHost, install_outside_click};
+use crate::components::resize_handle::ResizeHandles;
 use crate::components::sidebar::{Sidebar, new_chat};
 use crate::components::tab_bar::{TabBar, touch_ended, touch_started};
 use crate::components::toast::Toast;
@@ -195,6 +196,7 @@ pub fn App() -> impl IntoView {
                 <div class="comp-wrap" id="compWrap"><Composer /></div>
             </main>
             <PanelHost />
+            <ResizeHandles />
             <TabBar />
             <div class="scrim" id="scrim" on:click=move |_| close_overlays(ui)></div>
             <Toast />

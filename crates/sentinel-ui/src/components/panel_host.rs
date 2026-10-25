@@ -9,8 +9,9 @@ use crate::layout::PanelId;
 use crate::state::{Align, PopoverKind, Ui, use_ui};
 use crate::views::{
     agents::AgentsPanel, board::BoardPanel, brain::BrainPanel, changes::ChangesPanel,
-    context::ContextPanel, cost::CostPanel, files::FilesPanel, permissions::PermissionsPanel, remote::RemotePanel,
-    report::ReportPanel, reserved::ReservedPanel, telegram::TelegramPanel, terminal::TerminalPanel,
+    context::ContextPanel, cost::CostPanel, files::FilesPanel, permissions::PermissionsPanel,
+    remote::RemotePanel, report::ReportPanel, reserved::ReservedPanel, telegram::TelegramPanel,
+    terminal::TerminalPanel,
 };
 
 /// The icon of each panel's tab.

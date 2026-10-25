@@ -262,8 +262,7 @@ mod tests {
     use sentinel_core::api::RepoTree;
 
     use super::{
-        Listing, breadcrumbs, encode_query_value, file_count_text, parent_of,
-        tree_url, use_label,
+        Listing, breadcrumbs, encode_query_value, file_count_text, parent_of, tree_url, use_label,
     };
 
     fn tree_at(path: &str, parent: Option<&str>) -> RepoTree {
