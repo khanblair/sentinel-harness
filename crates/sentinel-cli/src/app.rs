@@ -9,6 +9,7 @@ use anyhow::{Context, Result};
 use sentinel_daemon::engine::Engine;
 use sentinel_daemon::folders::{alert, pick_native};
 use sentinel_daemon::server::{self, BoundServer, ServerOptions};
+use sentinel_daemon::starter::{self, FirstChoice};
 use sentinel_daemon::tailscale::BindMode;
 
 use crate::commands::home_dir;
@@ -36,16 +37,24 @@ pub(crate) fn remember(repo: &Path) {
     let _ = std::fs::write(file, repo.display().to_string());
 }
 
-/// The project to serve: the one named, the last one, or one the owner picks. `None` when the
-/// owner closes the dialog.
+/// The project to serve: the one named, the last one, one the owner picks, or a new starter
+/// project. `None` when the owner quits or closes the dialog.
 pub(crate) fn choose_repo(named: Option<PathBuf>) -> Result<Option<PathBuf>> {
-    let picked = match named.or_else(remembered_repo) {
-        Some(path) => path,
-        None => match pick_native(Some(&home_dir())) {
-            Some(path) => path,
-            None => return Ok(None),
+    if let Some(path) = named.or_else(remembered_repo) {
+        return checked_repo(&path);
+    }
+    match starter::ask_first_choice() {
+        FirstChoice::PickFolder => match pick_native(Some(&home_dir())) {
+            Some(path) => checked_repo(&path),
+            None => Ok(None),
         },
-    };
+        FirstChoice::MakeStarter => make_starter(),
+        FirstChoice::Quit => Ok(None),
+    }
+}
+
+/// The folder as a full path, when it holds a git repository. Otherwise a message, and `None`.
+fn checked_repo(picked: &Path) -> Result<Option<PathBuf>> {
     let repo = picked
         .canonicalize()
         .with_context(|| format!("{} is not a folder", picked.display()))?;
@@ -57,6 +66,14 @@ pub(crate) fn choose_repo(named: Option<PathBuf>) -> Result<Option<PathBuf>> {
         return Ok(None);
     }
     Ok(Some(repo))
+}
+
+/// Make the starter project in the home folder and open it.
+fn make_starter() -> Result<Option<PathBuf>> {
+    let folder = starter::create_starter_project(&home_dir())
+        .context("could not make the starter project")?;
+    starter::set_starter_test_command(&folder).context("could not save the starter settings")?;
+    checked_repo(&folder)
 }
 
 /// The tailnet address when Tailscale is up, so a phone can reach it. Otherwise this computer
@@ -88,7 +105,7 @@ pub(crate) async fn app(repo: Option<PathBuf>) -> Result<ExitCode> {
     if serve::is_running(&repo) {
         return serve::open(Some(repo), false);
     }
-    let engine = serve::prepare(&repo, false, false).await?;
+    let engine = serve::prepare(&repo, false).await?;
     let bound = bind_here(&engine).await?;
     serve::publish(&repo, &bound)?;
     serve::open(Some(repo.clone()), false)?;

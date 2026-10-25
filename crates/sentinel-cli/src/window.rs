@@ -100,7 +100,7 @@ fn focus_running_app() {
 }
 
 async fn start_daemon(repo: &Path) -> Result<StartedDaemon> {
-    let engine = serve::prepare(repo, false, false).await?;
+    let engine = serve::prepare(repo, false).await?;
     let bound = app::bind_here(&engine).await?;
     serve::publish(repo, &bound)?;
     let (addr, token) = serve::daemon_access(repo)?;

@@ -49,7 +49,8 @@ pub enum EngineError {
 
 pub type Result<T> = std::result::Result<T, EngineError>;
 
-/// A pretend agent for tests and `--fake-agents`: a script that follows `<task id>.fake` plan files.
+/// A scripted test double for the agent CLIs. Only tests set it: the product always runs the real
+/// CLIs.
 #[derive(Debug, Clone)]
 pub struct FakeAgents {
     pub script: PathBuf,
@@ -61,6 +62,7 @@ pub struct EngineOptions {
     pub home: PathBuf,
     pub runner: Arc<dyn CommandRunner>,
     pub secrets: Arc<dyn SecretStore>,
+    /// The scripted test double (tests only). `None` in the product.
     pub fake_agents: Option<FakeAgents>,
     /// Keep state in memory instead of `.sentinel/state.db` (tests).
     pub in_memory: bool,
@@ -147,6 +149,7 @@ impl Engine {
         &self.inner.home
     }
 
+    /// True when a test double stands in for the agent CLIs.
     pub fn is_fake(&self) -> bool {
         self.inner.fake_agents.is_some()
     }

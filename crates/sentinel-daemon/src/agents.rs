@@ -1,13 +1,13 @@
 //! Finding the agent CLIs on this computer, turning them into workers, and asking one of them
-//! for a plan. In fake mode the tools are three scripted pretend agents (decision D43 and the
-//! fixtures in `fixtures/fake-cli`).
+//! for a plan. Tests may swap in three scripted agents (the fixtures in `fixtures/fake-cli`); the
+//! product only ever uses the agent CLIs found on this computer.
 
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
 use futures::future::BoxFuture;
-use sentinel_core::{Capability, Event, Tier, ToolId, ToolInfo, ToolStatus};
+use sentinel_core::{Capability, Event, Routing, Tier, ToolId, ToolInfo, ToolStatus};
 use sentinel_gate::policy::default_capabilities;
 use sentinel_plan::planner::{
     HeuristicPlanner, Plan, PlanRequest, PlannerBackend, parse_plan_json, planner_prompt,
@@ -83,17 +83,56 @@ impl Engine {
             self.store().upsert_tool(tool)?;
             self.emit(&Event::ToolDetected { tool: tool.clone() })?;
         }
+        let enabled_before = self.config().enabled_tools.len();
+        self.drop_missing_tools(&found)?;
+        let lost_every_tool = enabled_before > 0 && self.config().enabled_tools.is_empty();
         // The defaults wait for the first scan that finds a ready tool, then never run again, so
-        // a user's later choices stay.
+        // a user's later choices stay. The exception: every enabled tool was a stale one.
         let defaults_done = self.store().get_setting(DEFAULTS_KEY)?.is_some();
-        if !defaults_done && found.iter().any(|t| t.status.is_ready()) {
+        if (!defaults_done || lost_every_tool) && found.iter().any(|t| t.status.is_ready()) {
             self.apply_first_scan_defaults(&found)?;
             self.store().set_setting(DEFAULTS_KEY, "1")?;
         }
+        self.fill_empty_routing(&found)?;
         for tool in self.store().list_tools()? {
             self.ensure_default_capabilities(&tool.id)?;
         }
         Ok(self.store().list_tools()?)
+    }
+
+    /// Remove the tools this scan did not find from the config, and mark their store rows off. Old
+    /// rows stay in the store (it has no delete), so the scan alone decides what is on this computer.
+    fn drop_missing_tools(&self, found: &[ToolInfo]) -> Result<()> {
+        let config = self.config();
+        let (enabled, routing) =
+            without_missing_tools(&config.enabled_tools, &config.routing, found);
+        if enabled != config.enabled_tools || routing != config.routing {
+            self.update_config(|c| {
+                c.enabled_tools = enabled;
+                c.routing = routing;
+            })?;
+        }
+        for tool in self.store().list_tools()? {
+            let is_found = found.iter().any(|f| f.id == tool.id);
+            if !is_found && tool.enabled {
+                self.store().set_tool_enabled(&tool.id, false)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Route each empty tier to an enabled tool that is ready now. Runs on every scan.
+    fn fill_empty_routing(&self, found: &[ToolInfo]) -> Result<()> {
+        let config = self.config();
+        let usable: Vec<&ToolInfo> = found
+            .iter()
+            .filter(|t| t.status.is_ready() && config.enabled_tools.contains(&t.id))
+            .collect();
+        let routing = fill_routing(config.routing.clone(), &usable);
+        if routing != config.routing {
+            self.set_routing(routing)?;
+        }
+        Ok(())
     }
 
     async fn detect_real(&self) -> Result<Vec<ToolInfo>> {
@@ -193,6 +232,37 @@ fn route_for_tier(ready: &[&ToolInfo], tier: Tier) -> Option<ToolId> {
         .find(|t| t.tier == tier)
         .or_else(|| ready.first())
         .map(|t| t.id.clone())
+}
+
+/// The enabled tools and the routing, with every id the scan did not find taken out.
+fn without_missing_tools(
+    enabled: &[ToolId],
+    routing: &Routing,
+    found: &[ToolInfo],
+) -> (Vec<ToolId>, Routing) {
+    let known = |id: &ToolId| found.iter().any(|t| &t.id == id);
+    let keep = |slot: &Option<ToolId>| slot.clone().filter(|id| known(id));
+    (
+        enabled.iter().filter(|id| known(id)).cloned().collect(),
+        Routing {
+            cheap: keep(&routing.cheap),
+            mid: keep(&routing.mid),
+            smart: keep(&routing.smart),
+        },
+    )
+}
+
+/// Fill each empty tier of the routing from the usable tools, by tier. A set tier stays as it is.
+fn fill_routing(routing: Routing, usable: &[&ToolInfo]) -> Routing {
+    Routing {
+        cheap: routing
+            .cheap
+            .or_else(|| route_for_tier(usable, Tier::Cheap)),
+        mid: routing.mid.or_else(|| route_for_tier(usable, Tier::Mid)),
+        smart: routing
+            .smart
+            .or_else(|| route_for_tier(usable, Tier::Smart)),
+    }
 }
 
 fn profile_for(adapter: &str) -> Result<Profile> {
@@ -423,5 +493,42 @@ mod tests {
         };
         let kept = without_existing_tests(plan, &request);
         assert_eq!(kept.tasks[0].scope, ["src/ledger.rs", "tests/negative.rs"]);
+    }
+
+    #[test]
+    fn a_stale_fake_tool_is_dropped_and_its_tier_refilled_from_the_real_one() {
+        let claude = ready_tool("claude", Tier::Mid);
+        let stale = ToolId::new("fake-a");
+        let routing = Routing {
+            cheap: Some(stale.clone()),
+            mid: Some(ToolId::new("claude")),
+            smart: None,
+        };
+        let (enabled, kept) = without_missing_tools(
+            &[stale, ToolId::new("claude")],
+            &routing,
+            std::slice::from_ref(&claude),
+        );
+        assert_eq!(enabled, [ToolId::new("claude")]);
+        assert_eq!(kept.cheap, None);
+        let filled = fill_routing(kept, &[&claude]);
+        assert_eq!(filled.cheap, Some(ToolId::new("claude")));
+        assert_eq!(filled.mid, Some(ToolId::new("claude")));
+        assert_eq!(filled.smart, Some(ToolId::new("claude")));
+    }
+
+    #[test]
+    fn a_computer_with_no_ready_tool_ends_with_nothing_enabled_or_routed() {
+        let mut login = ready_tool("claude", Tier::Mid);
+        login.status = ToolStatus::NeedsLogin;
+        let stale = ToolId::new("fake-a");
+        let routing = Routing {
+            cheap: Some(stale.clone()),
+            mid: Some(stale.clone()),
+            smart: Some(stale.clone()),
+        };
+        let (enabled, kept) = without_missing_tools(&[stale], &routing, &[login]);
+        assert_eq!(enabled, Vec::<ToolId>::new());
+        assert_eq!(fill_routing(kept, &[]), Routing::default());
     }
 }
