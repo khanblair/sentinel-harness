@@ -123,6 +123,7 @@ crates/sentinel-core/
   src/api.rs                           typed API client
   src/brain_api.rs                     Request and response bodies of the Brain routes (`docs/architecture.md`, API). The daemon
   src/chat.rs                          Chats and attachments (`docs/product-scope.md`, F23). A chat is one conversation in a project
+  src/context.rs                       retry prompt builder, failure summary, output truncation, loop compaction
   src/cost.rs                          Cost in micro-dollars, estimate flag
   src/dry_run.rs                       The dry run: a short rehearsal on a sample project that ships with Sentinel
   src/error.rs                         error types
@@ -343,12 +344,16 @@ crates/sentinel-daemon/
   src/brain_notes.rs                   Reading the Brain: the notes list, one note with its links, and the graph
   src/brain_proposals.rs               Proposals from care runs and their answers. A proposal file in `_proposals/` waits until you
   src/brain_run.rs                     The Brain during a run: the notes an agent reads before a task, and the journal a run writes
+  src/brain_seed.rs                    The seed: notes that describe the project on disk. It reads the repository root and runs no
   src/briefs.rs                        The facts a brief reports, and the plain words it is written in. The text builders take counts,
+  src/changes.rs                       Live project state for the Changes and Board panels: the git working tree, the diff of one
+  src/changes/diff.rs                  The diff of one file against HEAD, for the Changes panel. An untracked file shows every line as
   src/chats.rs                         Chats: create, list, rename, pin, archive, delete. A chat is one conversation in the project
   src/close_out.rs                     Closing a run: every task that has not reached an end gets one, the report is written, and the
   src/cmd.rs                           Run external programs behind one trait
   src/config.rs                        `<repo>/.sentinel/config.toml`: settings and routing that onboarding writes
   src/connections.rs                   connection state and test actions (Tailscale, OpenRouter, MCP, git, keychain)
+  src/context_usage.rs                 The Context panel's numbers: what the next task would put in the window of the agent routed for
   src/controls.rs                      Engine methods that change settings and answer questions. Each one says who did it, because a
   src/doctor.rs                        install check used by onboarding and `sentinel doctor`
   src/dry_run.rs                       The dry run: a rehearsal on a sample project that ships with Sentinel. A second engine runs the
@@ -370,6 +375,7 @@ crates/sentinel-daemon/
   src/reviewer.rs                      Who reviews a task's diff. A different agent gives the real review. Without one (fake mode, or
   src/routes/access.rs                 Pairing, devices, Tailscale, and the folder pickers
   src/routes/brain.rs                  The Brain routes under `/api/brain`. A phone may read notes and the graph, review lessons, and
+  src/routes/changes.rs                Live project state: the working tree, one file's diff, and the backlog tasks. Any device
   src/routes/chats.rs                  Chats and their attachments: the sidebar list, new chat, rename, pin, archive, delete, and the
   src/routes/dry_run.rs                The dry run routes. Only the computer starts one. Any device may read the last one, so a page
   src/routes/mod.rs                    The HTTP routes. Each handler checks the caller, calls one Engine method, and returns JSON
@@ -390,6 +396,7 @@ crates/sentinel-daemon/
   src/skills.rs                        Skills: folders with a `SKILL.md` that teach agents one thing (`docs/product-scope.md`, F24)
   src/skills_found.rs                  Skills that other tools keep in their own folders, offered for import (`docs/product-scope.md`,
   src/skills_pick.rs                   Which skills a task gets, and the text they add to its prompt. Always skills come first, then
+  src/starter.rs                       A small starter project to try Sentinel on: a Python greeting with a unittest test and a backlog
   src/tailscale.rs                     address lookup, bind rules, serve helper
   src/telegram.rs                      Telegram inside the daemon. The `sentinel-telegram` crate holds the Bot API client, the parser,
   src/telegram_code.rs                 The phone commands that read or write the repository: `/task` adds a section to `backlog.md`,
@@ -495,9 +502,11 @@ crates/sentinel-ui/
   src/components/decision_card.rs      A decision card: two tasks contradict each other, and only the user can choose which goes on
   src/components/device_file.rs        Files chosen on this device. Each file is read with `FileReader` and sent as base64. A file over
   src/components/device_list.rs        `DeviceList`: paired devices, each with a revoke action that asks first
+  src/components/diff_view.rs          `DiffView`: a unified diff in a `<pre>`. Added lines show in the ok color, removed lines in the
   src/components/dry_run_stages.rs     `DryRunStages`: the six stages the dry run goes through, shown as a static preview. The daemon
   src/components/empty_run_state.rs    The empty stream: what the run does, and the three first actions
   src/components/file_change_card.rs   A file checkpoint: one changed path and the short commit that holds it
+  src/components/folder_browser.rs     `FolderBrowser`: the body of "Add a folder". It walks the project one folder at a time with
   src/components/font_select.rs        `FontSelect`: a dropdown of the font choices in `prefs::UI_FONTS` or `prefs::MONO_FONTS`. The
   src/components/graph_view.rs         `GraphView`: one dot per note, grouped by type, with a line for each link. Tapping a dot opens
   src/components/guide_modal.rs        `GuideModal`: the thirteen-step guide. `ModalHost` draws the dialog frame. This is its body
@@ -518,6 +527,7 @@ crates/sentinel-ui/
   src/components/onboarding_stepper.rs `OnboardingStepper`: the six step names across the top of the setup wizard, and the rules
   src/components/output_view.rs        `OutputView`: monospace agent output. It follows the newest line while the reader is at the
   src/components/pair_checklist.rs     `PairChecklist`: Part 1 of pairing. Tailscale must be installed, running, and signed in, with
+  src/components/pair_phone_card.rs    `PairPhoneCard`: everything about pairing a phone. Settings, Devices, and the Remote panel all
   src/components/pair_qr.rs            `PairQr`: the pairing link as a QR code. The daemon sends the SVG markup
   src/components/pair_steps.rs         `PairSteps`: Part 2 of pairing. The phone steps, the QR code and the one-time code with its
   src/components/panel_host.rs         `PanelHost`: the right panel. Its tab strip lists the open panels, and its body shows the
@@ -533,6 +543,7 @@ crates/sentinel-ui/
   src/components/repo_file_picker.rs   `PickerDialog`: the add dialogs for files, a folder, and a backlog file. The "This project" tab
   src/components/report_card.rs        The report card: counts by status from the snapshot, and buttons to the Report and the Brain
   src/components/reserved_row.rs       `ReservedRow`: one file path, the task that holds it, and the queue of waiting tasks
+  src/components/resize_handle.rs      Drag handles on the desktop layout: one on the sidebar edge, one on the panel edge. The widths
   src/components/routine_editor.rs     `RoutineEditor`: the dialog body that adds a reminder or edits one (`docs/product-scope.md`,
   src/components/routine_row.rs        `RoutineRow`: one routine on the Routines page (`docs/product-scope.md`, F25). On a phone a
   src/components/sidebar.rs            `Sidebar`: the run list grouped by repository, the New run button, search, and the footer
@@ -589,11 +600,13 @@ crates/sentinel-ui/
   src/views/composer.rs                The composer: the text box, the slash menu, the footer chips, and what each send does. A plain
   src/views/composer_chips.rs          The pending attachments of the open chat: the chips row above the footer, and the reload that
   src/views/composer_send.rs           The composer's send path: a plain message starts a run or goes to the live run, a slash
+  src/views/context.rs                 The Context panel: what fills the agent's context window for the open chat. Counts are
   src/views/cost.rs                    The Cost panel: spend against the cap, the 70 and 95 percent marks, per-agent cost, spend over
   src/views/dry_run.rs                 The dry run step of the setup wizard (`docs/product-scope.md`, F8 step 5). It says what the
   src/views/files.rs                   The Files panel: the repository files with reserved-file markers and a filter
   src/views/folder_picker.rs           The repository step: choose the project folder, check it, and fix what the check finds
   src/views/install.rs                 The install check and the agents step of the setup wizard (`docs/product-scope.md`, F8 and
+  src/views/live_fetch.rs              Keeps a panel's data fresh while the panel is open. It loads on mount, again when the event id
   src/views/mod.rs                     Views that hang off the shell. Panels and modal bodies land here one at a time; until a
   src/views/onboarding.rs              `SetupWizard`: the full-screen setup (prototype `renderWizard`, `wizNav`, `finishSetup`). The
   src/views/pair_page.rs               The page a phone opens from the QR code or the link `/pair`. It asks for the one-time code and
@@ -613,6 +626,7 @@ crates/sentinel-ui/
   src/views/telegram_panel.rs          The Telegram panel. Once the chat is paired it shows the bot, the detail, the levels that are
   src/views/telegram_slot.rs           Empty slots in Settings, Integrations. The Telegram card and the always-on host card are built
   src/views/terminal.rs                The Terminal panel: raw output per agent, with a switcher and a load-earlier action
+  src/views/working_tree.rs            The "Working tree" section at the top of the Changes panel: the files git reports right now,
   src/ws.rs                            The live socket. It keeps the page in step with the daemon: events go into the snapshot, and
 ```
 
