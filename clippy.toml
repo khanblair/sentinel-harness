@@ -4,4 +4,4 @@ cognitive-complexity-threshold = 15
 allow-unwrap-in-tests = true
 allow-expect-in-tests = true
 # `Ui` is a Copy bundle of signal handles. It passes by value on purpose, like a pointer.
-pass-by-value-size-limit = 512
+pass-by-value-size-limit = 1024
