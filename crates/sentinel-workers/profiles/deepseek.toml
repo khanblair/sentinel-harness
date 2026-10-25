@@ -1,13 +1,13 @@
 id = "deepseek"
 name = "DeepSeek"
-binary = "deepseek"
+binary = "codewhale"
 version_args = ["--version"]
 tier = "cheap"
 prompt_via = "arg"
-args = ["{prompt}"]
+args = ["exec", "--auto", "--sandbox", "workspace-write", "{prompt}"]
 default_model = ""
 verified = false
-needs_template = true
+needs_template = false
 cost_prefix = ""
 [login]
 kind = "none"

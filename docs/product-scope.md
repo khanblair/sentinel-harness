@@ -51,7 +51,7 @@ Each feature: what, how, why.
 
 - **What:** On first run Sentinel finds the agent CLIs already on the PC.
 - **How:**
-  1. Scan `PATH` for known names: `claude`, `codex`, `opencode`, `gemini`, `goose`, `pi`, `agy`, `deepseek`, `mcode`, plus any in a user list.
+  1. Scan `PATH` for known names: `claude`, `codex`, `opencode`, `gemini`, `goose`, `pi`, `agy`, `codewhale` (the DeepSeek agent), `mcode`, plus any in a user list.
   2. Probe each with a version command with a short timeout.
   3. Check for signs of login (config directory, environment key, or a harmless status command).
   4. Match to an adapter profile. Unknown tools become a generic adapter with a command template the user confirms.

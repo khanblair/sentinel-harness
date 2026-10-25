@@ -224,7 +224,7 @@ crates/sentinel-workers/
   profiles/agy.toml                    profile for agy
   profiles/claude.toml                 profile for Claude Code
   profiles/codex.toml                  profile for Codex
-  profiles/deepseek.toml               profile for deepseek
+  profiles/deepseek.toml               profile for the DeepSeek agent (the `codewhale` command)
   profiles/gemini.toml                 profile for Gemini CLI
   profiles/generic.toml                template for unknown tools
   profiles/goose.toml                  profile for goose

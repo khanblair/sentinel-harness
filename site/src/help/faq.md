@@ -10,7 +10,7 @@ The FAQ answers common questions about how Sentinel works.
 2. **Does Sentinel need a cloud service?** No. Remote access runs over Tailscale only. The daemon binds to the Tailscale address only.
 3. **Where are my keys stored?** In the OS keychain. Sentinel never prints them.
 4. **Can a phone or Telegram raise the cap?** No. Every remote can only lower the cap.
-5. **Which agent CLIs does Sentinel find?** It scans for claude, codex, opencode, gemini, goose, pi, agy, deepseek, and mcode, and you can add others.
+5. **Which agent CLIs does Sentinel find?** It scans for claude, codex, opencode, gemini, goose, pi, agy, codewhale (the DeepSeek agent), and mcode, and you can add others.
 6. **Does a task that an agent calls done count as done?** No. Only the verifier marks a task VERIFIED. It needs a passing suite and a check by a different model.
 7. **Can I edit notes from the phone?** No. Edit notes on the PC.
 
