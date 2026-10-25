@@ -212,11 +212,11 @@ impl Engine {
         Ok(empties)
     }
 
-    /// A chat is empty when nobody named it, nothing is attached, it is not archived, and its only
-    /// events are its own `ChatChanged` events.
+    /// A chat is empty when nobody named or pinned it, nothing is attached, it is not archived, and
+    /// its only events are its own `ChatChanged` events. A pin is a choice, so it keeps the chat.
     fn is_empty_chat(&self, record: &ChatRecord) -> Result<bool> {
         let named = record.title_set || record.title != NEW_CHAT_TITLE;
-        if named || record.archived_at.is_some() {
+        if named || record.pinned || record.archived_at.is_some() {
             return Ok(false);
         }
         if !self.store().list_attachments(&record.id, false)?.is_empty() {
