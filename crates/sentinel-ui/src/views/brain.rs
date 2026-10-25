@@ -182,8 +182,9 @@ pub fn build_notes(ctx: BrainCtx) {
 }
 
 /// The first open of a new vault seeds it in the background, so the first reads can run before the
-/// notes exist. One more read after this long settles the counts and the link numbers.
-const SETTLE_MS: u32 = 2_000;
+/// notes exist. Two more reads, this long apart, settle the counts and the link numbers.
+const SETTLE_MS: u32 = 2_500;
+const SETTLE_READS: u32 = 2;
 
 fn load_header(ctx: BrainCtx) {
     load_notes_header(ctx);
@@ -195,9 +196,11 @@ fn load_header(ctx: BrainCtx) {
     });
     load_graph(ctx);
     spawn_local(async move {
-        gloo_timers::future::TimeoutFuture::new(SETTLE_MS).await;
-        load_notes_header(ctx);
-        load_graph(ctx);
+        for _ in 0..SETTLE_READS {
+            gloo_timers::future::TimeoutFuture::new(SETTLE_MS).await;
+            load_notes_header(ctx);
+            load_graph(ctx);
+        }
     });
 }
 
