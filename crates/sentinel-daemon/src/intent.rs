@@ -7,7 +7,7 @@ use sentinel_core::api::RunRequest;
 use sentinel_core::{ChatId, Event, Intent, PermissionMode, Tier, ToolId};
 use serde::Deserialize;
 
-use crate::answer::{OneShot, ask_once};
+use crate::answer::{Asker, OneShot, ask_once};
 use crate::controls::Caller;
 use crate::engine::{Engine, Result};
 use crate::run_source::RunSource;
@@ -183,16 +183,19 @@ impl Engine {
             return Ok(Typing::Run(None));
         }
         let forced = self.chat_agent(&source.chat)?;
+        let asker = Asker {
+            caller,
+            forced: forced.as_ref(),
+        };
         let typed = match self.typed_for(request, source, forced.as_ref()).await {
             Ok(typed) => typed,
             Err(reason) => {
-                self.answer_halted(source, caller, forced.as_ref(), &reason)?;
+                self.answer_halted(source, &asker, &reason)?;
                 return Ok(Typing::Answered);
             }
         };
         if matches!(typed.intent, Intent::Chat | Intent::Ask | Intent::Research) {
-            self.answer_without_run(source, caller, &typed, forced.as_ref())
-                .await?;
+            self.answer_without_run(source, &asker, &typed).await?;
             return Ok(Typing::Answered);
         }
         request.intent = Some(typed.intent);

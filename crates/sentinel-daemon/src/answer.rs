@@ -218,7 +218,16 @@ fn unanswered_text(reason: &str) -> String {
 /// What the owner reads when the chat's own agent gave no answer. The agent is named, and the run
 /// does not go on with another one.
 pub(crate) fn could_not_answer_text(agent: &str, reason: &str) -> String {
-    format!("{agent} could not answer: {}.", reason.trim_end_matches('.'))
+    format!(
+        "{agent} could not answer: {}.",
+        reason.trim_end_matches('.')
+    )
+}
+
+/// Who a reply is for, and the agent that must give it when the chat has its own.
+pub(crate) struct Asker<'a> {
+    pub(crate) caller: &'a Caller,
+    pub(crate) forced: Option<&'a ToolId>,
 }
 
 impl Engine {
@@ -227,15 +236,13 @@ impl Engine {
     pub(crate) async fn answer_without_run(
         &self,
         source: &RunSource,
-        caller: &Caller,
+        asker: &Asker<'_>,
         typed: &Typed,
-        forced: Option<&ToolId>,
     ) -> Result<()> {
         let chat = &source.chat;
-        self.announce_words(source, caller)?;
+        self.announce_words(source, asker.caller)?;
         self.announce_intent(chat, Some(typed))?;
-        let question = source.words.as_deref().unwrap_or_default();
-        let text = self.reply_text(chat, question, typed.intent, forced).await?;
+        let text = self.reply_text(source, typed.intent, asker.forced).await?;
         self.post_sentinel(chat, text)?;
         self.set_state(HarnessState::Idle);
         Ok(())
@@ -246,12 +253,11 @@ impl Engine {
     pub(crate) fn answer_halted(
         &self,
         source: &RunSource,
-        caller: &Caller,
-        forced: Option<&ToolId>,
+        asker: &Asker<'_>,
         reason: &str,
     ) -> Result<()> {
-        self.announce_words(source, caller)?;
-        let text = self.no_answer(&source.chat, forced, reason)?;
+        self.announce_words(source, asker.caller)?;
+        let text = self.no_answer(&source.chat, asker.forced, reason)?;
         self.post_sentinel(&source.chat, text)?;
         self.set_state(HarnessState::Idle);
         Ok(())
@@ -285,11 +291,12 @@ impl Engine {
     /// learn mode, and the reply says so.
     async fn reply_text(
         &self,
-        chat: &ChatId,
-        question: &str,
+        source: &RunSource,
         intent: Intent,
         forced: Option<&ToolId>,
     ) -> Result<String> {
+        let chat = &source.chat;
+        let question = source.words.as_deref().unwrap_or_default();
         let shot = one_shot(self, intent, question, forced);
         let answer = match ask_once(self, shot).await {
             Ok(answer) => answer,

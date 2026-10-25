@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use sentinel_core::{Event, RunId, Task, TaskId, TaskStatus, ToolInfo};
+use sentinel_core::{Event, RunId, Task, TaskId, TaskStatus, ToolId, ToolInfo};
 use sentinel_store::{CheckpointRecord, RunRecord};
 use sentinel_tree::{Checkpoint, checkpoint, restore_path, write_guard_files};
 use sentinel_workers::budget::default_ceiling;
@@ -13,7 +13,7 @@ use tokio::sync::{mpsc, watch};
 
 use crate::agent_health::{escalate, refuse_attempt, stop_at_agent};
 use crate::agents_config::Pick;
-use crate::engine::{EngineError, Result, lock};
+use crate::engine::{Engine, EngineError, Result, lock};
 use crate::prompt::{Retry, task_prompt};
 use crate::run_ctx::{RunCtx, merge_kill};
 
@@ -48,12 +48,7 @@ async fn try_attempt(ctx: &Arc<RunCtx>, task_id: &TaskId) -> Result<()> {
         Pick::Agent(agent) => agent,
         Pick::Unavailable(reason) => return refuse_attempt(ctx, task_id, &reason),
     };
-    let tool = engine
-        .store()
-        .list_tools()?
-        .into_iter()
-        .find(|t| t.id == agent)
-        .ok_or_else(|| EngineError::NotFound(agent.to_string()))?;
+    let tool = tool_info(engine, &agent)?;
     let worker = engine.worker_for(&tool)?;
     start(ctx, &task, &tool)?;
     let attempt = Attempt {
@@ -74,6 +69,15 @@ async fn try_attempt(ctx: &Arc<RunCtx>, task_id: &TaskId) -> Result<()> {
     }
     fail_task(ctx, task_id, &reason, &outcome.output_tail.join("\n"));
     Ok(())
+}
+
+fn tool_info(engine: &Engine, agent: &ToolId) -> Result<ToolInfo> {
+    engine
+        .store()
+        .list_tools()?
+        .into_iter()
+        .find(|t| &t.id == agent)
+        .ok_or_else(|| EngineError::NotFound(agent.to_string()))
 }
 
 /// One task handed to one agent, with the id of the run that records it.

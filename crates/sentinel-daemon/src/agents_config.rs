@@ -234,10 +234,7 @@ mod tests {
     fn a_paused_tool_is_left_out_while_another_ready_tool_is_open() {
         let claude = ready_tool("claude", Tier::Mid);
         let codex = ready_tool("codex", Tier::Mid);
-        let open = without_paused(
-            vec![claude, codex.clone()],
-            &paused_by("claude", "quota"),
-        );
+        let open = without_paused(vec![claude, codex.clone()], &paused_by("claude", "quota"));
         assert_eq!(open, [codex]);
     }
 

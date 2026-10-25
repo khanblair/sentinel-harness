@@ -210,7 +210,9 @@ pub(crate) fn stop_at_agent(
     lock(&ctx.scheduler)
         .on_failure(task_id, engine.now())
         .map_err(|e| EngineError::Invalid(e.to_string()))?;
-    engine.store().set_task_status(task_id, TaskStatus::Blocked)?;
+    engine
+        .store()
+        .set_task_status(task_id, TaskStatus::Blocked)?;
     record_end(ctx, task_id, TaskStatus::Blocked, reason);
     engine.emit_in(
         Some(&ctx.source.chat),

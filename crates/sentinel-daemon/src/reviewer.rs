@@ -90,10 +90,7 @@ pub(crate) struct AgentReviewer {
 
 /// The best of the ready agents that did not write the diff. The highest tier is tried first. The
 /// author is the chat's forced agent when the chat has one, so a forced agent never reviews itself.
-pub(crate) fn pick_reviewer(
-    mut tools: Vec<ToolInfo>,
-    author: Option<&ToolId>,
-) -> Option<ToolInfo> {
+pub(crate) fn pick_reviewer(mut tools: Vec<ToolInfo>, author: Option<&ToolId>) -> Option<ToolInfo> {
     tools.sort_by_key(|t| std::cmp::Reverse(t.tier));
     tools.into_iter().find(|t| Some(&t.id) != author)
 }
