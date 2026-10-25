@@ -41,9 +41,7 @@ impl Store {
     pub fn insert_chat(&self, chat: &ChatRecord) -> Result<()> {
         let connection = self.connection()?;
         connection.execute(
-            &format!(
-                "INSERT INTO chats ({COLUMNS}) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)"
-            ),
+            &format!("INSERT INTO chats ({COLUMNS}) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)"),
             params![
                 chat.id.as_str(),
                 chat.project,
@@ -262,7 +260,12 @@ mod tests {
         record.agent = Some("claude".to_owned());
         store.insert_chat(&record).unwrap();
         assert_eq!(
-            store.get_chat(&record.id).unwrap().unwrap().agent.as_deref(),
+            store
+                .get_chat(&record.id)
+                .unwrap()
+                .unwrap()
+                .agent
+                .as_deref(),
             Some("claude")
         );
         record.agent = None;

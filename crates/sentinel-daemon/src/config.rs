@@ -254,7 +254,10 @@ mod tests {
         let path = config_path(folder.path());
         fs::create_dir_all(path.parent().unwrap()).unwrap();
         fs::write(&path, "default_agent = \"claude\"\n").unwrap();
-        assert_eq!(load(&path).unwrap().default_agent.as_deref(), Some("claude"));
+        assert_eq!(
+            load(&path).unwrap().default_agent.as_deref(),
+            Some("claude")
+        );
         fs::write(&path, "cap_usd = \"1.00\"\n").unwrap();
         assert_eq!(load(&path).unwrap().default_agent, None);
     }

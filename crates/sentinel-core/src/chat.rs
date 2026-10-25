@@ -60,11 +60,19 @@ pub struct ChatInfo {
 #[serde(tag = "change", rename_all = "snake_case")]
 pub enum ChatChange {
     Created,
-    Renamed { title: String },
-    Pinned { pinned: bool },
-    Archived { archived: bool },
+    Renamed {
+        title: String,
+    },
+    Pinned {
+        pinned: bool,
+    },
+    Archived {
+        archived: bool,
+    },
     /// The agent of the chat. `None` means auto.
-    AgentChanged { agent: Option<ToolId> },
+    AgentChanged {
+        agent: Option<ToolId>,
+    },
     Deleted,
 }
 
