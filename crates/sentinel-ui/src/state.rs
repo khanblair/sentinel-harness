@@ -117,6 +117,12 @@ pub struct Ui {
     /// True when a paired phone is calling, from `GET /api/whoami`. Off until that answers, so
     /// the computer's own page is never locked while it loads.
     pub from_phone: RwSignal<bool>,
+    /// Sidebar width in pixels as the drag handle left it. The layout clamps it on render.
+    pub sidebar_width: RwSignal<u32>,
+    /// Right panel width in pixels as the drag handle left it. The layout clamps it on render.
+    pub panel_width: RwSignal<u32>,
+    /// Page width in pixels. The side widths are fitted to it so the stream keeps its room.
+    pub viewport: RwSignal<u32>,
 }
 
 /// Which menu a popover shows. Each kind has one body in `components/menus.rs`.
@@ -159,6 +165,7 @@ fn default_tabs(layout: Layout) -> Vec<PanelId> {
 
 impl Ui {
     pub fn new(layout: Layout, prefs: Prefs) -> Self {
+        let (sidebar_width, panel_width) = (prefs.sidebar_w, prefs.panel_w);
         Self {
             snapshot: RwSignal::new(Snapshot::empty()),
             connection: RwSignal::new(Connection::Connecting),
@@ -183,7 +190,20 @@ impl Ui {
             routines: RwSignal::new(Vec::new()),
             briefs: RwSignal::new(Vec::new()),
             from_phone: RwSignal::new(false),
+            sidebar_width: RwSignal::new(sidebar_width),
+            panel_width: RwSignal::new(panel_width),
+            viewport: RwSignal::new(0),
         }
+    }
+
+    /// The sidebar edge can be dragged: desktop with the sidebar open.
+    pub fn sidebar_resizable(&self) -> bool {
+        self.layout.get() == Layout::Desktop && self.sidebar_open.get()
+    }
+
+    /// The panel edge can be dragged: desktop with the panel open and not expanded.
+    pub fn panel_resizable(&self) -> bool {
+        self.layout.get() == Layout::Desktop && self.panel_open.get() && !self.panel_wide.get()
     }
 
     /// True when a paired phone is calling. Rights checks use this, never the layout.

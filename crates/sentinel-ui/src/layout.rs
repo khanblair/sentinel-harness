@@ -40,6 +40,27 @@ impl Layout {
     }
 }
 
+/// Desktop widths in pixels. The drag handles keep them inside these bounds.
+pub const SIDEBAR_MIN: u32 = 200;
+pub const SIDEBAR_MAX: u32 = 480;
+pub const SIDEBAR_DEFAULT: u32 = 264;
+pub const PANEL_MIN: u32 = 280;
+pub const PANEL_MAX: u32 = 720;
+pub const PANEL_DEFAULT: u32 = 440;
+/// The stream never gets narrower than this while both sides are open.
+pub const STREAM_MIN: u32 = 360;
+
+/// Fits both sides into the window. The panel gives way first, then the sidebar. Neither goes
+/// below its minimum, so a very narrow window can still leave the stream under `STREAM_MIN`.
+pub fn clamp_widths(window: u32, sidebar: u32, panel: u32) -> (u32, u32) {
+    let sidebar = sidebar.clamp(SIDEBAR_MIN, SIDEBAR_MAX);
+    let panel = panel.clamp(PANEL_MIN, PANEL_MAX);
+    let room = window.saturating_sub(STREAM_MIN);
+    let panel = panel.min(room.saturating_sub(sidebar).max(PANEL_MIN));
+    let sidebar = sidebar.min(room.saturating_sub(panel).max(SIDEBAR_MIN));
+    (sidebar, panel)
+}
+
 /// A panel that slides in beside the stream.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PanelId {
@@ -134,6 +155,34 @@ mod tests {
                 "Board", "Terminal", "Changes", "Reserved", "Brain", "Remote"
             ]
         );
+    }
+}
+
+#[cfg(test)]
+mod width_tests {
+    use super::*;
+
+    #[test]
+    fn widths_that_fit_the_window_stay_as_they_are() {
+        assert_eq!(clamp_widths(1600, 264, 440), (264, 440));
+    }
+
+    #[test]
+    fn widths_outside_their_range_snap_to_the_bounds() {
+        assert_eq!(clamp_widths(1600, 50, 900), (SIDEBAR_MIN, PANEL_MAX));
+        assert_eq!(clamp_widths(1600, 900, 50), (SIDEBAR_MAX, PANEL_MIN));
+    }
+
+    #[test]
+    fn the_panel_gives_way_before_the_sidebar_on_a_narrow_window() {
+        assert_eq!(clamp_widths(1000, 264, 440), (264, 376));
+        assert_eq!(clamp_widths(900, 264, 440), (260, PANEL_MIN));
+    }
+
+    #[test]
+    fn the_stream_keeps_its_minimum_when_the_window_allows_it() {
+        let (sidebar, panel) = clamp_widths(1000, 480, 720);
+        assert!(1000 - sidebar - panel >= STREAM_MIN, "{sidebar} {panel}");
     }
 }
 
