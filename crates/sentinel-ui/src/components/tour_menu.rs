@@ -16,7 +16,11 @@ pub fn TourMenu() -> impl IntoView {
             <span class="row">
                 <button class="btn sm" disabled=move || tour.step.get().is_none()
                     on:click=move |_| end(ui)>"Skip tour"</button>
-                <button class="btn sm pri" on:click=move |_| start(ui)>"Replay tour"</button>
+                <button class="btn sm pri" on:click=move |_| {
+                    // Settings is a modal over the page. Close it first, or the tour hides behind it.
+                    ui.modal.set(None);
+                    start(ui);
+                }>"Replay tour"</button>
             </span>
         </div>
     }

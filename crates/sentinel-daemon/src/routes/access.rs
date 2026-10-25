@@ -17,6 +17,7 @@ use super::{ApiFailure, ApiResult, blocking, okay};
 use crate::auth::Computer;
 use crate::controls::Caller;
 use crate::engine::Engine;
+use crate::folders::Pick;
 use crate::pairing::{PairOutcome, PendingId, PendingPair};
 
 #[derive(Debug, Deserialize)]
@@ -213,13 +214,26 @@ async fn tailscale_sign_in(
     Ok(Json(json!({ "ok": result.ok, "message": result.message })))
 }
 
+/// A failed or panicked dialog task answers as unavailable, so the page can offer its browser.
 async fn fs_pick(State(engine): State<Engine>, Computer(_): Computer) -> ApiResult<Value> {
-    let picked = tokio::task::spawn_blocking(move || engine.pick_folder_blocking())
+    let pick = tokio::task::spawn_blocking(move || engine.pick_folder_blocking())
         .await
-        .map_err(|_| ApiFailure::internal())?;
-    Ok(Json(
-        json!({ "path": picked.map(|p| p.display().to_string()) }),
-    ))
+        .unwrap_or(Pick::Unavailable);
+    Ok(Json(pick_answer(pick)))
+}
+
+/// The answer of `POST /api/fs/pick`. A cancel and an unavailable dialog are told apart, so
+/// only an unavailable dialog opens the page's own folder browser.
+fn pick_answer(pick: Pick) -> Value {
+    match pick {
+        Pick::Chosen(path) => json!({
+            "path": path.display().to_string(),
+            "cancelled": false,
+            "available": true,
+        }),
+        Pick::Cancelled => json!({ "path": null, "cancelled": true, "available": true }),
+        Pick::Unavailable => json!({ "path": null, "cancelled": false, "available": false }),
+    }
 }
 
 /// The folder browser for a phone. The engine keeps it inside the home folder.
@@ -244,6 +258,33 @@ mod tests {
         assert_eq!(
             text,
             r#"{"state":"approved","device":"dev-1","token":"tok"}"#
+        );
+    }
+
+    #[test]
+    fn a_chosen_folder_answers_with_its_path_and_no_cancel() {
+        let answer = pick_answer(Pick::Chosen(std::path::PathBuf::from("/work/app")));
+        assert_eq!(
+            answer,
+            json!({ "path": "/work/app", "cancelled": false, "available": true })
+        );
+    }
+
+    #[test]
+    fn a_cancelled_dialog_answers_as_cancelled_and_available() {
+        let answer = pick_answer(Pick::Cancelled);
+        assert_eq!(
+            answer,
+            json!({ "path": null, "cancelled": true, "available": true })
+        );
+    }
+
+    #[test]
+    fn a_missing_dialog_answers_as_unavailable() {
+        let answer = pick_answer(Pick::Unavailable);
+        assert_eq!(
+            answer,
+            json!({ "path": null, "cancelled": false, "available": false })
         );
     }
 

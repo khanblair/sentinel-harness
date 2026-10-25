@@ -5,19 +5,13 @@
 use leptos::prelude::*;
 use leptos::task::spawn_local;
 use sentinel_core::api::{FolderEntry, RepoCheckRequest, RepoCheckResponse};
-use serde::Deserialize;
 
 use crate::api;
+use crate::components::add_project::{PickOutcome, ask_dialog};
 use crate::components::icon::Icon;
 use crate::components::repo_checks::{FixAction, RepoChecks, fix_action};
 use crate::state::ToastKind;
 use crate::views::onboarding::{Wizard, post_or_toast, use_wizard};
-
-/// `POST /api/fs/pick`. A `null` path means the user closed the dialog.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
-pub struct PickedFolder {
-    pub path: Option<String>,
-}
 
 /// The last part of a folder path, which is the repository's name.
 pub fn fs_name(path: &str) -> &str {
@@ -82,18 +76,17 @@ fn run_fix(wizard: &Wizard, name: String) {
     });
 }
 
-/// Opens the folder dialog on the computer. When it cannot open (no dialog here), the browser
-/// opens instead.
+/// Opens the folder dialog on the computer. Only when no dialog can open does the browser open.
 fn choose_with_dialog(wizard: &Wizard, browsing: RwSignal<bool>) {
     let wizard = *wizard;
     spawn_local(async move {
-        match api::post_empty::<PickedFolder>("/api/fs/pick").await {
-            Ok(PickedFolder { path: Some(path) }) => {
+        match ask_dialog().await {
+            PickOutcome::Add(path) => {
                 browsing.set(false);
                 check_repo(&wizard, path);
             }
-            Ok(PickedFolder { path: None }) => {}
-            Err(_) => browsing.set(true),
+            PickOutcome::ShowBrowser => browsing.set(true),
+            PickOutcome::Nothing => {}
         }
     });
 }

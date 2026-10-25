@@ -6,6 +6,7 @@
 )]
 
 use sentinel_core::api::ServiceState;
+use sentinel_daemon::folders::Pick;
 use time::format_description::well_known::Rfc3339;
 use time::{Duration, OffsetDateTime};
 
@@ -64,5 +65,5 @@ fn a_headless_host_has_no_native_folder_dialog() {
     let repo = sample_repo();
     let engine = fake_engine(repo.path());
     engine.set_headless(true);
-    assert_eq!(engine.pick_folder_blocking(), None);
+    assert_eq!(engine.pick_folder_blocking(), Pick::Unavailable);
 }
