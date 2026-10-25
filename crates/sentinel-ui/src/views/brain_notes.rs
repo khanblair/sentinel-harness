@@ -1,5 +1,6 @@
 //! The Notes tab: a search box and a type filter over the list, a New note form on the computer,
-//! and the note view when one is open. The search waits 250 ms after the last key.
+//! and the note view when one is open. The search waits 250 ms after the last key. A vault with no
+//! notes offers to build them from the project.
 
 use gloo_timers::future::TimeoutFuture;
 use leptos::prelude::*;
@@ -9,12 +10,15 @@ use sentinel_core::brain_api::{NewNote, NoteList, NoteSummary};
 
 use crate::api;
 use crate::brain::{
-    NOTE_TYPES, new_note_error, notes_path, type_from_value, type_label, type_query_value,
+    ASK_COMPUTER_BUILD_TEXT, BUILD_NOTES_LABEL, EmptyChoice, LEARN_SWITCH_TEXT, LOADING_NOTES,
+    LoadState, NO_NOTES_MATCH, NO_NOTES_TEXT, NOTE_TYPES, READING_PROJECT_LABEL,
+    empty_notes_choice, is_unfiltered, link_count, mode_needs_switch, new_note_error, notes_path,
+    pinned_first, type_from_value, type_label, type_query_value,
 };
 use crate::components::note_row::NoteRow;
 use crate::components::note_view::NoteView;
 use crate::state::ToastKind;
-use crate::views::brain::{BrainCtx, bump, report_failure};
+use crate::views::brain::{BrainCtx, build_notes, bump, fail_load, load_notice, report_failure};
 
 /// How long the search waits after the last key, in milliseconds.
 const SEARCH_DELAY_MS: u32 = 250;
@@ -31,7 +35,7 @@ pub fn NotesTab(ctx: BrainCtx) -> impl IntoView {
 #[derive(Clone, Copy)]
 struct NoteSearch {
     ctx: BrainCtx,
-    rows: RwSignal<Option<Vec<NoteSummary>>>,
+    rows: RwSignal<LoadState<Vec<NoteSummary>>>,
     ticket: RwSignal<u32>,
 }
 
@@ -45,8 +49,8 @@ impl NoteSearch {
                 return;
             }
             match api::get::<NoteList>(&notes_path(&query, note_type)).await {
-                Ok(found) => self.rows.set(Some(found.notes)),
-                Err(failure) => report_failure(self.ctx.ui, self.ctx.missing, &failure),
+                Ok(found) => self.rows.set(LoadState::Ready(found.notes)),
+                Err(failure) => fail_load(self.ctx, self.rows, &failure),
             }
         });
     }
@@ -56,7 +60,7 @@ impl NoteSearch {
 fn NoteListView(ctx: BrainCtx) -> impl IntoView {
     let query = RwSignal::new(String::new());
     let filter = RwSignal::new(String::new());
-    let rows = RwSignal::new(None::<Vec<NoteSummary>>);
+    let rows = RwSignal::new(LoadState::Loading);
     let ticket = RwSignal::new(0_u32);
     let search = NoteSearch { ctx, rows, ticket };
     let new_open = RwSignal::new(false);
@@ -77,7 +81,10 @@ fn NoteListView(ctx: BrainCtx) -> impl IntoView {
             })}
         </div>
         {move || new_open.get().then(|| view! { <NewNoteForm ctx=ctx open=new_open /> })}
-        <div id="brainList">{move || note_rows(ctx, rows.get())}</div>
+        <div id="brainList">{move || {
+            let unfiltered = is_unfiltered(&query.get(), &filter.get());
+            note_list(ctx, rows.get(), unfiltered)
+        }}</div>
     }
 }
 
@@ -104,18 +111,74 @@ fn SearchRow(query: RwSignal<String>, filter: RwSignal<String>) -> impl IntoView
     }
 }
 
-fn note_rows(ctx: BrainCtx, rows: Option<Vec<NoteSummary>>) -> AnyView {
+/// The list, or the line it shows while it loads, or the text of its failure. An empty vault and
+/// an empty search are different: the first offers to build the notes.
+fn note_list(ctx: BrainCtx, rows: LoadState<Vec<NoteSummary>>, unfiltered: bool) -> AnyView {
     match rows {
-        None => ().into_any(),
-        Some(notes) if notes.is_empty() => view! {
-            <div class="note"><span>"No notes match."</span></div>
+        LoadState::Ready(notes) if notes.is_empty() && unfiltered => {
+            match empty_notes_choice(ctx.ui.on_phone()) {
+                EmptyChoice::BuildNotes => build_card(ctx).into_any(),
+                EmptyChoice::AskComputer => ask_card().into_any(),
+            }
         }
-        .into_any(),
-        Some(notes) => notes
-            .into_iter()
-            .map(|note| view! { <NoteRow note=note ctx=ctx /> })
-            .collect_view()
-            .into_any(),
+        LoadState::Ready(notes) if notes.is_empty() => {
+            view! { <div class="note"><span>{NO_NOTES_MATCH}</span></div> }.into_any()
+        }
+        LoadState::Ready(mut notes) => {
+            pinned_first(&mut notes);
+            note_rows(ctx, notes).into_any()
+        }
+        state @ (LoadState::Loading | LoadState::Failed(_)) => load_notice(&state, LOADING_NOTES),
+    }
+}
+
+fn note_rows(ctx: BrainCtx, notes: Vec<NoteSummary>) -> impl IntoView {
+    notes
+        .into_iter()
+        .map(|note| {
+            let count = link_count_of(ctx, &note.id);
+            view! { <NoteRow note=note ctx=ctx link_count=count /> }
+        })
+        .collect_view()
+}
+
+/// How many links touch a note, from the graph the header loaded. Zero until the graph arrives.
+fn link_count_of(ctx: BrainCtx, id: &sentinel_core::NoteId) -> usize {
+    ctx.graph.with(|state| match state {
+        LoadState::Ready(graph) => link_count(&graph.links, id),
+        LoadState::Loading | LoadState::Failed(_) => 0,
+    })
+}
+
+/// The empty vault card on the computer: the build button, and the switch note while the Brain is
+/// not in learn mode.
+fn build_card(ctx: BrainCtx) -> impl IntoView {
+    view! {
+        <div class="card">
+            <b>{NO_NOTES_TEXT}</b>
+            <div class="row wrap" style="margin-top:.6em">
+                <button class="btn pri" disabled=move || ctx.seeding.get()
+                    on:click=move |_| build_notes(ctx)>
+                    {move || if ctx.seeding.get() { READING_PROJECT_LABEL } else { BUILD_NOTES_LABEL }}
+                </button>
+            </div>
+            {move || {
+                let mode = ctx.ui.snapshot.with(|snapshot| snapshot.brain_mode);
+                mode_needs_switch(mode).then(|| view! {
+                    <div class="sub" style="margin-top:.4em">{LEARN_SWITCH_TEXT}</div>
+                })
+            }}
+        </div>
+    }
+}
+
+/// The empty vault card on a phone: the notes are built on the computer.
+fn ask_card() -> impl IntoView {
+    view! {
+        <div class="card">
+            <b>{NO_NOTES_TEXT}</b>
+            <div class="sub" style="margin-top:.3em">{ASK_COMPUTER_BUILD_TEXT}</div>
+        </div>
     }
 }
 
