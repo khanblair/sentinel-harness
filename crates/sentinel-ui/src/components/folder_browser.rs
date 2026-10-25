@@ -176,7 +176,7 @@ fn UseButton(browser: Browser) -> impl IntoView {
             .with(|listing| matches!(listing, Listing::Ready(_)))
     };
     view! {
-        <button class="btn pri" disabled=move || !ready()
+        <button class="btn pri" disabled=move || !ready() || browser.current.get().is_empty()
             on:click=move |_| attach(ui, &browser.current.get_untracked())>
             {move || use_label(&browser.current.get())}
         </button>
@@ -186,7 +186,7 @@ fn UseButton(browser: Browser) -> impl IntoView {
 /// Attaches the folder through the same path as the other picker kinds. That also replaces the
 /// folder chip the composer already holds.
 fn attach(ui: Ui, path: &str) {
-    confirm(ui, PickerKind::Folder, vec![attach_path(path)], &[]);
+    confirm(ui, PickerKind::Folder, vec![path.to_owned()], &[]);
 }
 
 /// The request path of one folder. The path is a query value, so it is percent-encoded.
@@ -247,18 +247,11 @@ fn path_text(path: &str) -> String {
     }
 }
 
-/// Attaching the root sends "." because an empty path is refused by the daemon.
-fn attach_path(path: &str) -> String {
-    if path.is_empty() {
-        ".".to_owned()
-    } else {
-        path.to_owned()
-    }
-}
-
+/// The whole project is already what every agent works in, so the root cannot be attached: the
+/// button stays off there and says to open a folder first.
 fn use_label(path: &str) -> &'static str {
     if path.is_empty() {
-        "Use the whole project"
+        "Open a folder to use it"
     } else {
         "Use this folder"
     }
@@ -327,13 +320,7 @@ mod tests {
 
     #[test]
     fn the_root_button_says_whole_project_and_a_folder_says_this_folder() {
-        assert_eq!(use_label(""), "Use the whole project");
+        assert_eq!(use_label(""), "Open a folder to use it");
         assert_eq!(use_label("src"), "Use this folder");
-    }
-
-    #[test]
-    fn attaching_the_root_sends_a_dot_and_a_folder_sends_its_path() {
-        assert_eq!(attach_path(""), ".");
-        assert_eq!(attach_path("src/fees"), "src/fees");
     }
 }
