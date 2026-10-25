@@ -9,9 +9,7 @@ use std::time::Duration;
 use futures::future::BoxFuture;
 use sentinel_core::{Capability, Event, Routing, Tier, ToolId, ToolInfo, ToolStatus};
 use sentinel_gate::policy::default_capabilities;
-use sentinel_plan::planner::{
-    HeuristicPlanner, Plan, PlanRequest, PlannerBackend, planner_prompt, validate_plan,
-};
+use sentinel_plan::planner::{HeuristicPlanner, Plan, PlanRequest, PlannerBackend, validate_plan};
 use sentinel_tree::looks_like_test;
 use sentinel_workers::adapter_cli::CliWorker;
 use sentinel_workers::detect::{DetectOptions, detect_all};
@@ -22,10 +20,11 @@ use sentinel_workers::{CommandLine, RunControl, RunOutcome, RunSpec, Worker};
 use tokio::sync::{mpsc, watch};
 
 use crate::agents_config::{fill_routing, route_for_tier, without_missing_tools};
+use crate::answer::ask_agent_for_plan;
 use crate::engine::{Engine, EngineError, FakeAgents, Result};
 use crate::keys;
 use crate::openrouter_tool::{is_openrouter_adapter, openrouter_entry, openrouter_worker};
-use crate::plan_phase::{Asked, PlanStep, read_answer};
+use crate::plan_phase::{Asked, PlanStep};
 use crate::run_ctx::RunCtx;
 
 /// The three pretend agents. One per tier, each with its own adapter name, so the run satisfies
@@ -266,8 +265,8 @@ pub(crate) const FALLBACK_PLAN_NOTE: &str =
 /// The file that scripts the fake planner. The fake agent runs it as task `PLAN`.
 const SCRIPTED_PLANNER: &str = "PLAN.fake";
 
-/// Said when no planning agent is on and ready.
-const NO_PLANNER: &str = "no planning agent is on and ready";
+/// The longest a planner or a reviewer may take to answer.
+pub(crate) const TEXT_TIMEOUT: Duration = Duration::from_secs(180);
 
 /// The plan of a run. Fake mode reads `plan.json` next to the fake plans. Real mode asks the
 /// cheapest ready agent, then the engine's fallback plan if it has one, and last the offline
@@ -330,57 +329,6 @@ pub(crate) fn restrict_plan(mut plan: Plan, request: &PlanRequest) -> Result<Pla
     Ok(plan)
 }
 
-/// Ask the planner agents in turn. A message run stops at the first answer that is not a plan,
-/// so a greeting costs one call.
-async fn ask_agent_for_plan(ctx: &RunCtx, request: &PlanRequest) -> Asked {
-    let message = ctx.source.words.is_some();
-    let mut tier = Tier::Cheap;
-    for _ in 0..2 {
-        match ask_tier(ctx, request, tier).await {
-            Asked::Unusable => {}
-            Asked::Failed(_) if !message => {}
-            asked @ (Asked::Plan(_) | Asked::Reply(_) | Asked::Failed(_)) => return asked,
-        }
-        tier = tier.escalate().unwrap_or(tier);
-    }
-    Asked::Unusable
-}
-
-/// One question to the planner agent of a tier.
-async fn ask_tier(ctx: &RunCtx, request: &PlanRequest, tier: Tier) -> Asked {
-    let (tool, worker) = match planner_agent(&ctx.engine, tier) {
-        Ok(found) => found,
-        Err(reason) => return Asked::Failed(reason),
-    };
-    let job = TextJob {
-        stop: ctx.stop.clone(),
-        budget: ctx.budget.clone(),
-        worker: worker.as_ref(),
-        tool: &tool,
-        prompt: planner_prompt(request),
-    };
-    let (text, outcome) = run_for_outcome(&ctx.engine, job).await;
-    read_answer(&text, &outcome, request, ctx.source.words.is_some())
-}
-
-/// The tool and worker of the planner agent for a tier, or the reason there is none.
-fn planner_agent(
-    engine: &Engine,
-    tier: Tier,
-) -> std::result::Result<(ToolInfo, Arc<dyn Worker>), String> {
-    let router = engine.router().map_err(|e| e.to_string())?;
-    let agent = router.pick(tier).ok_or_else(|| NO_PLANNER.to_owned())?;
-    let tool = engine
-        .store()
-        .list_tools()
-        .map_err(|e| e.to_string())?
-        .into_iter()
-        .find(|t| t.id == agent)
-        .ok_or_else(|| NO_PLANNER.to_owned())?;
-    let worker = engine.worker_for(&tool).map_err(|e| e.to_string())?;
-    Ok((tool, worker))
-}
-
 /// Drop test files that already exist from every scope. Writing one is a tamper by rule, so a plan
 /// that lists one would send the agent straight into a failure.
 pub(crate) fn without_existing_tests(mut plan: Plan, request: &PlanRequest) -> Plan {
@@ -402,12 +350,16 @@ pub(crate) struct TextJob<'a> {
 
 /// Run a worker once and join its output lines. The reviewer uses this.
 pub(crate) async fn run_for_text(engine: &Engine, job: TextJob<'_>) -> String {
-    run_for_outcome(engine, job).await.0
+    run_for_outcome(engine, job, TEXT_TIMEOUT).await.0
 }
 
-/// Run a worker once. Returns its answer and how the run ended, so a failed run is not read as
-/// an answer.
-pub(crate) async fn run_for_outcome(engine: &Engine, job: TextJob<'_>) -> (String, RunOutcome) {
+/// Run a worker once and give up after `timeout`. Returns its answer and how the run ended, so a
+/// failed run is not read as an answer.
+pub(crate) async fn run_for_outcome(
+    engine: &Engine,
+    job: TextJob<'_>,
+    timeout: Duration,
+) -> (String, RunOutcome) {
     let (lines, _receiver) = mpsc::unbounded_channel();
     let control = RunControl {
         kill: job.stop,
@@ -421,7 +373,7 @@ pub(crate) async fn run_for_outcome(engine: &Engine, job: TextJob<'_>) -> (Strin
         model: String::new(),
         prompt: job.prompt,
         workdir: engine.repo_path(),
-        timeout: Duration::from_secs(180),
+        timeout,
     };
     let outcome = job.worker.run(spec, control).await;
     let text = answer_text(&outcome.output_tail.join("\n"));

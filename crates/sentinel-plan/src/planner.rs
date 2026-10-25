@@ -87,7 +87,9 @@ pub fn planner_prompt(request: &PlanRequest) -> String {
     push_repo_files(&mut prompt, &request.repo_files);
     push_backlog(&mut prompt, &request.items);
 
-    prompt.push_str("Output ONE JSON object with this shape (no prose, no code fences):\n");
+    prompt.push_str(
+        "For a request to change the project, output ONE JSON object with this shape (no prose, no code fences). Otherwise answer in plain sentences:\n",
+    );
     prompt.push_str(PLAN_SHAPE);
     prompt.push_str("\n\nRules:\n");
     for rule in PLANNER_RULES {

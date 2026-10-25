@@ -39,11 +39,12 @@ pub(super) fn routes() -> Router<Engine> {
         .route("/api/brain/mode", post(set_brain_mode))
 }
 
+/// `null` when the message got a reply and no run started.
 async fn start_run(
     State(engine): State<Engine>,
     caller: Caller,
     Json(request): Json<RunRequest>,
-) -> ApiResult<RunInfo> {
+) -> ApiResult<Option<RunInfo>> {
     Ok(Json(engine.start_run_as(request, &caller).await?))
 }
 

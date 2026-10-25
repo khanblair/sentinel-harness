@@ -9,6 +9,7 @@ use crate::chat::{AttachmentRef, ChatChange};
 use crate::cost::Cost;
 use crate::dry_run::{DryRunStage, StageState};
 use crate::ids::{ApprovalId, ChatId, DeviceId, NoteId, RoutineId, RunId, TaskId, ToolId};
+use crate::intent::Intent;
 use crate::note::LessonState;
 use crate::permission::{Approval, ApprovalState, PermissionMode};
 use crate::quality::QualityNote;
@@ -23,6 +24,13 @@ pub enum Event {
     RunStarted {
         run: RunId,
         backlog: String,
+    },
+    /// The type of a message, and who chose it: `router` or `you`.
+    IntentChosen {
+        chat: ChatId,
+        intent: Intent,
+        reason: String,
+        by: String,
     },
     PlanReady {
         tasks: u32,

@@ -195,6 +195,7 @@ fn dry_run_request() -> RunRequest {
         chat: None,
         text: None,
         attachments: Vec::new(),
+        intent: None,
     }
 }
 
