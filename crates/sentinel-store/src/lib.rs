@@ -25,6 +25,7 @@ pub mod barriers;
 pub mod capabilities;
 pub mod chats;
 pub mod checkpoints;
+pub mod clear;
 pub mod decisions;
 pub mod devices;
 pub mod events;
