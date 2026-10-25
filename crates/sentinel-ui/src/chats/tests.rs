@@ -16,6 +16,7 @@ fn chat(id: &str, project: &str, title: &str) -> ChatInfo {
         verified: 0,
         total: 0,
         needs_you: false,
+        agent: None,
     }
 }
 

@@ -19,6 +19,7 @@ use crate::engine::{Engine, EngineError};
 pub(super) fn routes() -> Router<Engine> {
     Router::new()
         .route("/api/config/cap", put(set_cap))
+        .route("/api/config/agent", put(set_default_agent))
         .route("/api/secrets/openrouter", put(set_openrouter_key))
         .route("/api/connections/{name}/test", post(test_connection))
         .route("/api/files", get(repo_files))
@@ -121,6 +122,24 @@ async fn set_cap(
     blocking(engine, move |e| {
         e.set_cap(&body.cap, &caller)
             .map(|cap| json!({ "cap": usd_text(cap) }))
+    })
+    .await
+}
+
+#[derive(Debug, Deserialize)]
+struct AgentBody {
+    /// A tool id, or `auto`.
+    agent: String,
+}
+
+/// Set the agent that new chats of this project start with. Only the computer may change it.
+async fn set_default_agent(
+    State(engine): State<Engine>,
+    Computer(caller): Computer,
+    Json(body): Json<AgentBody>,
+) -> ApiResult<Value> {
+    blocking(engine, move |e| {
+        e.set_default_agent(&body.agent, &caller).map(|()| okay())
     })
     .await
 }

@@ -137,6 +137,7 @@ mod tests {
             verified: 0,
             total: 0,
             needs_you: false,
+            agent: None,
         }
     }
 

@@ -60,6 +60,9 @@ pub struct UpdateChat {
     pub pinned: Option<bool>,
     #[serde(default)]
     pub archived: Option<bool>,
+    /// A tool id, or `auto` (or an empty string) to pick the agent for each task again.
+    #[serde(default)]
+    pub agent: Option<String>,
 }
 
 /// `POST /api/chats/:id/attachments`.

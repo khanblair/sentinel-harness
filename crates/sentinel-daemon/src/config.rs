@@ -17,6 +17,7 @@ const TOP_LEVEL_KEYS: &[&str] = &[
     "permission_mode",
     "brain_mode",
     "routing",
+    "default_agent",
     "enabled_tools",
     "models",
     "free_models",
@@ -45,6 +46,8 @@ pub struct Config {
     #[serde(default = "read_only_brain_mode")]
     pub brain_mode: BrainMode,
     pub routing: Routing,
+    /// The tool id that new chats of this project start with. `None` means auto.
+    pub default_agent: Option<String>,
     pub enabled_tools: Vec<ToolId>,
     /// The model each tool runs with, by tool id. A tool with no entry uses its profile default.
     pub models: std::collections::BTreeMap<String, String>,
@@ -110,6 +113,7 @@ impl Default for Config {
             permission_mode: PermissionMode::default(),
             brain_mode: BrainMode::Learn,
             routing: Routing::default(),
+            default_agent: None,
             enabled_tools: Vec::new(),
             models: std::collections::BTreeMap::new(),
             free_models: Vec::new(),
@@ -245,6 +249,17 @@ mod tests {
     }
 
     #[test]
+    fn a_saved_default_agent_is_read_back_and_a_missing_one_is_auto() {
+        let folder = tempfile::tempdir().unwrap();
+        let path = config_path(folder.path());
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, "default_agent = \"claude\"\n").unwrap();
+        assert_eq!(load(&path).unwrap().default_agent.as_deref(), Some("claude"));
+        fs::write(&path, "cap_usd = \"1.00\"\n").unwrap();
+        assert_eq!(load(&path).unwrap().default_agent, None);
+    }
+
+    #[test]
     fn load_of_a_missing_file_gives_defaults() {
         let folder = tempfile::tempdir().unwrap();
         let config = load(&config_path(folder.path())).unwrap();
@@ -266,6 +281,7 @@ mod tests {
                 mid: None,
                 smart: Some(ToolId::new("claude")),
             },
+            default_agent: Some("claude".to_owned()),
             enabled_tools: vec![ToolId::new("claude")],
             models: std::collections::BTreeMap::from([("claude".to_owned(), "sonnet".to_owned())]),
             free_models: vec!["ornith/ornith".to_owned()],

@@ -4,7 +4,7 @@
 use serde::{Deserialize, Serialize};
 use time::OffsetDateTime;
 
-use crate::ids::{AttachmentId, ChatId};
+use crate::ids::{AttachmentId, ChatId, ToolId};
 
 /// The most bytes of one uploaded file.
 pub const MAX_UPLOAD_BYTES: usize = 1_000_000;
@@ -12,6 +12,8 @@ pub const MAX_UPLOAD_BYTES: usize = 1_000_000;
 pub const AUTO_TITLE_CHARS: usize = 48;
 /// The title of a chat that has no message yet.
 pub const NEW_CHAT_TITLE: &str = "New chat";
+/// The agent value that means "pick the agent for each task by difficulty".
+pub const AUTO_AGENT: &str = "auto";
 
 /// What the sidebar icon of a chat shows.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -48,6 +50,9 @@ pub struct ChatInfo {
     pub total: u32,
     /// An approval or decision of this chat waits for the user.
     pub needs_you: bool,
+    /// The agent every message of this chat uses. `None` means auto.
+    #[serde(default)]
+    pub agent: Option<ToolId>,
 }
 
 /// What changed in a chat, for the `ChatChanged` event.
@@ -58,6 +63,8 @@ pub enum ChatChange {
     Renamed { title: String },
     Pinned { pinned: bool },
     Archived { archived: bool },
+    /// The agent of the chat. `None` means auto.
+    AgentChanged { agent: Option<ToolId> },
     Deleted,
 }
 
