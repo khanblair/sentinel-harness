@@ -100,6 +100,7 @@ fn mark_started(ui: Ui, status: RwSignal<Option<DryRunStatus>>) {
         stages: Vec::new(),
         verified: None,
         total: None,
+        notes: Vec::new(),
     }));
     ui.show_toast("The dry run started.", ToastKind::Info);
 }

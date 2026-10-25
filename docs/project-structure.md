@@ -363,6 +363,8 @@ crates/sentinel-daemon/
   src/data_clear.rs                    Clear the data of one scope, so the app can start again from the setup wizard. Every call
   src/doctor.rs                        install check used by onboarding and `sentinel doctor`
   src/dry_run.rs                       The dry run: a rehearsal on a sample project that ships with Sentinel. A second engine runs the
+  src/dry_run_book.rs                  What the dry run shows: each stage's state, the counts at the end, and the notes the wizard
+  src/dry_run_preflight.rs             The agent check before a dry run. Each agent the dry run may use is tested once, with the same
   src/engine.rs                        The engine: one handle that owns the state of a Sentinel daemon. The HTTP layer, the CLI, and the
   src/folders.rs                       native folder dialog, phone folder browser, repo checks
   src/folders_git.rs                   The git half of the repository check: the clean working tree row, and the commit that takes

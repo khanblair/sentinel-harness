@@ -73,7 +73,7 @@ mod tests {
     fn an_answer_without_notes_still_decodes() {
         let json = r#"{"running":false,"stages":[],"verified":null,"total":null}"#;
         let status: DryRunStatus = serde_json::from_str(json).unwrap();
-        assert!(status.notes.is_empty());
+        assert_eq!(status.notes, Vec::<String>::new());
     }
 
     #[test]

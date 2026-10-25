@@ -123,6 +123,10 @@ impl Book {
     }
 
     /// Keep the counts that the hopeless check reads, and the notes that come from messages.
+    #[expect(
+        clippy::wildcard_enum_match_arm,
+        reason = "the dry run follows a few of the many event kinds"
+    )]
     fn track(&mut self, event: &Event) {
         match event {
             Event::PlanReady { tasks, .. } => {
@@ -335,7 +339,7 @@ mod tests {
         let mut book = fresh();
         book.claim();
         book.handle(&message("Plan approved. The run goes on in Auto."));
-        assert!(book.status().notes.is_empty());
+        assert_eq!(book.status().notes, Vec::<String>::new());
     }
 
     #[test]

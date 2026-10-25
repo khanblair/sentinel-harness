@@ -45,7 +45,10 @@ pub(crate) async fn check_agents(second: &Engine) -> Result<Preflight> {
     let candidates = testable(second)?;
     let results = join_all(candidates.iter().map(|id| probe(second, id))).await;
     let preflight = plan_preflight(&results);
-    for id in candidates.iter().filter(|id| !preflight.usable.contains(id)) {
+    for id in candidates
+        .iter()
+        .filter(|id| !preflight.usable.contains(id))
+    {
         second.toggle_tool(id, false)?;
     }
     Ok(preflight)
@@ -68,7 +71,10 @@ async fn probe(second: &Engine, id: &ToolId) -> (ToolId, bool, String) {
     let (ok, message) = match outcome {
         Err(_) => (
             false,
-            format!("It did not answer in {} seconds.", PREFLIGHT_LIMIT.as_secs()),
+            format!(
+                "It did not answer in {} seconds.",
+                PREFLIGHT_LIMIT.as_secs()
+            ),
         ),
         Ok(Ok(Some(test))) => (test.ok, test.message),
         Ok(Ok(None)) => (false, "This agent is not on this computer.".to_owned()),
@@ -88,7 +94,11 @@ mod tests {
     #[test]
     fn a_passing_agent_is_kept_and_a_failing_one_is_noted() {
         let results = vec![
-            (tool("claude"), true, "Works. It answered in 1.2 s.".to_owned()),
+            (
+                tool("claude"),
+                true,
+                "Works. It answered in 1.2 s.".to_owned(),
+            ),
             (tool("goose"), false, "It is not signed in.".to_owned()),
         ];
         assert_eq!(
@@ -113,6 +123,6 @@ mod tests {
     #[test]
     fn when_every_test_fails_no_agent_is_usable() {
         let results = vec![(tool("goose"), false, "No reply.".to_owned())];
-        assert!(plan_preflight(&results).usable.is_empty());
+        assert_eq!(plan_preflight(&results).usable, Vec::<ToolId>::new());
     }
 }

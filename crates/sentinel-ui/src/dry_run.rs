@@ -149,6 +149,7 @@ mod tests {
             stages,
             verified: counts.map(|(verified, _)| verified),
             total: counts.map(|(_, total)| total),
+            notes: Vec::new(),
         }
     }
 
