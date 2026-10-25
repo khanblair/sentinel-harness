@@ -115,6 +115,15 @@ pub struct ToolToggle {
     pub enabled: bool,
 }
 
+/// `POST /api/tools/:id/test`. The message is one plain sentence and never holds a key.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ToolTest {
+    pub tool: String,
+    pub ok: bool,
+    pub message: String,
+    pub millis: u64,
+}
+
 /// `POST /api/brain/mode`. From a phone only a stricter mode is accepted.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SetBrainMode {

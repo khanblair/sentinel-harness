@@ -123,6 +123,7 @@ pub const ROUTES: &[Route] = &[
     Route::get("/api/tools", Access::Any),
     Route::post("/api/tools/scan", Access::Computer),
     Route::put("/api/tools/nope", Access::Computer).json(r#"{"enabled":false}"#),
+    Route::post("/api/tools/nope/test", Access::Computer),
     Route::post("/api/doctor", Access::Computer),
     Route::get("/api/connections", Access::Any),
     Route::post("/api/chats/nope/attachments", Access::Any)
