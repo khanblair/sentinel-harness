@@ -192,6 +192,27 @@ pub struct FolderEntry {
     pub path: String,
 }
 
+/// `GET /api/repo/tree?path=`. One folder of the repository and its direct subfolders. Paths use
+/// `/` and are relative to the repository root. The root has an empty path.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct RepoTree {
+    pub path: String,
+    /// The folder above this one. `None` at the root.
+    pub parent: Option<String>,
+    pub folders: Vec<TreeFolder>,
+    /// Files directly in this folder, not counting subfolders.
+    pub files_here: u32,
+}
+
+/// One subfolder of a `RepoTree`. The counts are direct children only.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct TreeFolder {
+    pub name: String,
+    pub path: String,
+    pub files: u32,
+    pub folders: u32,
+}
+
 /// `POST /api/doctor` and the install check.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DoctorReport {

@@ -2,13 +2,13 @@
 
 use axum::Json;
 use axum::Router;
-use axum::extract::{Path, State};
+use axum::extract::{Path, Query, State};
 use axum::routing::{get, post, put};
 use serde::Deserialize;
 use serde_json::{Value, json};
 
 use sentinel_core::OnboardingState;
-use sentinel_core::api::{RepoCheckRequest, RepoCheckResponse};
+use sentinel_core::api::{RepoCheckRequest, RepoCheckResponse, RepoTree};
 
 use super::state::ConnectionBody;
 use super::{ApiResult, blocking, okay};
@@ -22,6 +22,7 @@ pub(super) fn routes() -> Router<Engine> {
         .route("/api/secrets/openrouter", put(set_openrouter_key))
         .route("/api/connections/{name}/test", post(test_connection))
         .route("/api/files", get(repo_files))
+        .route("/api/repo/tree", get(repo_tree))
         .route("/api/repo/check", post(repo_check))
         .route("/api/repo/starter-backlog", post(starter_backlog))
         .route("/api/repo", put(set_repo))
@@ -138,4 +139,18 @@ async fn test_connection(
 
 async fn repo_files(State(engine): State<Engine>) -> ApiResult<Vec<String>> {
     blocking(engine, Engine::repo_files).await
+}
+
+#[derive(Debug, Deserialize)]
+struct TreeQuery {
+    /// The folder to list, relative to the project. Empty means the project root.
+    #[serde(default)]
+    path: String,
+}
+
+async fn repo_tree(
+    State(engine): State<Engine>,
+    Query(query): Query<TreeQuery>,
+) -> ApiResult<RepoTree> {
+    blocking(engine, move |e| e.repo_tree(&query.path)).await
 }

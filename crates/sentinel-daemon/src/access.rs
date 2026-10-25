@@ -4,7 +4,7 @@
 use std::path::{Path, PathBuf};
 
 use sentinel_core::api::{
-    DoctorReport, FolderEntry, PairResult, PairStart, PairSubmit, RepoCheckResponse,
+    DoctorReport, FolderEntry, PairResult, PairStart, PairSubmit, RepoCheckResponse, RepoTree,
     TailscaleStatus,
 };
 use sentinel_core::{DeviceId, DeviceInfo, Event, OnboardingState};
@@ -127,6 +127,12 @@ impl Engine {
         let target = path.map_or_else(|| self.inner.home.clone(), PathBuf::from);
         folders::list_folders(&self.inner.home, &target)
             .map_err(|e| EngineError::Refused(e.to_string()))
+    }
+
+    /// One folder of the project, for the folder browser. Browses the same root that attachments
+    /// resolve against, so every folder shown can be attached.
+    pub fn repo_tree(&self, path: &str) -> Result<RepoTree> {
+        folders::repo_tree(&self.repo_path(), path).map_err(|e| EngineError::Invalid(e.to_string()))
     }
 
     /// The computer's own folder dialog. Blocks, so the caller runs it off the async threads.
