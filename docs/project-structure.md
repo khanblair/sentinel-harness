@@ -366,6 +366,7 @@ crates/sentinel-daemon/
   src/hashing.rs                       Device tokens: generation, hashing, and comparison
   src/host.rs                          The always-on host (`docs/product-scope.md`, F21). The daemon writes a heartbeat every few
   src/hub.rs                           Many projects in one app. Each project is a folder with its own engine and its own `.sentinel`
+  src/keys.rs                          Keys for the model providers: the provider table, the rows the UI shows, the live check of a
   src/lib.rs                           exports
   src/live.rs                          What the engine keeps while a run is live: control channels, the budget, and the questions the
   src/onboarding.rs                    onboarding state and steps
@@ -384,6 +385,7 @@ crates/sentinel-daemon/
   src/routes/chats.rs                  Chats and their attachments: the sidebar list, new chat, rename, pin, archive, delete, and the
   src/routes/clearing.rs               Clear data by scope. The project route clears the project the request names. The app and
   src/routes/dry_run.rs                The dry run routes. Only the computer starts one. Any device may read the last one, so a page
+  src/routes/keys.rs                   The model provider keys: one row per provider, a save, a delete, and a test of the saved key
   src/routes/mod.rs                    The HTTP routes. Each handler checks the caller, calls one Engine method, and returns JSON
   src/routes/routines.rs               Routines and briefs. The computer makes and deletes routines. A phone may turn one off and press
   src/routes/run.rs                    Routes that start, steer, and answer a run
@@ -425,6 +427,7 @@ crates/sentinel-daemon/
   tests/folders.rs                     Folder browser, repository checks, and starter backlog behavior
   tests/host.rs                        The always-on host: the heartbeat, the back-online gap, and the host card
   tests/hub.rs                         The hub: many projects behind one server. The first project keeps the paired phones, the keys,
+  tests/keys.rs                        The provider key routes over HTTP: the rows, a save, a delete, the refusals, and a test with no
   tests/openrouter_tool.rs             The `OpenRouter` worker offered as a tool in a real-mode engine: its entry after a scan, and a
   tests/routines.rs                    Routines end to end: the two built-in routines, who may change what, the input rules, and the
   tests/security.rs                    The route access matrix. Every route answers the right way to a caller with no token, a paired
@@ -526,6 +529,8 @@ crates/sentinel-ui/
   src/components/icon.rs               `Icon`: one inline SVG from the outline set, sized in `em` so it scales with the text size
   src/components/install_checklist.rs  `InstallChecklist`: the install check rows, each found or missing, with the command that
   src/components/install_log.rs        `InstallLog`: the terminal-style box that shows the install commands and what to do with
+  src/components/key_card.rs           `KeyCard`: one provider's row in the API keys section. The typed text lives only in the
+  src/components/keys_section.rs       `KeysSection`: the bring-your-own-key block on the Connections page. The daemon keeps each key
   src/components/kill_button.rs        `KillButton`: stops one task after a confirm that names the files it releases
   src/components/lesson_card.rs        `LessonCard`: the typed fields of a lesson with Approve, Reject, and Retire. A phone may review
   src/components/menus.rs              Menu bodies for the one popover. Each entry calls into `Ui` or the daemon API, then closes

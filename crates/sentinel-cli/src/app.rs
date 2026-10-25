@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use anyhow::{Context, Result};
-use sentinel_daemon::folders::{alert, pick_native};
+use sentinel_daemon::folders::{Pick, alert, pick_native};
 use sentinel_daemon::hub::Hub;
 use sentinel_daemon::server::{self, BoundServer, ServerOptions};
 use sentinel_daemon::starter::{self, FirstChoice};
@@ -46,8 +46,8 @@ pub(crate) fn choose_repo(named: Option<PathBuf>) -> Result<Option<PathBuf>> {
     }
     match starter::ask_first_choice() {
         FirstChoice::PickFolder => match pick_native(Some(&home_dir())) {
-            Some(path) => checked_repo(&path),
-            None => Ok(None),
+            Pick::Chosen(path) => checked_repo(&path),
+            Pick::Cancelled | Pick::Unavailable => Ok(None),
         },
         FirstChoice::MakeStarter => make_starter(),
         FirstChoice::Quit => Ok(None),
