@@ -1,11 +1,10 @@
 //! Starting, steering, and finishing a run. The work itself lives in `plan_phase`, `wave`,
 //! `attempt`, and `verify_phase`.
 
-use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
 use sentinel_core::api::RunRequest;
-use sentinel_core::{ChatId, Event, HarnessState, RunId, RunInfo, TaskId, ToolId};
+use sentinel_core::{ChatId, Event, HarnessState, Intent, RunId, RunInfo, TaskId, ToolId};
 use sentinel_gate::ApprovalBook;
 use sentinel_reserve::Scheduler;
 use sentinel_tree::{Git, GuardOptions, start_guard};
@@ -19,6 +18,7 @@ use crate::close_out::finish;
 use crate::config::Config;
 use crate::controls::Caller;
 use crate::engine::{Engine, EngineError, Result, lock};
+use crate::intent::{Typing, permission_for};
 use crate::plan_phase::{PlanOutcome, plan_phase};
 use crate::pumps::{budget_pump, forward_guard_events};
 use crate::resume::{restored_git, resume_phase};
@@ -33,19 +33,27 @@ const MAX_WAVES: u32 = 200;
 impl Engine {
     /// Start a run in the background. Returns as soon as it is started: the stream and the
     /// snapshot show the rest.
-    pub async fn start_run(&self, request: RunRequest) -> Result<RunInfo> {
+    /// `None` when the message needed no run: its reply is in the chat.
+    pub async fn start_run(&self, request: RunRequest) -> Result<Option<RunInfo>> {
         self.start_run_as(request, &Caller::pc("You")).await
     }
 
     /// Like `start_run`, naming who asked, so the stream shows their words under their name.
-    pub async fn start_run_as(&self, request: RunRequest, caller: &Caller) -> Result<RunInfo> {
+    pub async fn start_run_as(
+        &self,
+        mut request: RunRequest,
+        caller: &Caller,
+    ) -> Result<Option<RunInfo>> {
         self.check_can_start(request.chat.as_ref()).await?;
         let resume = self.interrupted_since()?;
         let source = match resume {
             Some(_) => RunSource::resumed(self.interrupted_chat()?),
             None => self.resolve_source(&request)?,
         };
-        let (ctx, stop_tx) = self.prepare_run(source, resume)?;
+        let Typing::Run(typed) = self.type_step(&mut request, &source, caller).await? else {
+            return Ok(None);
+        };
+        let (ctx, stop_tx) = self.prepare_run(source, resume, request.intent)?;
         let run_info = lock(&self.inner.live)
             .run
             .clone()
@@ -53,6 +61,7 @@ impl Engine {
         if resume.is_none() {
             self.mark_run_live(run_info.started_at, &run_info.chat)?;
             self.announce_request(&ctx.source, caller)?;
+            self.announce_intent(&ctx.source.chat, typed.as_ref())?;
             // A message run says it started only once its planner has given a plan.
             if ctx.source.words.is_none() {
                 self.announce_run_started()?;
@@ -64,20 +73,7 @@ impl Engine {
             HarnessState::Running
         });
         self.launch(ctx, request, stop_tx)?;
-        Ok(run_info)
-    }
-
-    /// Put the run on the stream. The run is registered by now, so the event belongs to its chat.
-    pub(crate) fn announce_run_started(&self) -> Result<()> {
-        let run = lock(&self.inner.live)
-            .run
-            .clone()
-            .ok_or_else(|| EngineError::Invalid("run not registered".to_owned()))?;
-        self.emit(&Event::RunStarted {
-            run: run.id,
-            backlog: run.backlog,
-        })?;
-        Ok(())
+        Ok(Some(run_info))
     }
 
     /// Start the write guard, the budget pump, and the run loop in the background.
@@ -216,6 +212,7 @@ impl Engine {
         &self,
         source: RunSource,
         resume: Option<OffsetDateTime>,
+        intent: Option<Intent>,
     ) -> Result<(Arc<RunCtx>, watch::Sender<bool>)> {
         let config = self.config();
         let repo = self.repo_path();
@@ -238,7 +235,7 @@ impl Engine {
             stop: stop_rx,
             pause: pause_rx,
             limits: ContextLimits::default(),
-            mode: Mutex::new(config.permission_mode),
+            mode: Mutex::new(permission_for(intent, config.permission_mode)),
             config,
             book: Mutex::new(ApprovalBook::new()),
             memory,
@@ -391,10 +388,4 @@ fn close_without_run(ctx: &RunCtx) {
     }
     engine.clear_run_live();
     engine.set_state(HarnessState::Idle);
-}
-
-/// The `.sentinel` folder of a repository.
-#[allow(dead_code, reason = "used by the CLI in P5-01")]
-pub fn sentinel_dir(repo: &std::path::Path) -> PathBuf {
-    repo.join(".sentinel")
 }

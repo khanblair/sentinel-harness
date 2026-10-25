@@ -10,6 +10,7 @@ pub mod dry_run;
 pub mod error;
 pub mod event;
 pub mod ids;
+pub mod intent;
 pub mod note;
 pub mod permission;
 pub mod quality;
@@ -27,6 +28,7 @@ pub use chat::{Attachment, AttachmentKind, AttachmentRef, ChatChange, ChatInfo, 
 pub use cost::Cost;
 pub use error::CoreError;
 pub use event::{Event, EventRecord};
+pub use intent::Intent;
 pub use ids::{
     ApprovalId, AttachmentId, ChatId, DecisionId, DeviceId, NoteId, ReservationId, RoutineId,
     RunId, TaskId, ToolId,

@@ -11,7 +11,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use sentinel_core::api::RunRequest;
-use sentinel_core::{Event, EventRecord, HarnessState, TaskId, TaskStatus};
+use sentinel_core::{Event, EventRecord, HarnessState, Intent, TaskId, TaskStatus};
 use sentinel_daemon::cmd::SystemRunner;
 use sentinel_daemon::engine::{Engine, EngineOptions, FakeAgents};
 use sentinel_daemon::secrets::MemoryStore;
@@ -264,4 +264,68 @@ async fn a_backlog_run_without_a_usable_plan_uses_the_offline_planner() {
     wait_done(&engine).await;
 
     assert_ne!(engine.store().list_tasks().unwrap().len(), 0);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_question_is_answered_with_no_run_and_the_router_is_named() {
+    let dir = sample_repo();
+    let plans = planner_plans("say The ledger rounds down.\n");
+    let engine = engine_with_plans(dir.path(), plans.path());
+    engine.scan_tools().await.unwrap();
+    let mut events = engine.subscribe();
+    engine
+        .start_run(message("How does the ledger round?"))
+        .await
+        .unwrap();
+
+    let chosen = next_event(&mut events, |event| {
+        matches!(event, Event::IntentChosen { .. })
+    })
+    .await;
+    let Event::IntentChosen { intent, by, .. } = chosen else {
+        panic!("the event is not an intent");
+    };
+    assert_eq!((intent, by.as_str()), (Intent::Ask, "router"));
+
+    let reply = message_text(next_event(&mut events, is_sentinel_message).await);
+    next_event(&mut events, is_settled).await;
+    assert!(reply.starts_with("The ledger rounds down."), "{reply}");
+    let history = engine.events_after(0, 100_000).unwrap();
+    assert!(
+        !history.iter().any(|r| is_run_started(&r.event)),
+        "a question started a run"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn a_type_the_owner_picks_wins_over_the_rules() {
+    let dir = sample_repo();
+    let plans = planner_plans("say Hello there.\n");
+    let engine = engine_with_plans(dir.path(), plans.path());
+    engine.scan_tools().await.unwrap();
+    let mut events = engine.subscribe();
+    let request = RunRequest {
+        text: Some("Add a health check".to_owned()),
+        intent: Some(Intent::Chat),
+        ..RunRequest::default()
+    };
+    engine.start_run(request).await.unwrap();
+
+    let chosen = next_event(&mut events, |event| {
+        matches!(event, Event::IntentChosen { .. })
+    })
+    .await;
+    let Event::IntentChosen { intent, by, .. } = chosen else {
+        panic!("the event is not an intent");
+    };
+    assert_eq!((intent, by.as_str()), (Intent::Chat, "you"));
+    next_event(&mut events, is_settled).await;
+    assert!(
+        !engine
+            .events_after(0, 100_000)
+            .unwrap()
+            .iter()
+            .any(|r| is_run_started(&r.event)),
+        "a chosen chat started a run"
+    );
 }

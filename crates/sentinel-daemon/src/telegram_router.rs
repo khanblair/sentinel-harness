@@ -323,8 +323,10 @@ impl Turn<'_> {
             task,
             ..RunRequest::default()
         };
-        let started = self.engine.start_run_as(request, &phone_caller()).await;
-        outcome(started, "Run started.")
+        match self.engine.start_run_as(request, &phone_caller()).await {
+            Ok(None) => Reply::text("Answered."),
+            started => outcome(started, "Run started."),
+        }
     }
 
     fn lower_cap(&self, amount: &str, caller: &Caller) -> Reply {

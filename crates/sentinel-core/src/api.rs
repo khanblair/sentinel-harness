@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 use crate::chat::AttachmentKind;
 use crate::event::EventRecord;
 use crate::ids::{AttachmentId, ChatId, DeviceId, TaskId};
+use crate::intent::Intent;
 use crate::note::BrainMode;
 use crate::permission::PermissionMode;
 use crate::snapshot::{AgentCapabilities, Routing};
@@ -37,6 +38,9 @@ pub struct RunRequest {
     /// Attachments of the chat that go with this request.
     #[serde(default)]
     pub attachments: Vec<AttachmentId>,
+    /// The type of the message. The daemon works it out when this is `None`.
+    #[serde(default)]
+    pub intent: Option<Intent>,
 }
 
 /// `POST /api/chats`.

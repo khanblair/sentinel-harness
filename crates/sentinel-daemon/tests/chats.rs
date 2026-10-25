@@ -174,7 +174,7 @@ async fn a_message_starts_a_run_in_its_chat_and_names_the_chat() {
         text: Some("Add a health check function\nA health() function returns ok.".to_owned()),
         ..RunRequest::default()
     };
-    let started = engine.start_run(request).await.unwrap();
+    let started = engine.start_run(request).await.unwrap().unwrap();
     assert_eq!(started.chat, chat.id);
     wait_done(&engine).await;
 

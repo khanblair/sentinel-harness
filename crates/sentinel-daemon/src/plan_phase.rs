@@ -12,17 +12,30 @@ use sentinel_plan::backlog::{BacklogItem, parse_backlog};
 use sentinel_plan::contradiction::{
     ContradictionPair, Resolution, apply_answer, decision_for, find_contradictions,
 };
-use sentinel_plan::planner::{Plan, PlanRequest, build_tasks, holds_plan_json, parse_plan_json};
+use sentinel_plan::planner::{Plan, PlanRequest, build_tasks, parse_plan_json};
 use sentinel_store::VerificationRecord;
 use sentinel_workers::{EndKind, RunOutcome};
 
+use crate::answer::{no_answer_reason, reply_from, unreached_text};
 use crate::ask::{ask_approval, ask_decision};
-use crate::engine::{EngineError, Result, lock};
+use crate::engine::{Engine, EngineError, Result, lock};
 use crate::run_ctx::RunCtx;
 use crate::run_source::{backlog_path, with_context, words_item};
 
-/// The longest reply the chat gets from a planner.
-const REPLY_CHARS: usize = 4000;
+impl Engine {
+    /// Put the run on the stream. The run is registered by now, so the event belongs to its chat.
+    pub(crate) fn announce_run_started(&self) -> Result<()> {
+        let run = lock(&self.inner.live)
+            .run
+            .clone()
+            .ok_or_else(|| EngineError::Invalid("run not registered".to_owned()))?;
+        self.emit(&Event::RunStarted {
+            run: run.id,
+            backlog: run.backlog,
+        })?;
+        Ok(())
+    }
+}
 
 /// What the plan phase found.
 pub(crate) enum PlanOutcome {
@@ -103,13 +116,16 @@ fn store_plan(
     Ok(())
 }
 
-/// The plan to run, or `None` when the message ends with a reply or with no planner. Either text
-/// goes to the chat, and no run starts.
+/// The plan to run, or `None` when the message ends with a reply, a failure, or no planner. The
+/// text goes to the chat, and no run starts. A backlog run that fails here still ends as a run.
 async fn plan_or_message(ctx: &RunCtx, request: &PlanRequest) -> Result<Option<Plan>> {
-    let text = match crate::agents::make_plan(ctx, request).await? {
-        PlanStep::Plan(plan) => return Ok(Some(plan)),
-        PlanStep::Reply(text) => text,
-        PlanStep::Unreached(reason) => unreached_text(&reason),
+    let message = ctx.source.words.is_some();
+    let text = match crate::agents::make_plan(ctx, request).await {
+        Ok(PlanStep::Plan(plan)) => return Ok(Some(plan)),
+        Ok(PlanStep::Reply(text)) => text,
+        Ok(PlanStep::Unreached(reason)) => unreached_text(&reason),
+        Err(error) if message => format!("The run ended because of an error: {error}"),
+        Err(error) => return Err(error),
     };
     ctx.engine.emit_quiet(&Event::Message {
         from: "sentinel".to_owned(),
@@ -155,51 +171,6 @@ pub(crate) fn read_answer(
     reply_from(text).map_or(Asked::Unusable, Asked::Reply)
 }
 
-/// Why a planner gave no answer, in words for the owner.
-fn no_answer_reason(outcome: &RunOutcome) -> String {
-    match outcome.end {
-        EndKind::Completed => "it gave no answer".to_owned(),
-        EndKind::Failed => match outcome.exit_code {
-            Some(code) => format!("it exited with code {code}"),
-            None => "it failed".to_owned(),
-        },
-        EndKind::TimedOut => "it timed out".to_owned(),
-        EndKind::Killed => "it was stopped".to_owned(),
-        EndKind::CostCeiling => "it hit its cost limit".to_owned(),
-    }
-}
-
-/// The planner's answer as a chat reply. `None` when the answer holds a plan or is empty.
-pub(crate) fn reply_from(answer: &str) -> Option<String> {
-    if holds_plan_json(answer) {
-        return None;
-    }
-    let text = strip_fence(answer.trim());
-    if text.is_empty() {
-        return None;
-    }
-    Some(text.chars().take(REPLY_CHARS).collect())
-}
-
-/// Drop a code fence that wraps the whole answer, with its language line when it has one.
-fn strip_fence(text: &str) -> &str {
-    let Some(inner) = text
-        .strip_prefix("```")
-        .and_then(|rest| rest.strip_suffix("```"))
-    else {
-        return text;
-    };
-    inner
-        .split_once('\n')
-        .map_or(inner, |(_, body)| body)
-        .trim()
-}
-
-/// What the owner reads when no planning agent answered.
-pub(crate) fn unreached_text(reason: &str) -> String {
-    format!("I could not reach a planning agent: {reason}. Check Settings, Agents and press Test.")
-}
-
 fn count(n: usize) -> u32 {
     u32::try_from(n).unwrap_or(u32::MAX)
 }
@@ -207,7 +178,12 @@ fn count(n: usize) -> u32 {
 fn read_items(ctx: &RunCtx, request: &RunRequest) -> Result<Vec<BacklogItem>> {
     let source = &ctx.source;
     if let Some(words) = &source.words {
-        return Ok(with_context(vec![words_item(words)], &source.context));
+        let mut item = words_item(words);
+        // Only a change gets the rule in its task. A plan waits for the owner's approval first.
+        if let Some(intent) = request.intent.filter(|intent| intent.writes()) {
+            item.body = format!("{}\n\n{}", intent.rule(), item.body);
+        }
+        return Ok(with_context(vec![item], &source.context));
     }
     let engine = &ctx.engine;
     let name = source
@@ -385,6 +361,7 @@ mod tests {
     use sentinel_core::Cost;
 
     use super::*;
+    use crate::answer::REPLY_CHARS;
 
     fn outcome(end: EndKind) -> RunOutcome {
         RunOutcome {
