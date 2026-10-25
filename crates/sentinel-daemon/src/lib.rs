@@ -25,6 +25,7 @@ pub mod config;
 pub mod connections;
 mod context_usage;
 pub mod controls;
+mod data_clear;
 pub mod doctor;
 mod dry_run;
 pub mod engine;

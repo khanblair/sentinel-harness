@@ -183,4 +183,5 @@ pub const ROUTES: &[Route] = &[
     Route::post("/api/onboarding/skip/1", Access::Computer),
     Route::post("/api/onboarding/complete", Access::Computer),
     Route::post("/api/onboarding/reset", Access::Computer),
+    Route::post("/api/data/project", Access::Computer).json(r#"{"scopes":[]}"#),
 ];

@@ -12,7 +12,7 @@ use std::sync::{Arc, Mutex};
 use axum::extract::{Path as UrlPath, Request, State};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::routing::{delete, get};
+use axum::routing::{delete, get, post};
 use axum::{Json, Router, middleware};
 use sentinel_core::api::{AddProject, ProjectInfo};
 use serde_json::{Value, json};
@@ -21,6 +21,7 @@ use tower_http::limit::RequestBodyLimitLayer;
 
 use crate::auth::{self, Computer};
 use crate::engine::{Engine, lock};
+use crate::routes::data;
 use crate::routes::{ApiFailure, ApiResult};
 use crate::server::{self, BODY_LIMIT_BYTES};
 
@@ -29,7 +30,7 @@ pub const PROJECT_HEADER: &str = "x-sentinel-project";
 
 /// Paths that always belong to the primary project, whatever project a request names: the paired
 /// phones, the tailnet, the keys, Telegram, the routines, the setup wizard, and the folder dialog.
-const PRIMARY_PATHS: [&str; 16] = [
+const PRIMARY_PATHS: [&str; 15] = [
     "/api/health",
     "/api/pair",
     "/api/devices",
@@ -45,7 +46,6 @@ const PRIMARY_PATHS: [&str; 16] = [
     "/api/routines",
     "/api/briefs",
     "/api/onboarding",
-    "/api/data/app",
 ];
 
 pub type OpenFuture = Pin<Box<dyn Future<Output = Result<Engine, String>> + Send>>;
@@ -323,7 +323,10 @@ async fn dispatch(State(state): State<Dispatch>, request: Request) -> Response {
 }
 
 fn is_hub_path(path: &str) -> bool {
-    path == "/api/projects" || path.starts_with("/api/projects/")
+    path == "/api/projects"
+        || path.starts_with("/api/projects/")
+        || path == "/api/data/app"
+        || path == "/api/data/all"
 }
 
 fn is_primary_path(path: &str) -> bool {
@@ -351,6 +354,8 @@ fn routes() -> Router<Hub> {
     Router::new()
         .route("/api/projects", get(list_projects).post(add_project))
         .route("/api/projects/{id}", delete(remove_project))
+        .route("/api/data/app", post(data::clear_app))
+        .route("/api/data/all", post(data::clear_all))
 }
 
 async fn list_projects(State(hub): State<Hub>) -> ApiResult<Vec<ProjectInfo>> {
