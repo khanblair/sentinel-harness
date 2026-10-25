@@ -1,6 +1,7 @@
-//! `PickerDialog`: the add dialogs for files, a folder, and a backlog file. The "This project" tab
-//! lists the repository from `GET /api/files`. The "This device" tab reads chosen files with
-//! `FileReader` and sends them as base64 (`docs/ui-rules.md`, Composer).
+//! `PickerDialog`: the add dialogs for files, a folder, and a backlog file. The folder dialog is a
+//! browser (`folder_browser.rs`). The "This project" tab of the other two lists the repository from
+//! `GET /api/files`. The "This device" tab reads chosen files with `FileReader` and sends them as
+//! base64 (`docs/ui-rules.md`, Composer).
 
 use leptos::html;
 use leptos::prelude::*;
@@ -12,6 +13,7 @@ use crate::api::{self, ApiFailure};
 use crate::chats::{PickerKind, filter_files, same_kind_ids, too_large};
 use crate::components::attachment_chip::Chip;
 use crate::components::device_file::{DeviceFile, input_files, list_files, take_files};
+use crate::components::folder_browser::FolderBrowser;
 use crate::components::icon::Icon;
 use crate::state::{ToastKind, Ui, use_ui};
 use crate::views::composer::reload_attachments;
@@ -66,6 +68,25 @@ fn icon_for(kind: PickerKind) -> &'static str {
 #[component]
 pub fn PickerDialog(kind: PickerKind) -> impl IntoView {
     let ui = use_ui();
+    view! {
+        <div class="modal-hd">
+            <Icon name=icon_for(kind) size=18 />
+            <h3>{title_for(kind)}</h3>
+            <button class="ibtn" aria-label="Close" on:click=move |_| ui.modal.set(None)>
+                <Icon name="x" size=17 />
+            </button>
+        </div>
+        {match kind {
+            PickerKind::Folder => view! { <FolderBrowser /> }.into_any(),
+            PickerKind::Files | PickerKind::Backlog => view! { <ChoicePicker kind=kind /> }.into_any(),
+        }}
+    }
+}
+
+/// The file and backlog dialogs: a project list or device files, and a confirm button.
+#[component]
+fn ChoicePicker(kind: PickerKind) -> impl IntoView {
+    let ui = use_ui();
     let tab = RwSignal::new(Tab::Project);
     let filter = RwSignal::new(String::new());
     let picked = RwSignal::new(Vec::<String>::new());
@@ -77,13 +98,6 @@ pub fn PickerDialog(kind: PickerKind) -> impl IntoView {
             + devices.with(|list| list.iter().filter(|file| file.content.is_some()).count())
     });
     view! {
-        <div class="modal-hd">
-            <Icon name=icon_for(kind) size=18 />
-            <h3>{title_for(kind)}</h3>
-            <button class="ibtn" aria-label="Close" on:click=move |_| ui.modal.set(None)>
-                <Icon name="x" size=17 />
-            </button>
-        </div>
         <div class="modal-body" style="padding:1em 1.1em">
             {kind.has_device_tab().then(|| tab_row(tab))}
             {move || if tab.get() == Tab::Device && kind.has_device_tab() {
@@ -256,7 +270,7 @@ fn uploads_of(devices: &[DeviceFile]) -> Vec<Upload> {
 }
 
 /// Closes the dialog and adds the choice. A single choice first removes the chips of its kind.
-fn confirm(ui: Ui, kind: PickerKind, picked: Vec<String>, devices: &[DeviceFile]) {
+pub(crate) fn confirm(ui: Ui, kind: PickerKind, picked: Vec<String>, devices: &[DeviceFile]) {
     let Some(chat) = ui.open_chat.get_untracked() else {
         ui.show_toast("Open a chat first.", ToastKind::Warn);
         return;
