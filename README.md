@@ -26,6 +26,43 @@ Or download the disk image by hand: [Sentinel .dmg](https://github.com/khanblair
 - **Brain.** A folder of markdown notes (Obsidian compatible) that agents read as memory. Each run can write a journal and lesson candidates.
 - **Phone, Telegram, always-on host.** Pair a phone over Tailscale, get approvals and alerts in Telegram, and run the daemon as a service.
 
+## A look at it
+
+These views come from the [how-to site](https://khanblair.github.io/sentinel-harness/). Each one links to its page.
+
+<table>
+<tr>
+<td width="50%">
+<a href="https://khanblair.github.io/sentinel-harness/"><img src="docs/images/home-stream.png" alt="A finished chat with the chat list, the stream, and the Board panel"></a>
+<br><sub><b>Chats and the Board.</b> The chat list, the stream of each plan, step, and result, and the task board.</sub>
+</td>
+<td width="50%">
+<a href="https://khanblair.github.io/sentinel-harness/guides/backlog-safely.html"><img src="docs/images/backlog-run.png" alt="A run in progress with the plan, a wave, and the barrier after the wave"></a>
+<br><sub><b>A run in waves.</b> Tasks that touch different files run together, then the full test suite runs.</sub>
+</td>
+</tr>
+<tr>
+<td width="50%">
+<a href="https://khanblair.github.io/sentinel-harness/using/reserved-files.html"><img src="docs/images/reserved-panel.png" alt="The Reserved panel with held files and a task that waits"></a>
+<br><sub><b>Reserved files.</b> One writer per file. A task that needs a busy file waits.</sub>
+</td>
+<td width="50%">
+<a href="https://khanblair.github.io/sentinel-harness/reference/status-words.html"><img src="docs/images/status-words.png" alt="The Board with one task in each status"></a>
+<br><sub><b>Honest status.</b> Each badge has a shape and a word. Only a checked task is Verified.</sub>
+</td>
+</tr>
+<tr>
+<td width="50%">
+<a href="https://khanblair.github.io/sentinel-harness/brain/index.html"><img src="docs/images/brain-overview.png" alt="The Brain panel with its mode, notes, and search"></a>
+<br><sub><b>Brain.</b> Plain markdown notes that agents read as memory. Works with Obsidian.</sub>
+</td>
+<td width="50%">
+<a href="https://khanblair.github.io/sentinel-harness/remote/phone.html"><img src="docs/images/remote-pairing.png" alt="The Remote panel with the Tailscale checks and the pairing steps"></a>
+<br><sub><b>Phone pairing.</b> Check Tailscale, scan the code, enter the one-time code, and approve the phone.</sub>
+</td>
+</tr>
+</table>
+
 ## Try it
 
 You need Rust (stable), the `wasm32-unknown-unknown` target, `trunk`, and at least one agent CLI (Claude, Codex, Gemini, OpenCode, and others) on your computer.

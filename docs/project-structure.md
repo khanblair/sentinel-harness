@@ -90,6 +90,12 @@ docs/
   ui-registry.md          component list
   mobile.md               phone experience
   progress-tracker.md     live status
+  images/home-stream.png  README picture: a finished chat with the Board panel
+  images/backlog-run.png  README picture: a run in waves with its barrier
+  images/reserved-panel.png README picture: the Reserved panel
+  images/status-words.png README picture: the Board with one task in each status
+  images/brain-overview.png README picture: the Brain panel
+  images/remote-pairing.png README picture: the Remote panel and the pairing steps
 ```
 
 ## xtask/
