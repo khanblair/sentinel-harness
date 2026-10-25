@@ -39,6 +39,7 @@ pub mod hashing;
 pub mod host;
 pub mod hub;
 mod hub_error;
+mod hub_inherit;
 mod keys;
 pub mod live;
 pub mod onboarding;

@@ -8,6 +8,8 @@ use std::sync::Arc;
 
 use reqwest::header::AUTHORIZATION;
 use reqwest::{Method, StatusCode};
+use sentinel_core::ToolId;
+use sentinel_daemon::config::{self, Config};
 use sentinel_daemon::engine::Engine;
 use sentinel_daemon::hub::{Hub, OpenFuture, PROJECT_HEADER, ProjectOpener, hub_router};
 use serde_json::{Value, json};
@@ -113,6 +115,7 @@ struct Served {
     anonymous: Client,
     desktop_token: String,
     root: tempfile::TempDir,
+    primary: Engine,
 }
 
 impl Served {
@@ -128,7 +131,7 @@ async fn serve_hub() -> Served {
     make_repo(&first);
     let primary = common::engine_with_runner(&first, Arc::new(TailnetRunner));
     let desktop_token = primary.ensure_desktop_token().expect("hub test setup");
-    let hub = Hub::new(primary, Some(Arc::new(TestOpener)));
+    let hub = Hub::new(primary.clone(), Some(Arc::new(TestOpener)));
     let listener = TcpListener::bind("127.0.0.1:0")
         .await
         .expect("hub test setup");
@@ -140,6 +143,7 @@ async fn serve_hub() -> Served {
         anonymous: Client::anonymous(&format!("http://{addr}")),
         desktop_token,
         root,
+        primary,
     }
 }
 
@@ -352,4 +356,45 @@ async fn projects_with_the_same_folder_name_get_the_parent_folder_added() {
         .filter_map(|project| project["name"].as_str())
         .collect();
     assert_eq!(names, ["first", "proj (a)", "proj (b)"], "{list}");
+}
+
+/// Scans the first project and turns its agent `fake-b` off, the way the setup wizard would.
+async fn primary_without_fake_b(served: &Served) {
+    served.primary.scan_tools().await.expect("hub test setup");
+    served
+        .primary
+        .toggle_tool(&ToolId::new("fake-b"), false)
+        .expect("hub test setup");
+}
+
+#[tokio::test]
+async fn a_new_project_starts_with_the_primary_agent_choices() {
+    let served = serve_hub().await;
+    primary_without_fake_b(&served).await;
+    let folder = served.root.path().join("second");
+    make_repo(&folder);
+    let (status, body) = add_path(&served, &folder).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let inherited = config::load(&config::config_path(&folder)).expect("hub test setup");
+    assert_eq!(inherited.enabled_tools, served.primary.config().enabled_tools);
+    assert_eq!(inherited.enabled_tools, [ToolId::new("fake-a"), ToolId::new("fake-c")]);
+}
+
+#[tokio::test]
+async fn a_project_with_its_own_config_keeps_it() {
+    let served = serve_hub().await;
+    primary_without_fake_b(&served).await;
+    let folder = served.root.path().join("own");
+    make_repo(&folder);
+    let own = Config {
+        enabled_tools: vec![ToolId::new("fake-c")],
+        cap_usd: "0.75".to_owned(),
+        ..Config::default()
+    };
+    config::save(&config::config_path(&folder), &own).expect("hub test setup");
+    let (status, body) = add_path(&served, &folder).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let kept = config::load(&config::config_path(&folder)).expect("hub test setup");
+    assert_eq!(kept.enabled_tools, [ToolId::new("fake-c")]);
+    assert_eq!(kept.cap_usd, "0.75");
 }

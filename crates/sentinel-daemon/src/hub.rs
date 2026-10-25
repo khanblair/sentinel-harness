@@ -21,7 +21,9 @@ use tower::ServiceExt;
 use tower_http::limit::RequestBodyLimitLayer;
 
 use crate::auth::{self, Computer};
+use crate::config;
 use crate::engine::{Engine, lock};
+use crate::hub_inherit::inherit_choices;
 use crate::routes::clearing;
 use crate::routes::{ApiFailure, ApiResult};
 use crate::server::{self, BODY_LIMIT_BYTES};
@@ -189,7 +191,13 @@ impl Hub {
             return Err(HubError::AlreadyThere);
         }
         let opener = self.inner.opener.clone().ok_or(HubError::CannotAdd)?;
+        // Checked before the opener runs: its first scan writes a config file of its own.
+        let inherits = !config::config_path(&path).exists();
         let engine = opener.open(path.clone()).await.map_err(HubError::Open)?;
+        if inherits {
+            inherit_choices(&engine, &self.primary().config())
+                .map_err(|error| HubError::Open(error.to_string()))?;
+        }
         engine.use_devices_of(self.primary());
         // The setup wizard belongs to the app, not to one project.
         let _ = engine.onboarding_complete();
