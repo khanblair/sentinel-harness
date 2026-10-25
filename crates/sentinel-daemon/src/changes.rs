@@ -194,12 +194,25 @@ fn changed_file(root: &Path, path: String, word: &str, counts: &LineCounts) -> C
     }
 }
 
-/// The lines of a file on disk, for a file git has no diff for. Unreadable files count as zero.
+/// The lines of a file on disk, for a file git has no diff for. Unreadable files, and files that
+/// resolve outside the project, count as zero.
 fn count_disk_lines(root: &Path, path: &str) -> u32 {
+    if !is_file_inside(root, path) {
+        return 0;
+    }
     fs::read(root.join(path)).map_or(0, |bytes| {
         let text = String::from_utf8_lossy(&bytes);
         u32::try_from(text.lines().count()).unwrap_or(u32::MAX)
     })
+}
+
+/// True when `path`, with symlinks followed, is a regular file inside `root`. A symlink that
+/// points out of the project is not, so its target is never read.
+fn is_file_inside(root: &Path, path: &str) -> bool {
+    let (Ok(base), Ok(full)) = (root.canonicalize(), root.join(path).canonicalize()) else {
+        return false;
+    };
+    full.starts_with(&base) && full.is_file()
 }
 
 #[cfg(test)]
@@ -274,6 +287,8 @@ mod tests {
         let dir = committed_repo();
         fs::write(dir.path().join("tracked.txt"), "a\nc\n").expect("write");
         fs::write(dir.path().join("new.txt"), "x\ny\n").expect("write");
+        fs::write(dir.path().join("staged.txt"), "1\n2\n3\n").expect("write");
+        git_in(dir.path(), &["add", "staged.txt"]);
         fs::remove_file(dir.path().join("gone.txt")).expect("remove");
         let files = working_tree(dir.path()).expect("list");
         let view: Vec<(&str, &str, u32, u32)> = files
@@ -285,6 +300,7 @@ mod tests {
             vec![
                 ("gone.txt", "deleted", 0, 1),
                 ("new.txt", "untracked", 2, 0),
+                ("staged.txt", "added", 3, 0),
                 ("tracked.txt", "modified", 1, 1),
             ]
         );

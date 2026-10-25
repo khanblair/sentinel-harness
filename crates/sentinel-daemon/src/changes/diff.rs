@@ -6,7 +6,7 @@ use std::path::{Component, Path};
 
 use sentinel_core::api::ChangeDiff;
 
-use super::{git, has_head, is_repo, is_sentinel_path};
+use super::{git, has_head, is_file_inside, is_repo, is_sentinel_path};
 use crate::engine::{EngineError, Result};
 
 /// Most bytes of diff text one answer carries.
@@ -28,17 +28,24 @@ pub fn file_diff(root: &Path, path: &str) -> Result<ChangeDiff> {
     })
 }
 
+/// The pathspec for `path` as a literal file name, so `*` or `:/` cannot widen the match.
+fn literal_spec(path: &str) -> String {
+    format!(":(literal){path}")
+}
+
 fn is_tracked(root: &Path, path: &str) -> bool {
-    git(root, &["ls-files", "--error-unmatch", "--", path]).is_ok()
+    let spec = literal_spec(path);
+    git(root, &["ls-files", "--error-unmatch", "--", &spec]).is_ok()
 }
 
 fn diff_text(root: &Path, path: &str) -> Result<String> {
+    let spec = literal_spec(path);
     let tracked = if has_head(root) {
-        git(root, &["diff", "--no-ext-diff", "HEAD", "--", path])?
+        git(root, &["diff", "--no-ext-diff", "HEAD", "--", &spec])?
     } else {
         Vec::new()
     };
-    if !tracked.is_empty() || is_tracked(root, path) || !root.join(path).is_file() {
+    if !tracked.is_empty() || is_tracked(root, path) || !is_file_inside(root, path) {
         return Ok(String::from_utf8_lossy(&tracked).into_owned());
     }
     synthetic_added(root, path)
@@ -133,6 +140,31 @@ mod tests {
     fn a_diff_request_with_dot_dot_is_rejected() {
         let dir = tempfile::tempdir().expect("temp dir");
         assert!(file_diff(dir.path(), "../outside.txt").is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn an_untracked_symlink_to_a_file_outside_the_project_is_not_read() {
+        if !git_available() {
+            return;
+        }
+        let dir = committed_repo();
+        let outside = tempfile::tempdir().expect("temp dir");
+        fs::write(outside.path().join("secret.txt"), "hunter2\n").expect("write");
+        let target = outside.path().join("secret.txt");
+        std::os::unix::fs::symlink(target, dir.path().join("link.txt")).expect("symlink");
+        let diff = file_diff(dir.path(), "link.txt").expect("diff");
+        assert!(!diff.diff.contains("hunter2"));
+    }
+
+    #[test]
+    fn a_glob_path_names_no_file() {
+        if !git_available() {
+            return;
+        }
+        let dir = committed_repo();
+        let diff = file_diff(dir.path(), "*").expect("diff");
+        assert_eq!(diff.diff.len(), 0);
     }
 
     #[test]
