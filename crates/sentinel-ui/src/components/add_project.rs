@@ -14,7 +14,7 @@ use crate::components::icon::Icon;
 use crate::components::project_group::stored_id;
 use crate::components::sidebar::new_chat;
 use crate::state::{ToastKind, Ui, refresh, use_ui};
-use crate::views::folder_picker::{list_url, parent_path};
+use crate::views::folder_picker::list_url;
 
 /// How often the project list reloads while the sidebar is open.
 const POLL_EVERY: Duration = Duration::from_secs(8);
@@ -28,10 +28,44 @@ pub enum ProjectDialog {
     Remove { id: String, name: String },
 }
 
-/// `POST /api/fs/pick`. A `null` path means no folder was chosen.
+/// `POST /api/fs/pick`. `cancelled` means the owner closed the dialog. `available: false` means
+/// no dialog could open on the computer.
 #[derive(Deserialize)]
-struct PickReply {
+pub struct PickReply {
     path: Option<String>,
+    #[serde(default)]
+    cancelled: bool,
+    #[serde(default = "yes")]
+    available: bool,
+}
+
+fn yes() -> bool {
+    true
+}
+
+/// What the page does with the answer of a folder dialog.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum PickOutcome {
+    Add(String),
+    Nothing,
+    ShowBrowser,
+}
+
+/// Only a missing dialog opens the in-app folder box. A cancel does nothing.
+pub fn pick_outcome(reply: &PickReply) -> PickOutcome {
+    match &reply.path {
+        Some(path) => PickOutcome::Add(path.clone()),
+        None if reply.cancelled || reply.available => PickOutcome::Nothing,
+        None => PickOutcome::ShowBrowser,
+    }
+}
+
+/// Asks the computer for a folder. A failed call counts as no dialog, so the browser opens.
+pub async fn ask_dialog() -> PickOutcome {
+    match api::post_empty::<PickReply>("/api/fs/pick").await {
+        Ok(reply) => pick_outcome(&reply),
+        Err(_) => PickOutcome::ShowBrowser,
+    }
 }
 
 /// The sidebar's New project button. A phone cannot add folders, so it gets a note instead.
@@ -79,13 +113,24 @@ fn dialog_body(dialog: ProjectDialog) -> AnyView {
     }
 }
 
-/// The folder browser. Its "Use this folder" button adds the folder as a project.
+/// What the folder box lists: the folders in view, or the daemon's message when a call fails.
+#[derive(Clone, Copy)]
+struct BrowserList {
+    entries: RwSignal<Vec<FolderEntry>>,
+    problem: RwSignal<Option<String>>,
+}
+
+/// The folder browser. It starts in the home folder. Its "Use this folder" button adds the
+/// folder as a project.
 #[component]
 fn AddProjectDialog() -> impl IntoView {
     let ui = use_ui();
-    let path = RwSignal::new("~".to_owned());
-    let entries = RwSignal::new(Vec::<FolderEntry>::new());
-    Effect::new(move |_| load_folders(ui, path.get(), entries));
+    let trail = RwSignal::new(Vec::<FolderEntry>::new());
+    let list = BrowserList {
+        entries: RwSignal::new(Vec::new()),
+        problem: RwSignal::new(None),
+    };
+    Effect::new(move |_| load_folders(&trail.get(), list));
     view! {
         <div class="modal-hd">
             <Icon name="folder" size=18 />
@@ -93,41 +138,87 @@ fn AddProjectDialog() -> impl IntoView {
         </div>
         <div class="modal-body" style="padding:0">
             <div class="fd-crumb">
-                <button class="btn sm" on:click=move |_| path.set(parent_path(&path.get_untracked()))>
+                <button
+                    class="btn sm"
+                    disabled=move || trail.with(Vec::is_empty)
+                    on:click=move |_| trail.update(|opened| { opened.pop(); })
+                >
                     "Up"
                 </button>
-                <span class="mono">{move || path.get()}</span>
+                <span class="mono">{move || trail_label(&trail.get())}</span>
             </div>
             <div class="fd-list" role="listbox">
-                {move || entries.get().into_iter().map(|entry| folder_option(path, entry)).collect_view()}
+                {move || {
+                    box_note(list.problem.get(), list.entries.with(Vec::len))
+                        .map(|text| view! { <div class="note">{text}</div> })
+                }}
+                {move || list.entries.get().into_iter().map(|entry| folder_option(trail, entry)).collect_view()}
             </div>
         </div>
         <div class="modal-ft">
             <button class="btn" on:click=move |_| ui.project_dialog.set(None)>"Cancel"</button>
-            <button class="btn pri" on:click=move |_| spawn_local(add_path(ui, path.get_untracked()))>
+            <button
+                class="btn pri"
+                disabled=move || trail.with(Vec::is_empty)
+                on:click=move |_| spawn_local(add_path(ui, trail_path(&trail.get_untracked())))
+            >
                 "Use this folder"
             </button>
         </div>
     }
 }
 
-fn folder_option(path: RwSignal<String>, entry: FolderEntry) -> impl IntoView {
-    let next = entry.path.clone();
+fn folder_option(trail: RwSignal<Vec<FolderEntry>>, entry: FolderEntry) -> impl IntoView {
+    let next = entry.clone();
     view! {
-        <button class="fd-row" role="option" on:click=move |_| path.set(next.clone())>
+        <button class="fd-row" role="option" on:click=move |_| trail.update(|opened| opened.push(next.clone()))>
             <Icon name="folder" size=17 />
             <span>{entry.name}</span>
         </button>
     }
 }
 
-fn load_folders(ui: Ui, path: String, entries: RwSignal<Vec<FolderEntry>>) {
+/// Lists the folder the trail ends in. A failed call shows its text in the box.
+fn load_folders(trail: &[FolderEntry], list: BrowserList) {
+    let path = trail_path(trail);
     spawn_local(async move {
         match api::get::<Vec<FolderEntry>>(&list_url(&path)).await {
-            Ok(list) => entries.set(list),
-            Err(failure) => ui.show_toast(failure_text(&failure), ToastKind::Danger),
+            Ok(folders) => {
+                list.entries.set(folders);
+                list.problem.set(None);
+            }
+            Err(failure) => {
+                list.entries.set(Vec::new());
+                list.problem.set(Some(failure_text(&failure)));
+            }
         }
     });
+}
+
+/// The folder the trail ends in, as the daemon reads it. An empty trail is the home folder,
+/// which the daemon reads from an empty path.
+pub fn trail_path(trail: &[FolderEntry]) -> String {
+    trail
+        .last()
+        .map_or_else(String::new, |folder| folder.path.clone())
+}
+
+/// The location the box shows. The home folder shows as `~`.
+pub fn trail_label(trail: &[FolderEntry]) -> String {
+    if trail.is_empty() {
+        "~".to_owned()
+    } else {
+        trail_path(trail)
+    }
+}
+
+/// The message the box shows above its list: a failure, or a note when the folder is empty.
+pub fn box_note(problem: Option<String>, count: usize) -> Option<String> {
+    match problem {
+        Some(text) => Some(text),
+        None if count == 0 => Some("No subfolders here.".to_owned()),
+        None => None,
+    }
 }
 
 /// Asks before the project leaves the list. The folder is never touched.
@@ -205,15 +296,14 @@ pub fn carry_out_wish(ui: Ui) {
     }
 }
 
-/// The New project flow. The folder dialog of the computer answers first. When no dialog answers,
-/// the folder browser opens.
+/// The New project flow. The folder dialog of the computer answers first. The folder browser
+/// opens only when no dialog can open.
 pub fn start_add(ui: Ui) {
     spawn_local(async move {
-        match api::post_empty::<PickReply>("/api/fs/pick").await {
-            Ok(PickReply { path: Some(path) }) => add_path(ui, path).await,
-            Ok(PickReply { path: None }) | Err(_) => {
-                ui.project_dialog.set(Some(ProjectDialog::Add));
-            }
+        match ask_dialog().await {
+            PickOutcome::Add(path) => add_path(ui, path).await,
+            PickOutcome::ShowBrowser => ui.project_dialog.set(Some(ProjectDialog::Add)),
+            PickOutcome::Nothing => {}
         }
     });
 }
@@ -297,5 +387,76 @@ mod tests {
     fn a_network_failure_keeps_its_description() {
         let failure = ApiFailure::Network("timeout".to_owned());
         assert!(failure_text(&failure).starts_with("Could not reach the daemon."));
+    }
+
+    fn reply(json: &str) -> PickReply {
+        serde_json::from_str(json).unwrap_or_else(|error| panic!("bad reply: {error}"))
+    }
+
+    #[test]
+    fn a_chosen_folder_is_added() {
+        let answer = reply(r#"{"path":"/work/app","cancelled":false,"available":true}"#);
+        assert_eq!(
+            pick_outcome(&answer),
+            PickOutcome::Add("/work/app".to_owned())
+        );
+    }
+
+    #[test]
+    fn a_cancelled_dialog_does_nothing_at_all() {
+        let answer = reply(r#"{"path":null,"cancelled":true,"available":true}"#);
+        assert_eq!(pick_outcome(&answer), PickOutcome::Nothing);
+    }
+
+    #[test]
+    fn a_missing_dialog_opens_the_folder_box() {
+        let answer = reply(r#"{"path":null,"cancelled":false,"available":false}"#);
+        assert_eq!(pick_outcome(&answer), PickOutcome::ShowBrowser);
+    }
+
+    #[test]
+    fn an_answer_without_the_new_fields_counts_as_an_available_dialog() {
+        let answer = reply(r#"{"path":null}"#);
+        assert_eq!(pick_outcome(&answer), PickOutcome::Nothing);
+    }
+
+    fn folder(name: &str) -> FolderEntry {
+        FolderEntry {
+            name: name.to_owned(),
+            path: format!("/Users/me/{name}"),
+        }
+    }
+
+    #[test]
+    fn an_empty_trail_is_the_home_folder() {
+        assert_eq!(trail_path(&[]), "");
+        assert_eq!(trail_label(&[]), "~");
+    }
+
+    #[test]
+    fn the_trail_shows_the_folder_it_ends_in() {
+        let trail = [folder("code"), folder("app")];
+        assert_eq!(trail_path(&trail), "/Users/me/app");
+        assert_eq!(trail_label(&trail), "/Users/me/app");
+    }
+
+    #[test]
+    fn up_removes_the_last_folder_and_stops_at_home() {
+        let mut trail = vec![folder("code")];
+        trail.pop();
+        assert_eq!(trail_path(&trail), "");
+        assert_eq!(trail_label(&trail), "~");
+    }
+
+    #[test]
+    fn a_failure_message_shows_in_the_box_first() {
+        let note = box_note(Some("Not in the home folder".to_owned()), 0);
+        assert_eq!(note.as_deref(), Some("Not in the home folder"));
+    }
+
+    #[test]
+    fn an_empty_folder_says_so_instead_of_an_empty_box() {
+        assert_eq!(box_note(None, 0).as_deref(), Some("No subfolders here."));
+        assert_eq!(box_note(None, 2), None);
     }
 }

@@ -12,7 +12,7 @@ use sentinel_core::{DeviceId, DeviceInfo, Event, OnboardingState};
 use crate::connections::{self, ConnectionStatus};
 use crate::doctor::{current_os, install_check};
 use crate::engine::{Engine, EngineError, Result, lock};
-use crate::folders;
+use crate::folders::{self, Pick};
 use crate::onboarding;
 use crate::pairing::{PairError, PairOutcome, PendingId, PendingPair};
 use crate::tailscale;
@@ -136,10 +136,10 @@ impl Engine {
     }
 
     /// The computer's own folder dialog. Blocks, so the caller runs it off the async threads.
-    pub fn pick_folder_blocking(&self) -> Option<PathBuf> {
+    pub fn pick_folder_blocking(&self) -> Pick {
         if self.is_headless() {
             // A host without a screen has no dialog. The folder browser does the job.
-            return None;
+            return Pick::Unavailable;
         }
         folders::pick_native(Some(&self.inner.home))
     }

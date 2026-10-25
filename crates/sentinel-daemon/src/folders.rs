@@ -38,9 +38,10 @@ pub enum FolderError {
 
 pub type Result<T> = std::result::Result<T, FolderError>;
 
+/// The folders below `path`. An empty path, `~`, and `~/name` mean the home folder and below it.
 pub fn list_folders(home: &Path, path: &Path) -> Result<Vec<FolderEntry>> {
     let home = fs::canonicalize(home)?;
-    let folder = resolve_inside(&home, path)?;
+    let folder = resolve_inside(&home, &expand_home(&home, path))?;
     let mut entries = Vec::new();
     for entry in fs::read_dir(&folder)? {
         let entry = entry?;
@@ -79,6 +80,18 @@ pub fn within_home(home: &Path, path: &Path) -> bool {
         return false;
     };
     path.starts_with(home)
+}
+
+/// The browser sends `~` for the home folder. Only the `~` at the start means home.
+fn expand_home(home: &Path, path: &Path) -> PathBuf {
+    let text = path.to_string_lossy();
+    if text.is_empty() || text == "~" {
+        return home.to_path_buf();
+    }
+    match text.strip_prefix("~/") {
+        Some(rest) => home.join(rest),
+        None => path.to_path_buf(),
+    }
 }
 
 fn resolve_inside(home: &Path, path: &Path) -> Result<PathBuf> {
@@ -388,21 +401,97 @@ pub fn alert(text: &str) {
         .show();
 }
 
-pub fn pick_native(start: Option<&Path>) -> Option<PathBuf> {
+/// The answer of the folder dialog. `Unavailable` means no dialog could open here.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Pick {
+    Chosen(PathBuf),
+    Cancelled,
+    Unavailable,
+}
+
+/// Runs the computer's folder dialog. The dialog opens in `start` when it exists.
+#[cfg(target_os = "macos")]
+pub fn pick_native(start: Option<&Path>) -> Pick {
+    // rfd's dialog does not reliably show when called from the daemon's thread, so macOS asks
+    // Finder through osascript instead.
+    match Command::new("osascript")
+        .arg("-e")
+        .arg(dialog_script(start))
+        .output()
+    {
+        Ok(output) => parse_dialog_output(
+            output.status.code().unwrap_or(-1),
+            &String::from_utf8_lossy(&output.stdout),
+            &String::from_utf8_lossy(&output.stderr),
+        ),
+        Err(_) => Pick::Unavailable,
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn pick_native(start: Option<&Path>) -> Pick {
     let mut dialog = rfd::FileDialog::new();
     if let Some(start) = start {
         dialog = dialog.set_directory(start);
     }
-    dialog.pick_folder()
+    dialog.pick_folder().map_or(Pick::Cancelled, Pick::Chosen)
+}
+
+/// The `AppleScript` that shows the folder chooser. The start folder is optional.
+#[cfg(target_os = "macos")]
+fn dialog_script(start: Option<&Path>) -> String {
+    let location = start
+        .filter(|path| path.is_dir())
+        .map_or_else(String::new, |path| {
+            format!(
+                " default location (POSIX file \"{}\")",
+                escape_applescript(&path.to_string_lossy())
+            )
+        });
+    format!("POSIX path of (choose folder with prompt \"Choose a project folder\"{location})")
+}
+
+/// Escapes the text for a double-quoted `AppleScript` string.
+#[cfg(any(target_os = "macos", test))]
+fn escape_applescript(text: &str) -> String {
+    text.replace('\\', "\\\\").replace('"', "\\\"")
+}
+
+/// Reads what osascript printed. Exit 0 is the chosen folder. Exit 1 with error -128 is a
+/// cancel. Anything else means the dialog did not run.
+#[cfg(any(target_os = "macos", test))]
+fn parse_dialog_output(status: i32, stdout: &str, stderr: &str) -> Pick {
+    if status == 0 {
+        return chosen_path(stdout).map_or(Pick::Unavailable, Pick::Chosen);
+    }
+    if status == 1 && stderr.contains("-128") {
+        return Pick::Cancelled;
+    }
+    Pick::Unavailable
+}
+
+/// The printed path without its trailing slashes. A root path keeps its single slash.
+#[cfg(any(target_os = "macos", test))]
+fn chosen_path(stdout: &str) -> Option<PathBuf> {
+    let text = stdout.trim();
+    if text.is_empty() {
+        return None;
+    }
+    let kept = text.trim_end_matches('/');
+    Some(PathBuf::from(if kept.is_empty() { "/" } else { kept }))
 }
 
 #[cfg(test)]
 mod tests {
     use std::fs;
+    use std::path::{Path, PathBuf};
 
     use sentinel_core::api::RepoTree;
 
-    use super::{FolderError, TREE_FOLDER_LIMIT, parent_of, repo_tree};
+    use super::{
+        FolderError, Pick, TREE_FOLDER_LIMIT, chosen_path, escape_applescript, list_folders,
+        parent_of, parse_dialog_output, repo_tree,
+    };
 
     fn repo_with(files: &[&str]) -> tempfile::TempDir {
         let dir = tempfile::tempdir().unwrap();
@@ -534,5 +623,63 @@ mod tests {
         assert_eq!(parent_of("src/fees"), Some("src".to_owned()));
         assert_eq!(parent_of("src"), Some(String::new()));
         assert_eq!(parent_of(""), None);
+    }
+
+    fn names_in(home: &Path, path: &str) -> Vec<String> {
+        list_folders(home, Path::new(path))
+            .unwrap()
+            .into_iter()
+            .map(|entry| entry.name)
+            .collect()
+    }
+
+    #[test]
+    fn an_empty_path_and_a_tilde_both_list_the_home_folder() {
+        let home = repo_with(&["code/a.txt", "notes/b.txt", "loose.txt"]);
+        assert_eq!(names_in(home.path(), ""), vec!["code", "notes"]);
+        assert_eq!(names_in(home.path(), "~"), vec!["code", "notes"]);
+    }
+
+    #[test]
+    fn a_tilde_path_lists_a_folder_below_home() {
+        let home = repo_with(&["code/sub/x.txt"]);
+        assert_eq!(names_in(home.path(), "~/code"), vec!["sub"]);
+    }
+
+    #[test]
+    fn escape_applescript_escapes_quotes_and_backslashes() {
+        assert_eq!(escape_applescript(r#"a"b\c"#), r#"a\"b\\c"#);
+        assert_eq!(escape_applescript("~/code"), "~/code");
+    }
+
+    #[test]
+    fn exit_zero_with_a_path_is_chosen_without_trailing_slash() {
+        let pick = parse_dialog_output(0, "/Users/me/code/app/\n", "");
+        assert_eq!(pick, Pick::Chosen(PathBuf::from("/Users/me/code/app")));
+    }
+
+    #[test]
+    fn a_root_path_keeps_its_slash() {
+        assert_eq!(chosen_path("/\n"), Some(PathBuf::from("/")));
+    }
+
+    #[test]
+    fn exit_zero_with_no_path_is_unavailable() {
+        assert_eq!(parse_dialog_output(0, "  \n", ""), Pick::Unavailable);
+    }
+
+    #[test]
+    fn user_canceled_error_is_cancelled() {
+        let stderr = "execution error: User canceled. (-128)";
+        assert_eq!(parse_dialog_output(1, "", stderr), Pick::Cancelled);
+    }
+
+    #[test]
+    fn other_dialog_failures_are_unavailable() {
+        assert_eq!(
+            parse_dialog_output(1, "", "execution error: Not authorized. (-1743)"),
+            Pick::Unavailable
+        );
+        assert_eq!(parse_dialog_output(-1, "", ""), Pick::Unavailable);
     }
 }
