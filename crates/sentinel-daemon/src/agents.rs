@@ -24,6 +24,7 @@ use tokio::sync::{mpsc, watch};
 
 use crate::agents_config::{fill_routing, route_for_tier, without_missing_tools};
 use crate::engine::{Engine, EngineError, FakeAgents, Result};
+use crate::keys;
 use crate::openrouter_tool::{is_openrouter_adapter, openrouter_entry, openrouter_worker};
 use crate::run_ctx::RunCtx;
 
@@ -221,7 +222,12 @@ impl Engine {
         let free = self
             .config()
             .is_free_model(&tool.id, &profile.default_model);
-        let worker = CliWorker::new(profile, tool.path.clone().into()).with_free_cost(free);
+        let env = keys::agent_env(&tool.adapter, self.inner.secrets.as_ref(), &|name| {
+            std::env::var(name).ok()
+        });
+        let worker = CliWorker::new(profile, tool.path.clone().into())
+            .with_free_cost(free)
+            .with_env(env);
         Ok(Arc::new(worker))
     }
 }

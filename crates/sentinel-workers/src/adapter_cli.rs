@@ -11,6 +11,8 @@ pub struct CliWorker {
     profile: Profile,
     binary: PathBuf,
     free: bool,
+    /// Variables added to the profile's own, such as a saved provider key.
+    extra_env: Vec<(String, String)>,
 }
 
 impl CliWorker {
@@ -19,6 +21,7 @@ impl CliWorker {
             profile,
             binary,
             free: false,
+            extra_env: Vec::new(),
         }
     }
 
@@ -28,6 +31,13 @@ impl CliWorker {
         self.free = free;
         self
     }
+
+    /// Add variables to the agent's environment. They come after the profile's own, so they win.
+    #[must_use]
+    pub fn with_env(mut self, env: Vec<(String, String)>) -> Self {
+        self.extra_env = env;
+        self
+    }
 }
 
 impl Worker for CliWorker {
@@ -35,9 +45,11 @@ impl Worker for CliWorker {
         let profile = self.profile.clone();
         let binary = self.binary.clone();
         let free = self.free;
+        let extra_env = self.extra_env.clone();
 
         Box::pin(async move {
-            let command_line = profile.command_line(&spec, &binary);
+            let mut command_line = profile.command_line(&spec, &binary);
+            command_line.env.extend(extra_env);
 
             let reported_prefix = if profile.cost_prefix.is_empty() {
                 None
