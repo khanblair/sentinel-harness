@@ -457,7 +457,7 @@ The macOS app shows Sentinel in its own window. The window is built only with th
 | Reserving files | Under 10 ms |
 | Event to phone | Under 300 ms |
 | Phone first paint | Under 2 s on a mid phone over Tailscale |
-| UI bundle (WASM, compressed) | Under 1.5 MB |
+| UI bundle (WASM, compressed) | Under 2 MB (was 1.5 MB until D103) |
 | Daemon idle memory | Under 100 MB |
 | Extra disk per run | Under 50 MB |
 | Watcher overhead | Under 5% of one core |

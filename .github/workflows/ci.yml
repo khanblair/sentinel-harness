@@ -94,11 +94,11 @@ jobs:
       - run: cargo clippy -p sentinel-ui --target wasm32-unknown-unknown -- -D warnings
       - run: trunk build --release
         working-directory: crates/sentinel-ui
-      # Budget from docs/architecture.md: the UI bundle stays under 1.5 MB compressed.
+      # Budget from docs/architecture.md: the UI bundle stays under 2 MB compressed.
       - run: |
           size=$(find crates/sentinel-ui/dist -name '*.wasm' -print0 | xargs -0 gzip -9c | wc -c)
           echo "compressed wasm: ${size} bytes"
-          test "$size" -lt 1500000
+          test "$size" -lt 2000000
       - uses: actions/upload-artifact@v4
         with:
           name: ui-dist

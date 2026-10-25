@@ -135,7 +135,7 @@ Web push needs HTTPS. Without it, alerts show only while the app is open.
 | First paint over tailnet | Under 2 s |
 | Event to screen | Under 300 ms |
 | Snapshot size | Under 200 KB for a 12-task run |
-| UI bundle | Under 1.5 MB compressed |
+| UI bundle | Under 2 MB compressed |
 | Battery | No polling. WebSocket only. Pause rendering when the tab is hidden |
 
 ## Code Structure
