@@ -155,6 +155,7 @@ crates/sentinel-store/
   src/capabilities.rs                  The per-agent capability matrix. Rows are stored even when a capability is
   src/chats.rs                         Chats: the conversations of a project. The engine adds the run state to each row
   src/checkpoints.rs                   Checkpoint records: one commit per task per point in time. The `id` column
+  src/clear.rs                         Clear the rows of one data scope. Each function runs in one transaction, so a failure leaves the
   src/decisions.rs                     Decision prompt persistence. A decision is the contradiction question from
   src/devices.rs                       paired device queries
   src/events.rs                        event append and read
@@ -357,12 +358,14 @@ crates/sentinel-daemon/
   src/connections.rs                   connection state and test actions (Tailscale, OpenRouter, MCP, git, keychain)
   src/context_usage.rs                 The Context panel's numbers: what the next task would put in the window of the agent routed for
   src/controls.rs                      Engine methods that change settings and answer questions. Each one says who did it, because a
+  src/data_clear.rs                    Clear the data of one scope, so the app can start again from the setup wizard. Every call
   src/doctor.rs                        install check used by onboarding and `sentinel doctor`
   src/dry_run.rs                       The dry run: a rehearsal on a sample project that ships with Sentinel. A second engine runs the
   src/engine.rs                        The engine: one handle that owns the state of a Sentinel daemon. The HTTP layer, the CLI, and the
   src/folders.rs                       native folder dialog, phone folder browser, repo checks
   src/hashing.rs                       Device tokens: generation, hashing, and comparison
   src/host.rs                          The always-on host (`docs/product-scope.md`, F21). The daemon writes a heartbeat every few
+  src/hub.rs                           Many projects in one app. Each project is a folder with its own engine and its own `.sentinel`
   src/lib.rs                           exports
   src/live.rs                          What the engine keeps while a run is live: control channels, the budget, and the questions the
   src/onboarding.rs                    onboarding state and steps
@@ -379,6 +382,7 @@ crates/sentinel-daemon/
   src/routes/brain.rs                  The Brain routes under `/api/brain`. A phone may read notes and the graph, review lessons, and
   src/routes/changes.rs                Live project state: the working tree, one file's diff, and the backlog tasks. Any device
   src/routes/chats.rs                  Chats and their attachments: the sidebar list, new chat, rename, pin, archive, delete, and the
+  src/routes/clearing.rs               Clear data by scope. The project route clears the project the request names. The app and
   src/routes/dry_run.rs                The dry run routes. Only the computer starts one. Any device may read the last one, so a page
   src/routes/mod.rs                    The HTTP routes. Each handler checks the caller, calls one Engine method, and returns JSON
   src/routes/routines.rs               Routines and briefs. The computer makes and deletes routines. A phone may turn one off and press
@@ -415,10 +419,12 @@ crates/sentinel-daemon/
   tests/brain_run.rs                   The Brain during a run: pinned notes reach the stream as "loaded", and the journal is written
   tests/chats.rs                       Chats end to end with the fake agents: create, rename, pin, archive, delete, a run from plain
   tests/common/mod.rs                  Helpers the integration tests share: the repository root, a copy of the sample repository, git
+  tests/data_clear.rs                  Clearing data by scope through the hub: a phone is refused, the desktop clears chats and the
   tests/dry_run.rs                     The dry run on the built-in sample project, over the real HTTP routes. The fake agents run the
   tests/engine_run.rs                  A whole run with the fake agents on the sample repository. It proves the harness end to end:
   tests/folders.rs                     Folder browser, repository checks, and starter backlog behavior
   tests/host.rs                        The always-on host: the heartbeat, the back-online gap, and the host card
+  tests/hub.rs                         The hub: many projects behind one server. The first project keeps the paired phones, the keys,
   tests/openrouter_tool.rs             The `OpenRouter` worker offered as a tool in a real-mode engine: its entry after a scan, and a
   tests/routines.rs                    Routines end to end: the two built-in routines, who may change what, the input rules, and the
   tests/security.rs                    The route access matrix. Every route answers the right way to a caller with no token, a paired
@@ -440,6 +446,7 @@ crates/sentinel-cli/
   src/doctor_host.rs                   The host checks of `sentinel doctor` (P14-06, `docs/product-scope.md` F21). Each row says
   src/login_path.rs                    Finds the agent CLIs when the Mac app starts from Finder, Spotlight, or the Dock. Those
   src/main.rs                          entry
+  src/projects.rs                      The projects the app serves besides the first one. The first project starts the host loop, the
   src/serve.rs                         The commands that run or reach the daemon: `daemon`, `open`, `pair`, and `keys`
   src/service.rs                       `sentinel service`: run the daemon at boot and restart it when it stops. A launchd job on
   src/window.rs                        The macOS app window: the same local UI, served by the same daemon, inside a native window
@@ -478,6 +485,7 @@ crates/sentinel-ui/
   src/chats/menu.rs                    The lines of a chat menu: what each line does, and which lines are disabled and why. The menu
   src/chats/tests.rs                   file
   src/components/accent_picker.rs      `AccentPicker`: the six accent swatches, a custom color, and Reset to default
+  src/components/add_project.rs        `AddProjectButton` and the project dialogs: the New project flow, the folder browser for a host
   src/components/agent_stack.rs        `AgentStack`: avatars of the ready agents in the top bar, each with a state dot. Opens the
   src/components/agent_step_card.rs    One agent's card for one attempt at one task. The steps are not in the events, so the card
   src/components/appearance_form.rs    The controls of Settings, Appearance, from theme down to corner radius. The density choices
@@ -495,6 +503,7 @@ crates/sentinel-ui/
   src/components/chat_menu.rs          `ChatMenu`: the menu of one chat, used by the chat row and the top bar title
   src/components/chat_row.rs           `ChatRow`: one chat in the sidebar (`docs/ui-rules.md`, Layout). Its more button and a long
   src/components/command_palette.rs    `CommandPalette`: Ctrl or Cmd + K. It draws its own overlay (`.pal`), not the modal frame,
+  src/components/confirm_clear.rs      `ConfirmClear`: asks before a data reset runs. The reset that clears everything needs the owner
   src/components/confirm_delete.rs     `ConfirmDelete`: asks before a chat, its messages and its uploads are removed. The repository
   src/components/connection_banner.rs  `ConnectionBanner`: says when the page shows the last known state, not the live one
   src/components/connection_card.rs    The Connections page and the Devices page of Settings (`docs/product-scope.md`, F18). Each
@@ -539,6 +548,7 @@ crates/sentinel-ui/
   src/components/permission_mode_list.rs `PermissionModeList`: the four permission mode cards (`docs/ui-registry.md`, Permissions)
   src/components/plan_card.rs          The plan card: the plan's counts, and the task table from the snapshot
   src/components/popover.rs            The one popover of the page. It sits under its anchor, flips above when there is no room
+  src/components/project_group.rs      `ProjectGroup`: one project in the sidebar, with its header, its chats, and its archived chats
   src/components/proposal_list.rs      `ProposalList`: one card per proposal from a care run, with Accept and Dismiss. Nothing changes
   src/components/range_field.rs        `RangeField`: a slider with its value in pixels, used for text size, stream width, and corner
   src/components/receipt_block.rs      `ReceiptBlock`: the commit that proves a VERIFIED task (`docs/ui-registry.md`, Board and Tasks)
@@ -546,6 +556,7 @@ crates/sentinel-ui/
   src/components/repo_file_picker.rs   `PickerDialog`: the add dialogs for files, a folder, and a backlog file. The "This project" tab
   src/components/report_card.rs        The report card: counts by status from the snapshot, and buttons to the Report and the Brain
   src/components/reserved_row.rs       `ReservedRow`: one file path, the task that holds it, and the queue of waiting tasks
+  src/components/reset_section.rs      `ResetSection`: the Reset block at the end of General. Each row clears one kind of data, and the
   src/components/resize_handle.rs      Drag handles on the desktop layout: one on the sidebar edge, one on the panel edge. The widths
   src/components/routine_editor.rs     `RoutineEditor`: the dialog body that adds a reminder or edits one (`docs/product-scope.md`,
   src/components/routine_row.rs        `RoutineRow`: one routine on the Routines page (`docs/product-scope.md`, F25). On a phone a
