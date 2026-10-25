@@ -543,6 +543,7 @@ crates/sentinel-ui/
   src/components/icon.rs               `Icon`: one inline SVG from the outline set, sized in `em` so it scales with the text size
   src/components/install_checklist.rs  `InstallChecklist`: the install check rows, each found or missing, with the command that
   src/components/install_log.rs        `InstallLog`: the terminal-style box that shows the install commands and what to do with
+  src/components/intent_chip.rs        The type line of a message in the stream: `Type: ask. REASON`, with the type as a chip. The chip
   src/components/key_card.rs           `KeyCard`: one provider's row in the API keys section. The typed text lives only in the
   src/components/keys_section.rs       `KeysSection`: the bring-your-own-key block on the Connections page. The daemon keeps each key
   src/components/kill_button.rs        `KillButton`: stops one task after a confirm that names the files it releases

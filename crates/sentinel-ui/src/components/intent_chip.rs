@@ -14,7 +14,10 @@ use crate::views::composer_send::resend_as;
 pub const TYPE_ROWS: [(Intent, &str); 5] = [
     (Intent::Chat, "Small talk. Reads no file."),
     (Intent::Ask, "A question. Changes no file."),
-    (Intent::Research, "Investigation with evidence. Changes no file."),
+    (
+        Intent::Research,
+        "Investigation with evidence. Changes no file.",
+    ),
     (Intent::Plan, "A plan of tasks. Writes nothing."),
     (Intent::Change, "Changes files in the reserved files."),
 ];
@@ -72,7 +75,8 @@ pub fn IntentChip(intent: Intent, reason: String) -> impl IntoView {
                     <Icon name=icon size=13 />
                     <span>{intent.label()}</span>
                 </button>
-                <span>{format!(". {reason}")}</span>
+                <span>". "</span>
+                <span>{reason}</span>
             </div>
             <Show when=move || open.get()>
                 <TypeMenu on_pick=pick />
@@ -101,7 +105,10 @@ fn TypeMenu(on_pick: Callback<Intent>) -> impl IntoView {
 
 /// Sends the owner's last message of the open chat again, with `intent`.
 fn resend_last(ui: Ui, intent: Intent) {
-    match ui.snapshot.with_untracked(|s| last_owner_message(&s.events)) {
+    match ui
+        .snapshot
+        .with_untracked(|s| last_owner_message(&s.events))
+    {
         Some(text) => resend_as(ui, intent, text),
         None => ui.show_toast("There is no message to send again.", ToastKind::Warn),
     }
@@ -129,7 +136,10 @@ mod tests {
     #[test]
     fn only_a_change_takes_the_accent_chip() {
         assert_eq!(chip_look(Intent::Change).0, "chip a");
-        for (intent, _) in TYPE_ROWS.iter().filter(|(intent, _)| *intent != Intent::Change) {
+        for (intent, _) in TYPE_ROWS
+            .iter()
+            .filter(|(intent, _)| *intent != Intent::Change)
+        {
             assert_eq!(chip_look(*intent).0, "chip");
         }
     }
@@ -138,7 +148,10 @@ mod tests {
     fn every_type_chip_uses_an_icon_from_the_set() {
         for (intent, _) in TYPE_ROWS {
             let (_, icon) = chip_look(intent);
-            assert!(ICONS.iter().any(|(name, _)| *name == icon), "{icon} is missing");
+            assert!(
+                ICONS.iter().any(|(name, _)| *name == icon),
+                "{icon} is missing"
+            );
         }
     }
 

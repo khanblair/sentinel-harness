@@ -153,7 +153,9 @@ fn item_for(events: &[EventRecord], index: usize) -> Option<Item> {
     {
         return running_item(events, index, task);
     }
-    run_item(event).or_else(|| review_item(event)).or_else(|| intent_item(event))
+    run_item(event)
+        .or_else(|| review_item(event))
+        .or_else(|| intent_item(event))
 }
 
 /// The type a message got, with the reason the daemon gave.

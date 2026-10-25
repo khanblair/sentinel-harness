@@ -93,14 +93,16 @@ impl TestOutcome {
 /// Marks the tool as testing, sends the test, and stores the answer under the tool's id. The
 /// button stays disabled until the answer lands.
 fn run_test(ui: Ui, id: ToolId) {
-    ui.agent_tests.update(|map| set_state(map, &id, TestState::Running));
+    ui.agent_tests
+        .update(|map| set_state(map, &id, TestState::Running));
     spawn_local(async move {
         let path = format!("/api/tools/{id}/test");
         let outcome = match api::post_empty::<ToolTest>(&path).await {
             Ok(answer) => TestOutcome::from_answer(&answer),
             Err(failure) => TestOutcome::from_failure(&failure),
         };
-        ui.agent_tests.update(|map| set_state(map, &id, TestState::Done(outcome)));
+        ui.agent_tests
+            .update(|map| set_state(map, &id, TestState::Done(outcome)));
     });
 }
 
@@ -234,7 +236,11 @@ mod tests {
     fn a_result_stays_under_its_tool_after_the_rows_rebuild() {
         let mut map = HashMap::new();
         let claude = ToolId::new("claude");
-        set_state(&mut map, &claude, TestState::Done(outcome(true, "Replied.")));
+        set_state(
+            &mut map,
+            &claude,
+            TestState::Done(outcome(true, "Replied.")),
+        );
         assert_eq!(
             state_of(&map, &claude),
             TestState::Done(outcome(true, "Replied."))
@@ -245,7 +251,11 @@ mod tests {
     fn a_new_test_replaces_the_old_result() {
         let mut map = HashMap::new();
         let claude = ToolId::new("claude");
-        set_state(&mut map, &claude, TestState::Done(outcome(false, "Timed out.")));
+        set_state(
+            &mut map,
+            &claude,
+            TestState::Done(outcome(false, "Timed out.")),
+        );
         set_state(&mut map, &claude, TestState::Running);
         assert!(is_running(&map, &claude));
         assert_eq!(state_of(&map, &claude), TestState::Running);
@@ -256,7 +266,11 @@ mod tests {
         let mut map = HashMap::new();
         let claude = ToolId::new("claude");
         let codex = ToolId::new("codex");
-        set_state(&mut map, &claude, TestState::Done(outcome(true, "Replied.")));
+        set_state(
+            &mut map,
+            &claude,
+            TestState::Done(outcome(true, "Replied.")),
+        );
         assert_eq!(state_of(&map, &codex), TestState::Idle);
         assert!(!is_running(&map, &codex));
     }

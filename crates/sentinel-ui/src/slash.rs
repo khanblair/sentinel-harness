@@ -32,7 +32,10 @@ const COMMANDS: [SlashEntry; 16] = [
     ("/kill codex", "Kill an agent"),
     ("/plan", "Send the next message as a plan"),
     ("/ask", "Ask a question. Changes no file."),
-    ("/research", "Investigate and give evidence. Changes no file."),
+    (
+        "/research",
+        "Investigate and give evidence. Changes no file.",
+    ),
     ("/fix", "Change files in the reserved files."),
     ("/chat", "Small talk. Reads no file."),
     ("/skill house-style", "Add a skill to your next message"),
@@ -288,7 +291,10 @@ mod tests {
     #[test]
     fn menu_shows_commands_that_start_with_the_typed_word() {
         assert_eq!(matches("/ca"), vec![("/cap 1.50", "Lower the budget cap")]);
-        assert_eq!(matches("/as"), vec![("/ask", "Ask a question. Changes no file.")]);
+        assert_eq!(
+            matches("/as"),
+            vec![("/ask", "Ask a question. Changes no file.")]
+        );
         assert_eq!(matches("/").len(), 16);
     }
 
