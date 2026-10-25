@@ -93,17 +93,20 @@ pub fn is_already_open(open: Option<&ChatId>, returned: &ChatId) -> bool {
 pub fn new_chat(ui: Ui) {
     spawn_local(async move {
         match api::create_chat(None).await {
-            Ok(chat) => {
-                if is_already_open(ui.open_chat.get_untracked().as_ref(), &chat.id) {
-                    ui.show_toast("This chat is already empty.", ToastKind::Info);
-                    return;
-                }
-                ui.open(chat.id);
-                state::refresh(ui);
-            }
+            Ok(chat) => open_created_chat(ui, chat.id),
             Err(failure) => ui.show_toast(failure.to_string(), ToastKind::Danger),
         }
     });
+}
+
+/// Opens the chat the daemon made, unless it is the empty chat the owner already has open.
+fn open_created_chat(ui: Ui, chat: ChatId) {
+    if is_already_open(ui.open_chat.get_untracked().as_ref(), &chat) {
+        ui.show_toast("This chat is already empty.", ToastKind::Info);
+        return;
+    }
+    ui.open(chat);
+    state::refresh(ui);
 }
 
 #[component]

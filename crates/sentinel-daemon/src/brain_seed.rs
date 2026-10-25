@@ -2,7 +2,7 @@
 //! agent. It writes a note only when no note with that id exists, so a note a person edited stays.
 
 use std::cmp::Reverse;
-use std::collections::{BTreeMap, BTreeSet, HashSet};
+use std::collections::{BTreeMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -13,20 +13,16 @@ use sentinel_core::api::SeedReport;
 use sentinel_core::{NoteId, NoteType, Tier, ToolInfo, ToolStatus};
 
 use crate::brain::{BrainState, slug, write_note};
+use crate::brain_survey::{area_folders, layout, survey};
 use crate::config::Config;
 use crate::engine::{Engine, EngineError, Result, lock};
 
-const MAX_FILES: usize = 5_000;
-const MAX_AREAS: usize = 12;
-const MAX_LAYOUT: usize = 40;
 const MAX_NOTABLE: usize = 8;
 const MAX_EXTENSIONS: usize = 6;
 const MAX_SEED_BYTES: u64 = 1_000_000;
 const README_LINES: usize = 40;
 const CONVENTION_LINES: usize = 60;
 const CONVENTION_FILES: [&str; 3] = ["AGENTS.md", "CLAUDE.md", "docs/code-standards.md"];
-/// Hidden folders are skipped by their dot, so `.git` and `.sentinel` need no entry here.
-const SKIPPED_DIRS: [&str; 4] = ["target", "node_modules", "dist", "build"];
 
 /// The repository as the seed sees it. Paths are relative to the root.
 pub(crate) struct Project {
@@ -308,84 +304,6 @@ fn read_seed_text(path: &Path) -> Option<String> {
     } else {
         None
     }
-}
-
-/// Every file under the root, as paths relative to it, sorted. Stops at `MAX_FILES`.
-fn survey(root: &Path) -> Vec<PathBuf> {
-    let mut files = Vec::new();
-    let mut pending = vec![PathBuf::new()];
-    while files.len() < MAX_FILES {
-        let Some(dir) = pending.pop() else { break };
-        for entry in sorted_entries(&root.join(&dir)) {
-            let name = entry.file_name().to_string_lossy().into_owned();
-            if name.starts_with('.') {
-                continue;
-            }
-            let relative = dir.join(&name);
-            match entry.file_type() {
-                Ok(kind) if kind.is_dir() && !SKIPPED_DIRS.contains(&name.as_str()) => {
-                    pending.push(relative);
-                }
-                Ok(kind) if kind.is_file() => files.push(relative),
-                _ => {}
-            }
-        }
-    }
-    files.sort();
-    files.truncate(MAX_FILES);
-    files
-}
-
-fn sorted_entries(dir: &Path) -> Vec<fs::DirEntry> {
-    let Ok(read) = fs::read_dir(dir) else {
-        return Vec::new();
-    };
-    let mut entries: Vec<fs::DirEntry> = read.flatten().collect();
-    entries.sort_by_key(fs::DirEntry::file_name);
-    entries
-}
-
-fn is_dir_entry(entry: &fs::DirEntry) -> bool {
-    entry.file_type().is_ok_and(|kind| kind.is_dir())
-}
-
-/// Top-level folders that get an area note: no hidden or skipped ones, one per slug, at most
-/// `MAX_AREAS`.
-fn area_folders(root: &Path) -> Vec<String> {
-    let mut seen = BTreeSet::new();
-    let mut folders = Vec::new();
-    for entry in sorted_entries(root)
-        .iter()
-        .filter(|entry| is_dir_entry(entry))
-    {
-        let name = entry.file_name().to_string_lossy().into_owned();
-        let stem = slug(&name);
-        if name.starts_with('.') || SKIPPED_DIRS.contains(&name.as_str()) || stem.is_empty() {
-            continue;
-        }
-        if seen.insert(stem) {
-            folders.push(name);
-        }
-        if folders.len() == MAX_AREAS {
-            break;
-        }
-    }
-    folders
-}
-
-/// Top-level entries shown in the project note. Folders end with a slash.
-fn layout(root: &Path) -> Vec<String> {
-    sorted_entries(root)
-        .iter()
-        .filter_map(|entry| {
-            let name = entry.file_name().to_string_lossy().into_owned();
-            let is_dir = is_dir_entry(entry);
-            let skipped =
-                name.starts_with('.') || (is_dir && SKIPPED_DIRS.contains(&name.as_str()));
-            (!skipped).then(|| if is_dir { format!("{name}/") } else { name })
-        })
-        .take(MAX_LAYOUT)
-        .collect()
 }
 
 /// Extension counts, most common first. Ties keep alphabetical order. Files without an

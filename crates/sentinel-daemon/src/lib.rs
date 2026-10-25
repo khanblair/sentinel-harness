@@ -2,6 +2,7 @@
 
 pub mod access;
 mod agents;
+mod agents_config;
 mod ask;
 pub mod assets;
 mod attach;
@@ -14,6 +15,7 @@ mod brain_notes;
 mod brain_proposals;
 mod brain_run;
 mod brain_seed;
+mod brain_survey;
 mod briefs;
 mod changes;
 mod chats;

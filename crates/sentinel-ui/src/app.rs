@@ -166,6 +166,16 @@ fn install(ui: Ui) {
     ws::connect(ui);
 }
 
+/// Applies the prefs to the page and saves them whenever they change.
+fn apply_prefs(ui: Ui) {
+    Effect::new(move |_| {
+        let prefs = ui.prefs.get();
+        theme::apply(&prefs);
+        // A blocked store (private window) keeps the prefs for this visit only.
+        let _ = LocalStorage::set(PREFS_KEY, &prefs);
+    });
+}
+
 #[component]
 pub fn App() -> impl IntoView {
     let ui = Ui::new(Layout::from_width(window_width()), load_prefs());
@@ -173,12 +183,7 @@ pub fn App() -> impl IntoView {
     provide_tour();
     let touch_start = RwSignal::new(None::<f64>);
     Effect::new(move |_| install(ui));
-    Effect::new(move |_| {
-        let prefs = ui.prefs.get();
-        theme::apply(&prefs);
-        // A blocked store (private window) keeps the prefs for this visit only.
-        let _ = LocalStorage::set(PREFS_KEY, &prefs);
-    });
+    apply_prefs(ui);
     view! {
         <div class="app" id="app"
             class:sb-open=move || ui.sidebar_open.get()
