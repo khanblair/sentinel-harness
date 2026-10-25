@@ -262,7 +262,7 @@ mod tests {
     use sentinel_core::api::RepoTree;
 
     use super::{
-        Listing, attach_path, breadcrumbs, encode_query_value, file_count_text, parent_of,
+        Listing, breadcrumbs, encode_query_value, file_count_text, parent_of,
         tree_url, use_label,
     };
 
