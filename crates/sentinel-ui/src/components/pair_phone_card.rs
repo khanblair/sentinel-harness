@@ -101,10 +101,11 @@ pub fn dns_label(name: &str) -> String {
     for ch in name.chars() {
         if ch.is_alphanumeric() {
             label.extend(ch.to_lowercase());
-        } else if ch.is_whitespace() || ch == '-' || ch == '_' {
-            if !label.ends_with('-') && !label.is_empty() {
-                label.push('-');
-            }
+        } else if (ch.is_whitespace() || ch == '-' || ch == '_')
+            && !label.is_empty()
+            && !label.ends_with('-')
+        {
+            label.push('-');
         }
     }
     label.trim_end_matches('-').to_owned()
