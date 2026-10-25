@@ -148,7 +148,7 @@ Web push needs HTTPS. Without it, alerts show only while the app is open.
 
 ## Development
 
-1. Run the daemon with fake agents.
+1. Run the daemon on a small project (`sentinel starter` makes one).
 2. Pair the phone.
 3. Run `trunk serve` proxied to the daemon, or build the UI and reload.
 4. Use browser device emulation first, then the real phone.

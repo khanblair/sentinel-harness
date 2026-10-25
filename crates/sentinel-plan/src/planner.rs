@@ -206,7 +206,7 @@ fn build_task(item_map: &HashMap<&TaskId, &BacklogItem>, pt: &PlannedTask) -> Re
     Ok(task)
 }
 
-/// Heuristic planner: no model, used for tests and --fake-agents.
+/// Heuristic planner: no model, used for tests.
 pub struct HeuristicPlanner;
 
 impl PlannerBackend for HeuristicPlanner {

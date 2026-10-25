@@ -28,17 +28,18 @@ Or download the disk image by hand: [Sentinel .dmg](https://github.com/khanblair
 
 ## Try it
 
-You need Rust (stable), the `wasm32-unknown-unknown` target, and `trunk`.
+You need Rust (stable), the `wasm32-unknown-unknown` target, `trunk`, and at least one agent CLI (Claude, Codex, Gemini, OpenCode, and others) on your computer.
 
 ```bash
 rustup target add wasm32-unknown-unknown
 (cd crates/sentinel-ui && trunk build)
-cargo run -- daemon --repo fixtures/sample-repo --dev-bind --fake-agents
+cargo run -- starter
+cargo run -- daemon --repo "$HOME/Sentinel Starter" --dev-bind
 ```
 
-In another terminal, run `cargo run -- open`. It opens the UI signed in as this computer. `--fake-agents` swaps real CLIs for scripted pretend agents, so a run costs nothing.
+`starter` makes a small Python project with a three-task backlog, so a first run is cheap. In another terminal, run `cargo run -- open`. It opens the UI signed in as this computer.
 
-For a real run, drop `--fake-agents`, run `cargo run -- scan` to see which agent CLIs it found, and use `cargo run -- doctor` to check your setup.
+Sentinel uses the agent CLIs it finds. Run `cargo run -- scan` to see which ones, and `cargo run -- doctor` to check your setup.
 
 ## Checks
 

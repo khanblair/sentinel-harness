@@ -29,11 +29,10 @@ See [project-structure.md](project-structure.md).
 
 | Goal | Command |
 |---|---|
-| Daemon with auto-restart | `cargo watch -x "run -- run fixtures/sample-backlog.md --repo fixtures/sample-repo --cap 1.00"` |
+| Daemon on a small project | `cargo run -- starter` makes a Sentinel Starter project, then `cargo run -- daemon --repo "<that folder>" --dev-bind` |
 | UI with live reload | `cd crates/sentinel-ui && trunk serve` |
-| Both against fake agents | `cargo run -- run ... --fake-agents` |
 
-`--fake-agents` swaps real CLIs for scripts in `fixtures/fake-cli`. Use it for all non-agent work.
+Sentinel runs the agent CLIs it finds on this computer (`cargo run -- scan` lists them). There is no pretend-agent mode in the product. The Rust tests drive a scripted agent from `fixtures/fake-cli` through `EngineOptions.fake_agents`, a test double that no command line reaches.
 
 ## Environment Variables
 
