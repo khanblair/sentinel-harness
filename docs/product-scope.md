@@ -408,7 +408,7 @@ How to use Sentinel properly. The in-app guide walks through the same steps with
 
 | Stage | Contents |
 |---|---|
-| v1 | Features F1 to F22 |
+| v1 | Features F1 to F26 |
 | v1.1 | Per-tool cost accuracy, more adapters, richer reserved files map, parser-based smell checks on agent code |
 | v2 | Optional native shell, multi-repo runs, shared team tailnet |
 
