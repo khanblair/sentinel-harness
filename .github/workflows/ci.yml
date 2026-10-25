@@ -87,7 +87,7 @@ jobs:
           timeout 30m cargo nextest run --workspace --no-tests=pass --no-fail-fast --test-threads 2 --status-level all 2>&1 | tee ci-logs/nextest.log
       - name: Keep the test logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-logs
           path: ci-logs
@@ -134,7 +134,7 @@ jobs:
           size=$(find crates/sentinel-ui/dist -name '*.wasm' -print0 | xargs -0 gzip -9c | wc -c)
           echo "compressed wasm: ${size} bytes"
           test "$size" -lt 2000000
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ui-dist
           path: crates/sentinel-ui/dist

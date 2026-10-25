@@ -174,7 +174,7 @@ jobs:
             echo "Signed ad hoc. The signing secrets are not set, so macOS blocks the first open: choose Open Anyway in System Settings, Privacy and Security." | tee -a "$GITHUB_STEP_SUMMARY"
           fi
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: Sentinel-macOS-dmg
           path: |
