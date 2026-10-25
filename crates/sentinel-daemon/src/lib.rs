@@ -1,6 +1,7 @@
 //! The Sentinel daemon: the engine that runs a backlog, and the services around it.
 
 pub mod access;
+mod agent_health;
 mod agent_test;
 mod agents;
 mod agents_config;

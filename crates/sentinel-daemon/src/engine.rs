@@ -16,6 +16,7 @@ use sentinel_store::{Store, StoreError};
 use time::OffsetDateTime;
 use tokio::sync::broadcast;
 
+use crate::agent_health::Health;
 use crate::brain::BrainState;
 use crate::cmd::CommandRunner;
 use crate::config::{self, Config, ConfigError};
@@ -95,6 +96,8 @@ pub(crate) struct Inner {
     pub devices_from: Mutex<Option<Engine>>,
     /// The plan the planning step uses when no agent gives a usable one. Only a dry run sets it.
     pub fallback_plan: Mutex<Option<Plan>>,
+    /// Agents paused after a failure a retry will not fix. Routing skips them for a while.
+    pub health: Health,
 }
 
 #[derive(Clone)]
@@ -127,6 +130,7 @@ impl Engine {
                 started: OffsetDateTime::now_utc(),
                 devices_from: Mutex::new(None),
                 fallback_plan: Mutex::new(None),
+                health: Health::default(),
             }),
         };
         engine.refresh_repo();

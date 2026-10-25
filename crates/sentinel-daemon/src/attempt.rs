@@ -42,8 +42,7 @@ async fn try_attempt(ctx: &Arc<RunCtx>, task_id: &TaskId) -> Result<()> {
         .get(task_id)
         .copied()
         .unwrap_or(task.tier);
-    let router = engine.router()?;
-    let Some(agent) = router.pick(tier) else {
+    let Some(agent) = engine.pick_agent(tier)? else {
         fail_task(ctx, task_id, "No agent is ready for this kind of task.", "");
         return Ok(());
     };
@@ -66,6 +65,7 @@ async fn try_attempt(ctx: &Arc<RunCtx>, task_id: &TaskId) -> Result<()> {
     if outcome.end == sentinel_workers::EndKind::Completed {
         finish_success(ctx, &task, &outcome)
     } else {
+        crate::agent_health::pause_after_failure(engine, attempt.tool, &outcome);
         let reason = reason_for(ctx, &outcome);
         fail_task(ctx, task_id, &reason, &outcome.output_tail.join("\n"));
         Ok(())

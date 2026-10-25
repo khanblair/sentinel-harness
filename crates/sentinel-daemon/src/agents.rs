@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use futures::future::BoxFuture;
-use sentinel_core::{Capability, Event, Tier, ToolId, ToolInfo, ToolStatus};
+use sentinel_core::{Capability, Event, Routing, Tier, ToolId, ToolInfo, ToolStatus};
 use sentinel_gate::policy::default_capabilities;
 use sentinel_plan::planner::{
     HeuristicPlanner, Plan, PlanRequest, PlannerBackend, parse_plan_json, planner_prompt,
@@ -192,12 +192,7 @@ impl Engine {
     /// The router for the enabled, ready tools and the configured routing.
     pub(crate) fn router(&self) -> Result<Router> {
         let tools: Vec<ToolInfo> = self.store().list_tools()?;
-        let routing = self.config().routing;
-        let map: HashMap<Tier, ToolId> = [Tier::Cheap, Tier::Mid, Tier::Smart]
-            .into_iter()
-            .filter_map(|tier| routing.for_tier(tier).map(|id| (tier, id.clone())))
-            .collect();
-        Ok(Router::new(map, tools))
+        Ok(Router::new(routing_map(&self.config().routing), tools))
     }
 
     /// A worker for one tool. Fake tools run the script; real tools run their profile.
@@ -230,6 +225,14 @@ impl Engine {
             .with_env(env);
         Ok(Arc::new(worker))
     }
+}
+
+/// The tier to tool map of a routing, as the router takes it.
+pub(crate) fn routing_map(routing: &Routing) -> HashMap<Tier, ToolId> {
+    [Tier::Cheap, Tier::Mid, Tier::Smart]
+        .into_iter()
+        .filter_map(|tier| routing.for_tier(tier).map(|id| (tier, id.clone())))
+        .collect()
 }
 
 fn profile_for(adapter: &str) -> Result<Profile> {

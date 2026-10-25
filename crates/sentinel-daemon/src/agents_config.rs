@@ -1,6 +1,8 @@
 //! Pure helpers that pick the tools and the routing from one scan. They take no engine, so the
 //! choices can be tested on plain values.
 
+use std::collections::HashSet;
+
 use sentinel_core::{Routing, Tier, ToolId, ToolInfo};
 
 /// The first ready tool of the tier, else the first ready tool of any tier.
@@ -28,6 +30,18 @@ pub(crate) fn without_missing_tools(
             smart: keep(&routing.smart),
         },
     )
+}
+
+/// The ready tools that are not paused. When every ready tool is paused, the list comes back whole,
+/// so a task can still reach an agent.
+pub(crate) fn without_paused(ready: Vec<ToolInfo>, paused: &HashSet<ToolId>) -> Vec<ToolInfo> {
+    if ready.iter().all(|tool| paused.contains(&tool.id)) {
+        return ready;
+    }
+    ready
+        .into_iter()
+        .filter(|tool| !paused.contains(&tool.id))
+        .collect()
 }
 
 /// Fill each empty tier of the routing from the usable tools, by tier. A set tier stays as it is.
@@ -139,5 +153,23 @@ mod tests {
         let (enabled, kept) = without_missing_tools(&[stale], &routing, &[login]);
         assert_eq!(enabled, Vec::<ToolId>::new());
         assert_eq!(fill_routing(kept, &[]), Routing::default());
+    }
+
+    #[test]
+    fn a_paused_tool_is_left_out_while_another_ready_tool_is_open() {
+        let claude = ready_tool("claude", Tier::Mid);
+        let codex = ready_tool("codex", Tier::Mid);
+        let paused = HashSet::from([ToolId::new("claude")]);
+        let open = without_paused(vec![claude, codex.clone()], &paused);
+        assert_eq!(open, [codex]);
+    }
+
+    #[test]
+    fn when_every_ready_tool_is_paused_the_list_comes_back_whole() {
+        let claude = ready_tool("claude", Tier::Mid);
+        let codex = ready_tool("codex", Tier::Mid);
+        let paused = HashSet::from([ToolId::new("claude"), ToolId::new("codex")]);
+        let open = without_paused(vec![claude.clone(), codex.clone()], &paused);
+        assert_eq!(open, [claude, codex]);
     }
 }
