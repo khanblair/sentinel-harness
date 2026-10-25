@@ -10,8 +10,7 @@ use futures::future::BoxFuture;
 use sentinel_core::{Capability, Event, Tier, ToolId, ToolInfo, ToolStatus};
 use sentinel_gate::policy::default_capabilities;
 use sentinel_plan::planner::{
-    HeuristicPlanner, Plan, PlanRequest, PlannerBackend, parse_plan_json, planner_prompt,
-    validate_plan,
+    HeuristicPlanner, Plan, PlanRequest, PlannerBackend, planner_prompt, validate_plan,
 };
 use sentinel_tree::looks_like_test;
 use sentinel_workers::adapter_cli::CliWorker;
@@ -26,6 +25,7 @@ use crate::agents_config::{fill_routing, route_for_tier, without_missing_tools};
 use crate::engine::{Engine, EngineError, FakeAgents, Result};
 use crate::keys;
 use crate::openrouter_tool::{is_openrouter_adapter, openrouter_entry, openrouter_worker};
+use crate::plan_phase::{Asked, PlanStep, read_answer};
 use crate::run_ctx::RunCtx;
 
 /// The three pretend agents. One per tier, each with its own adapter name, so the run satisfies
@@ -260,28 +260,47 @@ fn fake_tools(fake: &FakeAgents) -> Vec<ToolInfo> {
 pub(crate) const FALLBACK_PLAN_NOTE: &str =
     "No agent gave a usable plan. The dry run uses the plan that ships with the sample.";
 
-/// A plan for the backlog. Fake mode reads `plan.json` next to the fake plans. Real mode asks the
+/// The file that scripts the fake planner. The fake agent runs it as task `PLAN`.
+const SCRIPTED_PLANNER: &str = "PLAN.fake";
+
+/// Said when no planning agent is on and ready.
+const NO_PLANNER: &str = "no planning agent is on and ready";
+
+/// The plan of a run. Fake mode reads `plan.json` next to the fake plans. Real mode asks the
 /// cheapest ready agent, then the engine's fallback plan if it has one, and last the offline
-/// heuristic.
-pub(crate) async fn make_plan(ctx: &RunCtx, request: &PlanRequest) -> Result<Plan> {
+/// heuristic. A message run may get a reply or a failure instead of a plan.
+pub(crate) async fn make_plan(ctx: &RunCtx, request: &PlanRequest) -> Result<PlanStep> {
     let engine = &ctx.engine;
-    if let Some(fake) = &engine.inner.fake_agents {
+    // Fake mode reads `plan.json`, unless the folder scripts a planner.
+    if let Some(fake) = &engine.inner.fake_agents
+        && !fake.plans_dir.join(SCRIPTED_PLANNER).exists()
+    {
         let text = std::fs::read_to_string(fake.plans_dir.join("plan.json"))
             .map_err(|e| EngineError::Invalid(format!("fake plan.json: {e}")))?;
         let plan: Plan =
             serde_json::from_str(&text).map_err(|e| EngineError::Invalid(e.to_string()))?;
-        return restrict_plan(plan, request);
+        return restrict_plan(plan, request).map(PlanStep::Plan);
     }
-    if let Some(plan) = ask_agent_for_plan(ctx, request).await {
-        return Ok(plan);
+    let message = ctx.source.words.is_some();
+    match ask_agent_for_plan(ctx, request).await {
+        Asked::Plan(plan) => return Ok(PlanStep::Plan(plan)),
+        Asked::Reply(text) => return Ok(PlanStep::Reply(text)),
+        Asked::Failed(reason) if message => return Ok(PlanStep::Unreached(reason)),
+        Asked::Failed(_) | Asked::Unusable => {}
     }
+    offline_plan(ctx, request).await
+}
+
+/// The fallback plan of the dry run, else the offline heuristic. Both stand in for an agent's plan.
+async fn offline_plan(ctx: &RunCtx, request: &PlanRequest) -> Result<PlanStep> {
+    let engine = &ctx.engine;
     if let Some(plan) = engine.fallback_plan() {
         engine.emit_quiet(&Event::Message {
             from: "sentinel".to_owned(),
             to: None,
             text: FALLBACK_PLAN_NOTE.to_owned(),
         });
-        return restrict_plan(plan, request);
+        return restrict_plan(plan, request).map(PlanStep::Plan);
     }
     engine.emit_quiet(&Event::Message {
         from: "sentinel".to_owned(),
@@ -291,6 +310,7 @@ pub(crate) async fn make_plan(ctx: &RunCtx, request: &PlanRequest) -> Result<Pla
     HeuristicPlanner
         .plan(request)
         .await
+        .map(PlanStep::Plan)
         .map_err(|e| EngineError::Invalid(e.to_string()))
 }
 
@@ -307,38 +327,60 @@ pub(crate) fn restrict_plan(mut plan: Plan, request: &PlanRequest) -> Result<Pla
     Ok(plan)
 }
 
-async fn ask_agent_for_plan(ctx: &RunCtx, request: &PlanRequest) -> Option<Plan> {
-    let engine = &ctx.engine;
-    let router = engine.router().ok()?;
+/// Ask the planner agents in turn. A message run stops at the first answer that is not a plan,
+/// so a greeting costs one call.
+async fn ask_agent_for_plan(ctx: &RunCtx, request: &PlanRequest) -> Asked {
+    let message = ctx.source.words.is_some();
     let mut tier = Tier::Cheap;
     for _ in 0..2 {
-        let agent = router.pick(tier)?;
-        let tool = engine
-            .store()
-            .list_tools()
-            .ok()?
-            .into_iter()
-            .find(|t| t.id == agent)?;
-        let worker = engine.worker_for(&tool).ok()?;
-        let job = TextJob {
-            stop: ctx.stop.clone(),
-            budget: ctx.budget.clone(),
-            worker: worker.as_ref(),
-            tool: &tool,
-            prompt: planner_prompt(request),
-        };
-        let text = run_for_text(engine, job).await;
-        if let Ok(plan) = parse_plan_json(&text, request) {
-            return Some(without_existing_tests(plan, request));
+        match ask_tier(ctx, request, tier).await {
+            Asked::Unusable => {}
+            Asked::Failed(_) if !message => {}
+            asked => return asked,
         }
         tier = tier.escalate().unwrap_or(tier);
     }
-    None
+    Asked::Unusable
+}
+
+/// One question to the planner agent of a tier.
+async fn ask_tier(ctx: &RunCtx, request: &PlanRequest, tier: Tier) -> Asked {
+    let (tool, worker) = match planner_agent(&ctx.engine, tier) {
+        Ok(found) => found,
+        Err(reason) => return Asked::Failed(reason),
+    };
+    let job = TextJob {
+        stop: ctx.stop.clone(),
+        budget: ctx.budget.clone(),
+        worker: worker.as_ref(),
+        tool: &tool,
+        prompt: planner_prompt(request),
+    };
+    let (text, outcome) = run_for_outcome(&ctx.engine, job).await;
+    read_answer(&text, &outcome, request, ctx.source.words.is_some())
+}
+
+/// The tool and worker of the planner agent for a tier, or the reason there is none.
+fn planner_agent(
+    engine: &Engine,
+    tier: Tier,
+) -> std::result::Result<(ToolInfo, Arc<dyn Worker>), String> {
+    let router = engine.router().map_err(|e| e.to_string())?;
+    let agent = router.pick(tier).ok_or_else(|| NO_PLANNER.to_owned())?;
+    let tool = engine
+        .store()
+        .list_tools()
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .find(|t| t.id == agent)
+        .ok_or_else(|| NO_PLANNER.to_owned())?;
+    let worker = engine.worker_for(&tool).map_err(|e| e.to_string())?;
+    Ok((tool, worker))
 }
 
 /// Drop test files that already exist from every scope. Writing one is a tamper by rule, so a plan
 /// that lists one would send the agent straight into a failure.
-fn without_existing_tests(mut plan: Plan, request: &PlanRequest) -> Plan {
+pub(crate) fn without_existing_tests(mut plan: Plan, request: &PlanRequest) -> Plan {
     for task in &mut plan.tasks {
         task.scope
             .retain(|path| !(request.repo_files.contains(path) && looks_like_test(path)));
@@ -355,8 +397,14 @@ pub(crate) struct TextJob<'a> {
     pub prompt: String,
 }
 
-/// Run a worker once and join its output lines. The planner and the reviewer use this.
+/// Run a worker once and join its output lines. The reviewer uses this.
 pub(crate) async fn run_for_text(engine: &Engine, job: TextJob<'_>) -> String {
+    run_for_outcome(engine, job).await.0
+}
+
+/// Run a worker once. Returns its answer and how the run ended, so a failed run is not read as
+/// an answer.
+pub(crate) async fn run_for_outcome(engine: &Engine, job: TextJob<'_>) -> (String, RunOutcome) {
     let (lines, _receiver) = mpsc::unbounded_channel();
     let control = RunControl {
         kill: job.stop,
@@ -373,7 +421,8 @@ pub(crate) async fn run_for_text(engine: &Engine, job: TextJob<'_>) -> String {
         timeout: Duration::from_secs(180),
     };
     let outcome = job.worker.run(spec, control).await;
-    answer_text(&outcome.output_tail.join("\n"))
+    let text = answer_text(&outcome.output_tail.join("\n"));
+    (text, outcome)
 }
 
 /// The answer in a tool's output. A tool run with a JSON output format (claude) wraps its answer
