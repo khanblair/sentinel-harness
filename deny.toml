@@ -13,6 +13,7 @@ ignore = [
     { id = "RUSTSEC-2026-0370", reason = "zvariant_derive comes in through the Linux secret service keychain client" },
     { id = "RUSTSEC-2026-0371", reason = "zbus_names comes in through the Linux secret service keychain client" },
     { id = "RUSTSEC-2026-0372", reason = "zvariant comes in through the Linux secret service keychain client" },
+    { id = "RUSTSEC-2024-0370", reason = "proc-macro-error is a build-time macro crate of the Linux GTK bindings that wry lists. It is not built on macOS, where the window feature is the only user" },
 ]
 
 [licenses]

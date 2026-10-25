@@ -432,6 +432,8 @@ crates/sentinel-cli/
   src/main.rs                          entry
   src/serve.rs                         The commands that run or reach the daemon: `daemon`, `open`, `pair`, and `keys`
   src/service.rs                       `sentinel service`: run the daemon at boot and restart it when it stops. A launchd job on
+  src/window.rs                        The macOS app window: the same local UI, served by the same daemon, inside a native window
+  src/window_menu.rs                   The app menu bar. The web view needs it for the standard clipboard shortcuts to work
   src/writeup.rs                       The one-page write-up of the last run (P10-04, `sentinel report --writeup`). It reads the
   tests/resume.rs                      Crash resume, end to end: start a run, kill the whole process with SIGKILL after the first
   tests/writeup.rs                     The write-up draft, built from a fixed report and a fixed run log
