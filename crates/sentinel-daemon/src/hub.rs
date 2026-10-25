@@ -26,6 +26,8 @@ use crate::routes::clearing;
 use crate::routes::{ApiFailure, ApiResult};
 use crate::server::{self, BODY_LIMIT_BYTES};
 
+pub use crate::hub_error::HubError;
+
 /// The header that names the project of a request.
 pub const PROJECT_HEADER: &str = "x-sentinel-project";
 
@@ -55,40 +57,6 @@ pub type OpenFuture = Pin<Box<dyn Future<Output = Result<Engine, String>> + Send
 /// engine is made: the runner, the keychain, and the first scan of the agent CLIs.
 pub trait ProjectOpener: Send + Sync {
     fn open(&self, path: PathBuf) -> OpenFuture;
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum HubError {
-    #[error("That is not a folder.")]
-    NotAFolder,
-    #[error("That folder is not a git repository. Run git init there first.")]
-    NotGit,
-    #[error("That project is already in the list.")]
-    AlreadyThere,
-    #[error("This app cannot add projects.")]
-    CannotAdd,
-    #[error("Could not open the project: {0}")]
-    Open(String),
-    #[error("No such project.")]
-    NotFound,
-    #[error("The first project stays. It also holds the paired phones and the keys.")]
-    IsPrimary,
-    #[error("A run is live in that project. Stop it first.")]
-    Live,
-}
-
-impl From<HubError> for ApiFailure {
-    fn from(error: HubError) -> Self {
-        let status = match error {
-            HubError::NotAFolder | HubError::NotGit | HubError::Open(_) | HubError::IsPrimary => {
-                StatusCode::BAD_REQUEST
-            }
-            HubError::AlreadyThere | HubError::Live => StatusCode::CONFLICT,
-            HubError::CannotAdd => StatusCode::NOT_IMPLEMENTED,
-            HubError::NotFound => StatusCode::NOT_FOUND,
-        };
-        ApiFailure::new(status, error.to_string())
-    }
 }
 
 #[derive(Clone)]
@@ -228,12 +196,12 @@ impl Hub {
         let entry = Entry::new(path, engine);
         lock(&self.inner.others).push(entry.clone());
         self.save();
-        let info = info_of(&entry, false).map_err(|e| HubError::Open(e.to_string()))?;
+        let project = info_of(&entry, false).map_err(|e| HubError::Open(e.to_string()))?;
         Ok(self
             .list()
             .into_iter()
-            .find(|listed| listed.id == info.id)
-            .unwrap_or(info))
+            .find(|listed| listed.id == project.id)
+            .unwrap_or(project))
     }
 
     pub fn remove(&self, id: &str) -> Result<(), HubError> {

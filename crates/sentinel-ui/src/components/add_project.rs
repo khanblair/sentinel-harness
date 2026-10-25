@@ -137,16 +137,7 @@ fn AddProjectDialog() -> impl IntoView {
             <h3>"Add a project"</h3>
         </div>
         <div class="modal-body" style="padding:0">
-            <div class="fd-crumb">
-                <button
-                    class="btn sm"
-                    disabled=move || trail.with(Vec::is_empty)
-                    on:click=move |_| trail.update(|opened| { opened.pop(); })
-                >
-                    "Up"
-                </button>
-                <span class="mono">{move || trail_label(&trail.get())}</span>
-            </div>
+            <BrowserCrumb trail=trail />
             <div class="fd-list" role="listbox">
                 {move || {
                     box_note(list.problem.get(), list.entries.with(Vec::len))
@@ -164,6 +155,23 @@ fn AddProjectDialog() -> impl IntoView {
             >
                 "Use this folder"
             </button>
+        </div>
+    }
+}
+
+/// The row above the folder list: the Up button and the path the trail ends in.
+#[component]
+fn BrowserCrumb(trail: RwSignal<Vec<FolderEntry>>) -> impl IntoView {
+    view! {
+        <div class="fd-crumb">
+            <button
+                class="btn sm"
+                disabled=move || trail.with(Vec::is_empty)
+                on:click=move |_| trail.update(|opened| { opened.pop(); })
+            >
+                "Up"
+            </button>
+            <span class="mono">{move || trail_label(&trail.get())}</span>
         </div>
     }
 }

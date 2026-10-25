@@ -117,8 +117,8 @@ fn key_row(
     provider: String,
     on_change: Callback<()>,
 ) -> impl IntoView {
-    let info = Memo::new(move |_| key_for(&keys.get(), &provider));
-    view! { <KeyCard info=info on_change=on_change /> }
+    let row = Memo::new(move |_| key_for(&keys.get(), &provider));
+    view! { <KeyCard info=row on_change=on_change /> }
 }
 
 /// Reloads the list. The list keeps its last good answer when a reload fails, so the cards stay.

@@ -279,7 +279,7 @@ fn remove_key(ctx: KeyCtx) {
 mod tests {
     use super::*;
 
-    fn info(has_key: bool, hint: Option<&str>) -> KeyInfo {
+    fn key_row(has_key: bool, hint: Option<&str>) -> KeyInfo {
         KeyInfo {
             provider: "claude".to_owned(),
             label: "Claude".to_owned(),
@@ -290,20 +290,20 @@ mod tests {
 
     #[test]
     fn a_card_without_a_key_says_no_key_is_saved() {
-        assert_eq!(status_text(&info(false, None)), "No key saved.");
+        assert_eq!(status_text(&key_row(false, None)), "No key saved.");
     }
 
     #[test]
     fn a_saved_key_shows_its_last_four_characters() {
         assert_eq!(
-            status_text(&info(true, Some("...abcd"))),
+            status_text(&key_row(true, Some("...abcd"))),
             "Saved key ending in abcd."
         );
     }
 
     #[test]
     fn a_saved_key_without_a_hint_still_says_it_is_saved() {
-        assert_eq!(status_text(&info(true, None)), "A key is saved.");
+        assert_eq!(status_text(&key_row(true, None)), "A key is saved.");
     }
 
     #[test]
