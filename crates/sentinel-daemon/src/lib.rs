@@ -21,6 +21,7 @@ mod brain_seed;
 mod brain_survey;
 mod briefs;
 mod changes;
+mod chat_agent;
 mod chats;
 mod close_out;
 pub mod cmd;
