@@ -55,16 +55,18 @@ impl Engine {
     /// The open Brain, and whether this call opened it. The seed uses this so its own open does
     /// not start a second seed.
     pub(crate) fn open_brain(&self) -> Result<(Arc<BrainState>, bool)> {
-        if let Some(state) = lock(&self.inner.brain).clone() {
+        // The slot stays locked while the Brain opens. Two requests that arrive together must not
+        // open it twice: the second open rebuilds the index file and can erase what the seed of
+        // the first one has just written.
+        let mut slot = lock(&self.inner.brain);
+        if let Some(state) = slot.clone() {
             return Ok((state, false));
         }
         let opened = Arc::new(BrainState::open(&self.repo_path())?);
-        let kept = lock(&self.inner.brain)
-            .get_or_insert(Arc::clone(&opened))
-            .clone();
-        let first_open = Arc::ptr_eq(&kept, &opened);
+        *slot = Some(Arc::clone(&opened));
+        drop(slot);
         self.start_brain_watcher();
-        Ok((kept, first_open))
+        Ok((opened, true))
     }
 
     /// Watch the vault so an edit made outside Sentinel reaches the index. Starts once. A failure
