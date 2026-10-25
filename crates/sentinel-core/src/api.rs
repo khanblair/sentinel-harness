@@ -307,3 +307,31 @@ pub struct HostStatus {
     pub agents_total: u32,
     pub repo_path: Option<String>,
 }
+
+/// One file of the working tree, as `GET /api/changes` lists it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ChangedFile {
+    /// Relative to the repository root.
+    pub path: String,
+    /// One of `modified`, `added`, `deleted`, `renamed`, `untracked`.
+    pub status: String,
+    pub added: u32,
+    pub removed: u32,
+}
+
+/// `GET /api/changes/diff`. The diff of one file against HEAD, cut at 200 KB.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ChangeDiff {
+    pub path: String,
+    pub diff: String,
+    pub truncated: bool,
+}
+
+/// One task of the backlog file, before a run plans it. `GET /api/backlog/tasks`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct BacklogTask {
+    pub id: String,
+    pub title: String,
+    /// The first non-empty line of the task body, at most 160 characters.
+    pub summary: String,
+}

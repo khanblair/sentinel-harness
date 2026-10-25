@@ -3,6 +3,7 @@
 
 mod access;
 mod brain;
+mod changes;
 mod chats;
 mod dry_run;
 mod routines;
@@ -151,6 +152,7 @@ pub fn protected_routes() -> Router<Engine> {
     Router::new()
         .merge(chats::routes())
         .merge(state::routes())
+        .merge(changes::routes())
         .merge(run::routes())
         .merge(dry_run::routes())
         .merge(access::routes())
