@@ -95,7 +95,7 @@ pub fn magic_dns_link(url: &str, machine: &str) -> Option<String> {
 }
 
 /// The machine name as `MagicDNS` writes it: lower case letters and digits, with a hyphen for each
-/// run of spaces or other marks. "Kolaborate's MacBook Air" becomes "kolaborates-macbook-air".
+/// run of spaces or other marks. `Kolaborate's MacBook Air` becomes `kolaborates-macbook-air`.
 pub fn dns_label(name: &str) -> String {
     let mut label = String::new();
     for ch in name.chars() {
@@ -329,7 +329,10 @@ mod tests {
 
     #[test]
     fn a_machine_name_becomes_a_dns_label() {
-        assert_eq!(dns_label("Kolaborate\u{2019}s MacBook Air"), "kolaborates-macbook-air");
+        assert_eq!(
+            dns_label("Kolaborate\u{2019}s MacBook Air"),
+            "kolaborates-macbook-air"
+        );
         assert_eq!(dns_label("work-laptop"), "work-laptop");
         assert_eq!(dns_label("  "), "");
     }

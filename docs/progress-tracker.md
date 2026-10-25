@@ -243,6 +243,7 @@ Paths listed in [project-structure.md](project-structure.md) that do not exist y
 | D99 | (owner request, recommended) **Context panel.** `GET /api/context?chat=` estimates what fills the agent's context window (about 4 characters a token): messages, instructions, Brain notes, skills, attachments, backlog, free space. The window comes from a table by agent (Claude and Codex 200k, Gemini 1M, others 128k) because the CLI may use a larger one. The panel is a minimal version of the owner's picture: percent used, a segmented bar, colored rows, and lists of the notes, skills, and attachments |
 | D100 | (owner request, recommended) **Resizable sidebar and panel.** Drag handles between the sidebar and the stream and between the stream and the panel on the desktop layout. Arrow keys move a handle by 16 pixels, double click resets it, and the sizes are kept on this device. Tablet and phone keep their overlays |
 | D101 | (owner request, recommended) **Pairing is in Settings, Devices.** One `PairPhoneCard` (also used by the Remote panel) shows the Tailscale state, the QR code, the link, the one-time code with a countdown, the real phone steps, and the pending request with Approve and Deny. The pairing link uses the Tailscale address and the daemon port, never the browser's own host (127.0.0.1 inside the app window). Connections shows a loading line and the real error text |
+| D102 | (reviewer, 2026-10-25) **Found by the one browser check and fixed.** (1) Two first requests opened the Brain twice and the second open rebuilt the index file over the seed's writes, so the graph stayed empty until a restart. The Brain now opens once, with the slot locked during the open. (2) The Brain header reads the counts and links again 2.5 and 5 seconds after opening, because the first-open seed runs in the background. (3) The pairing link by name wrote `Kolaborate's MacBook Air`, which no phone can open. It now writes the name the way MagicDNS does (`kolaborates-macbook-air`). (4) The width signals pushed `Ui` past the 512-byte pass-by-value limit, so `clippy.toml` raises it to 1024. (5) A pinned chat is never counted as empty. Version is 0.1.2 |
 
 ## Open Questions
 
@@ -297,6 +298,7 @@ Paths listed in [project-structure.md](project-structure.md) that do not exist y
 |---|---|---|
 | (undated) | `docs/*` | Created the 13 doc files, README included |
 | 2026-10-24 | `docs/`, `design/` | Moved from `sentinel-docs/` to the repo root. Added `.gitignore` |
+| 2026-10-25 | `crates/*`, `docs/*`, `README.md` | Eight owner fixes (D94 to D101) and the review fixes (D102). New files: `brain_seed.rs`, `brain_survey.rs`, `agents_config.rs`, `starter.rs`, `context_usage.rs`, `changes.rs`, `routes/changes.rs`, `folder_browser.rs`, `pair_phone_card.rs`, `resize_handle.rs`, `diff_view.rs`, `working_tree.rs`, `live_fetch.rs`, `views/context.rs`. `--fake-agents` removed from the CLI |
 
 ## Doc Changes Log
 
