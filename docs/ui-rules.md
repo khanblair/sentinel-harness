@@ -108,6 +108,12 @@ On phone the panel icons move to the bottom tab bar and the More tab.
 - The stream says which notes were loaded into agent memory, as links, and says when the Brain was updated after a run.
 - Brain care runs sit in the sidebar under Scheduled. Opening one before it has run shows the schedule and a Run care now button. After a run it shows each step and a card that links to the proposals.
 
+## Keys, Folders, and the Tour
+
+- The API keys block sits at the top of Settings, Connections, above the connection rows. [F29](product-scope.md#f29-api-keys-bring-your-own-key) says what each button does.
+- New project opens the computer's folder dialog. Cancel does nothing. The in-app folder list opens only when no dialog can open (see the `POST /api/fs/pick` row in [architecture.md](architecture.md)).
+- Replay tour closes Settings first, then starts the tour. Settings is a modal, and the tour would hide behind it.
+
 ## Key Element Anatomy
 
 ### Task Card

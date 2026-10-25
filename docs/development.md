@@ -44,7 +44,7 @@ Sentinel runs the agent CLIs it finds on this computer (`cargo run -- scan` list
 
 The repository, port, and bind are options of the commands: `sentinel daemon --repo PATH --port 7878`. The default port is 7878. The daemon binds only the Tailscale address, or `127.0.0.1` with `--dev-bind` for development. The budget cap, the Brain mode, and the routing live in `.sentinel/config.toml` and in Settings.
 
-Keys are never printed. Prefer the keychain, set through `sentinel keys set`.
+Keys are never printed. Prefer the keychain: set a provider key in Settings, Connections, or with `sentinel keys set`.
 
 ## Real Services in Dev
 

@@ -337,6 +337,19 @@ Goal: the app holds many projects, each with its own chats. Settings, General re
 
 Dependencies: P5, P6, P8. See F27 and F28 in [product-scope.md](product-scope.md) and Projects and Data reset in [architecture.md](architecture.md).
 
+## Phase 20: API keys and the Mac folder dialog
+
+Goal: the owner keeps keys for four model providers in the keychain, and New project opens the Mac's own folder dialog. Details are in `product-scope.md`, F29 and F27, and in API keys and the folder dialog in [architecture.md](architecture.md).
+
+| ID | Task | Done when | Status |
+|---|---|---|---|
+| P20-01 | Provider table and key routes: four providers, `GET /api/keys`, `PUT` and `DELETE /api/keys/:provider`, `POST /api/keys/:provider/test`, and the `PUT /api/secrets/openrouter` alias | A key is saved only to the keychain. The answer shows its last four characters and never the key. A test answers in one plain sentence. An unknown provider is refused. A phone gets `403` | Done |
+| P20-02 | Agent environment: the saved key reaches the agent of its kind as an environment variable when the agent starts | An agent started after a key is saved gets its variable. A variable already set on the computer wins. OpenRouter has no agent variable | Done |
+| P20-03 | Keys screen: `KeysSection` and `KeyCard` at the top of Connections, with Save, Test, and Remove | Each card shows no key or the saved hint. Remove asks first. One action runs per card at a time. A phone sees the note "Keys need the computer." | Done |
+| P20-04 | Native folder dialog and fallback: `POST /api/fs/pick` answers `path`, `cancelled`, and `available`. New project opens the Mac dialog | Cancel changes nothing. A host with no screen, or a dialog that fails to open, answers `available: false` and the page shows its folder list. `GET /api/fs/list` accepts an empty path or `~` | Done |
+
+Dependencies: P19, P8. See F29 in [product-scope.md](product-scope.md) and API keys in [architecture.md](architecture.md).
+
 ## Testing Approach per Phase
 
 | Phase | Method |

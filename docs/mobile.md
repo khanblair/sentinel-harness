@@ -124,7 +124,7 @@ Web push needs HTTPS. Without it, alerts show only while the app is open.
 | Identity | Per-device token. Revocable |
 | Lost phone | Revoke the device from another device or the CLI |
 | Allowed actions | Pause, resume, stop, kill agent, answer decisions and approvals, lower cap, create and rename a chat, pin or archive a chat, start a run, send a message to an agent, see every project and its chats, switch to another project, browse folders inside the home folder and choose the repository (not while a run is live), review lessons (approve, reject, retire), read skills and move a skill switch toward Off, read routines, press Send now, and turn a routine off, accept or dismiss Brain proposals, tighten Brain mode, read notes and the graph. Nothing else. Deleting a chat needs the computer |
-| Forbidden from the phone | Raising the cap, loosening the Brain mode, editing or deleting notes, editing tests, running shell commands, editing files, adding or editing a skill, creating or editing a routine, adding or removing a project, any data reset (the Reset section shows one note instead) |
+| Forbidden from the phone | Raising the cap, loosening the Brain mode, editing or deleting notes, editing tests, running shell commands, editing files, adding or editing a skill, creating or editing a routine, adding or removing a project, any data reset (the Reset section shows one note instead), adding, testing, or removing an API key (the keys block shows "Keys need the computer.") |
 | Secrets | Never sent to the phone |
 | Logging | Every phone action is recorded with the device name |
 

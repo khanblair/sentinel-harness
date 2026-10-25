@@ -270,8 +270,11 @@ Money is stored as integer micro-dollars.
 | `GET /api/dry-run`, `POST /api/dry-run` | Last dry run (stages, result), and start one on the built-in sample project. Computer only. 409 while a run or another dry run is live |
 | `GET /api/tailscale/status` | Not installed, signed out, or running, with address and name |
 | `POST /api/tailscale/signin` | Run `tailscale up` and report the result |
-| `POST /api/fs/pick` | Open the native folder dialog on the PC and return the chosen path |
-| `GET /api/fs/list?path=` | Folder browser for a phone, limited to the home folder. Allowed from a phone |
+| `GET /api/keys` | The four provider rows: has a key, and its last four characters. See [API keys](#api-keys). Computer only |
+| `PUT /api/keys/:provider`, `DELETE /api/keys/:provider` | Save or remove one provider's key in the keychain. Computer only |
+| `POST /api/keys/:provider/test` | Check the saved key with one read call. Answers `ok` and one plain sentence. Computer only |
+| `POST /api/fs/pick` | Open the folder dialog on the PC. Answers `path`, `cancelled`, and `available`. On a Mac it is the system `osascript` "choose folder" dialog, which starts in the home folder. Cancel answers `cancelled: true` and the page does nothing. Only `available: false` (a host with no screen, or a dialog that failed to open) makes the page show its own folder list. Other systems use the native dialog from `rfd` |
+| `GET /api/fs/list?path=` | Folder browser for a phone, limited to the home folder. An empty path or `~` means the home folder. `~/name` means a folder below it. Allowed from a phone |
 | `POST /api/repo/check` | Check git, backlog.md, and a clean tree for a folder |
 | `POST /api/repo/starter-backlog` | Create a starter backlog.md with example tasks |
 | `GET /api/repo/tree?path=` | The folders of one level of the project, with file counts and the parent path. Used by the Add a folder browser |
@@ -345,6 +348,25 @@ A reset clears data by scope. The scopes are the `DataScope` values in `crates/s
 | `POST /api/data/all` | The hub. Refused if a run is live in any project. Then each project clears its project scopes and scans its CLIs, then the primary project clears the app scopes, then the list is forgotten |
 
 Every route takes the computer only. Each call checks its scopes before it deletes a row, so a refused call changes nothing. The request body is `ClearData` with a list of `scopes`.
+
+## API keys
+
+Keys for the four model providers. Each key is one keychain entry, named by the provider id. The code is in `crates/sentinel-daemon/src/keys.rs`, and its `PROVIDERS` table is the list of providers.
+
+| Id | Label | Environment variable | Agent adapter | Test URL | How the key is sent |
+|---|---|---|---|---|---|
+| `openrouter` | OpenRouter | `OPENROUTER_API_KEY` | none (Sentinel calls it) | `https://openrouter.ai/api/v1/key` | `Authorization: Bearer` |
+| `anthropic` | Claude | `ANTHROPIC_API_KEY` | `claude` | `https://api.anthropic.com/v1/models` | `x-api-key`, with `anthropic-version: 2023-06-01` |
+| `gemini` | Gemini | `GEMINI_API_KEY` | `gemini` | `https://generativelanguage.googleapis.com/v1beta/models` | `x-goog-api-key` |
+| `deepseek` | DeepSeek | `DEEPSEEK_API_KEY` | `deepseek` | `https://api.deepseek.com/models` | `Authorization: Bearer` |
+
+- **Key never in a URL.** The key goes in a header for every provider. The test error text is never shown, because it can carry the URL. The answers are fixed sentences.
+- **Test answers.** A 2xx answer is a working key, and so is a 429 (the provider says slow down). A 401 or 403 is a refused key. Any other status, a timeout, or a failed connection is a plain failure. The test waits at most 10 seconds.
+- **Saving.** A key is trimmed. It may not be empty, may not be longer than 512 bytes, and may not hold a space or a line break. Saving writes only to the keychain. A key of twelve characters or more shows its last four characters as a hint. A shorter key shows no hint.
+- **Agent environment.** When an agent starts, its adapter's variable is passed to the agent process with the saved key as its value. Nothing is passed when no key is saved, when the adapter has no provider (`opencode`), or when the variable is already set in the computer's environment. The check reads the computer's environment when the agent starts, so a key saved while an agent runs takes effect at the next start.
+- **Routing.** `/api/keys` is not in `PRIMARY_PATHS` in `crates/sentinel-daemon/src/hub.rs`, so a request that names a project reaches that project's engine. Every route below is computer only.
+- **Alias.** `PUT /api/secrets/openrouter` is the older route for the OpenRouter key. It saves the same key as `PUT /api/keys/openrouter`.
+- **Unknown provider.** An id that is not in the table is refused with a not-found error.
 
 ## Security Model
 

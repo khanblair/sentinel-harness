@@ -199,7 +199,7 @@ Before step 1 an install check confirms Rust, the WASM target, trunk, git, and T
 - **What:** A first-run install check and a live view of what Sentinel connects to.
 - **How:**
   1. The install check lists Rust, the WASM target, trunk and check tools, git, and Tailscale. It offers to install what is missing and ends with the `sentinel doctor` result. Commands are shown for macOS, Linux, and Windows.
-  2. The Connections page shows state and a test action for Tailscale, OpenRouter (the key goes to the OS keychain), the MCP file server, git, and the keychain.
+  2. The Connections page shows state and a test action for Tailscale, the MCP file server, git, and the keychain. The API keys block at the top of the page holds the model provider keys ([F29](#f29-api-keys-bring-your-own-key)).
   3. The Agents page lists detected tools as found or missing, with a switch to use each one. A tool that needs a login or a command template has a fix action. Task routing is set in Settings, not on this list.
   4. Folder choice uses the operating system's own folder dialog on the computer that runs Sentinel. Nobody types a path. From a phone the same choice is a folder browser limited to the home folder.
   5. Pairing checks come first: before showing a code, Sentinel checks that Tailscale is installed, running, and signed in. It then shows install steps, a sign-in button, or the phone steps with a link, a machine name, and a code.
@@ -394,6 +394,20 @@ Plan: 2 files (src/limits/rate.ts, src/api/transfer.ts). No conflicts.
 - **Why:** A user who wants a clean start, or who wants to remove one kind of data, should not have to delete folders by hand. Asking first and typing the word for the full reset keeps a slip from costing a lot.
 - **Limits:** A reset does not undo anything. It removes the Sentinel data it names and nothing else.
 
+### F29. API keys (bring your own key)
+
+- **What:** A key for each of four model providers, so the agents and the OpenRouter tool use the owner's own account. The providers are OpenRouter, Claude, Gemini, and DeepSeek.
+- **How:**
+  1. **One card per provider.** The API keys block sits at the top of Settings, Connections. Each card shows its provider, its status, and three actions: Save, Test, and Remove.
+  2. **Save.** The owner pastes a key and presses Save. The key goes to the system keychain and never to a file, a log, or a chat. The card then shows only the last four characters, for example `...1234`. The full key is never shown again. A key shorter than twelve characters gets no hint, only "A key is saved."
+  3. **Test.** Test makes one cheap read call to the provider, with the key in a header and never in the URL. It gives one plain sentence: the key works, the provider refused it, the provider is asking Sentinel to slow down (the key still counts as working), the provider did not answer in time, or Sentinel could not reach it. A test waits at most 10 seconds.
+  4. **Remove.** Remove asks first. Then the key leaves the keychain, and the card shows no key.
+  5. **Agents use the key.** An agent kind that reads a key from its environment (Claude, Gemini, DeepSeek) gets its key when the agent starts. The agent then bills that key instead of its own login. If the variable is already set on the computer, Sentinel passes nothing, so the computer's own value wins. A key saved while an agent runs takes effect the next time an agent starts. OpenRouter has no agent variable, because Sentinel calls it directly.
+  6. **Computer only.** Only the computer can save, test, or remove a key. A phone sees one note in place of the cards: "Keys need the computer."
+  7. **Old route.** `PUT /api/secrets/openrouter` still saves the OpenRouter key, for older clients.
+- **Why:** The owner should not log in again in each agent CLI, and a key should never sit in a file in the repository or come back on screen.
+- **Limits:** Sentinel does not check a saved key on its own. Only Test checks it. A key from the shell (`OPENROUTER_API_KEY` in the environment) is used only when the keychain has none, as in [development.md](development.md).
+
 ## User Flow
 
 How to use Sentinel properly. The in-app guide walks through the same steps with a try-it button on each.
@@ -435,7 +449,7 @@ How to use Sentinel properly. The in-app guide walks through the same steps with
 
 | Stage | Contents |
 |---|---|
-| v1 | Features F1 to F28 |
+| v1 | Features F1 to F29 |
 | v1.1 | Per-tool cost accuracy, more adapters, richer reserved files map, parser-based smell checks on agent code |
 | v2 | Optional native shell, multi-repo runs, shared team tailnet |
 

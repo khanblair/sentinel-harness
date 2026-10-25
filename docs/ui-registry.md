@@ -100,6 +100,8 @@ Every UI component. If it is not here, it does not exist yet.
 | ContrastReadout | Pass or fail for key color pairs | tokens | pass, fail | P6 | planned |
 | CssExport | Show and copy tokens as CSS | tokens | collapsed, open | P6 | planned |
 | ConnectionCard | State and test action for one connection | connection | connected, needs login, missing, testing | P6 | planned |
+| KeysSection | The API keys block at the top of Connections: one card per provider, a phone note, and the load line or error | none | loading, ready, failed, phone note | P20 | done |
+| KeyCard | One provider's key: a password input, the last four characters, Save, Test, and Remove with a confirm step. One action at a time, and the last result stays until the next action | info, on_change | no key, saved, saving, testing, removing, confirming removal | P20 | done |
 | ToolRow | Switch, name, path, and found or missing status. No tier dropdown and no letter icon | tool | found, needs login, needs command, missing | P6 | planned |
 | InstallChecklist | Install check rows | checks | found, missing, installing | P8 | planned |
 | InstallLog | Streaming install and doctor output | lines | idle, running, done | P8 | planned |
