@@ -111,6 +111,11 @@ pub fn adds_new_test(diff: &str) -> bool {
     false
 }
 
+/// Lets the daemon apply the same test-path rule to the files a task adds.
+pub fn looks_like_test_path(path: &str) -> bool {
+    is_test_path(path)
+}
+
 fn is_test_path(path: &str) -> bool {
     let path_lower = path.to_lowercase();
 

@@ -31,6 +31,7 @@ const TOP_LEVEL_KEYS: &[&str] = &[
     "decision_timeout_seconds",
     "approval_timeout_seconds",
     "park_contradictions",
+    "prove_new_tests",
     "telegram",
 ];
 const ROUTING_KEYS: &[&str] = &["cheap", "mid", "smart"];
@@ -71,6 +72,8 @@ pub struct Config {
     pub approval_timeout_seconds: u64,
     /// Skip both tasks of a contradiction at once, with no question. `sentinel run` sets it.
     pub park_contradictions: bool,
+    /// A verified task's new tests must fail on the code from before the task.
+    pub prove_new_tests: bool,
     pub telegram: TelegramConfig,
 }
 
@@ -133,6 +136,7 @@ impl Default for Config {
             decision_timeout_seconds: 120,
             approval_timeout_seconds: 300,
             park_contradictions: false,
+            prove_new_tests: false,
             telegram: TelegramConfig::default(),
         }
     }
@@ -315,6 +319,7 @@ mod tests {
             decision_timeout_seconds: 60,
             approval_timeout_seconds: 90,
             park_contradictions: true,
+            prove_new_tests: true,
             telegram: TelegramConfig {
                 enabled: true,
                 detail: "Status".to_owned(),
