@@ -303,7 +303,7 @@ impl Engine {
         snapshot.tailscale = *lock(&self.inner.tailscale);
         snapshot.onboarding = self.onboarding()?;
         snapshot.hackathon_mode = config.hackathon_mode;
-        snapshot.settings = settings_for_ui(&config);
+        snapshot.settings = crate::settings_view::settings_for_ui(&config);
         snapshot.chats = self.list_chats()?;
         self.fill_events(&mut snapshot, chat)?;
         Ok(snapshot)
@@ -364,20 +364,6 @@ impl Engine {
     pub fn harness_state(&self) -> HarnessState {
         self.live_summary().state
     }
-}
-
-/// The config values the UI shows in Settings.
-fn settings_for_ui(config: &Config) -> std::collections::BTreeMap<String, String> {
-    let mut map = std::collections::BTreeMap::new();
-    map.insert("test_command".to_owned(), config.test_command.join(" "));
-    map.insert("backlog".to_owned(), config.backlog.clone());
-    map.insert("max_parallel".to_owned(), config.max_parallel.to_string());
-    map.insert(
-        "task_timeout_seconds".to_owned(),
-        config.task_timeout_seconds.to_string(),
-    );
-    map.insert("telegram_detail".to_owned(), config.telegram.detail.clone());
-    map
 }
 
 fn tracing_error(error: &EngineError) {

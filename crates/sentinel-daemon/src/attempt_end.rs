@@ -1,0 +1,88 @@
+//! How an attempt ends for good or goes back: the failure summary, the status, and the undo of
+//! half-written files.
+
+use sentinel_core::{Event, TaskId, TaskStatus};
+use sentinel_tree::restore_path;
+use sentinel_workers::context::{FailureInput, failure_summary};
+
+use crate::agent_health::escalate;
+use crate::engine::lock;
+use crate::run_ctx::RunCtx;
+
+/// Put a task back for another try at a higher tier, or block it when the tries are used up.
+pub(crate) fn fail_task(ctx: &RunCtx, task_id: &TaskId, reason: &str, output: &str) {
+    let engine = &ctx.engine;
+    undo_partial_writes(ctx, task_id);
+    lock(&ctx.memory).record_failed_try(task_id);
+    let summary = failure_summary(
+        &FailureInput {
+            failing_tests: &[],
+            error_blocks: &[reason.to_owned()],
+            output,
+        },
+        &ctx.limits,
+    );
+    lock(&ctx.memory).failures.insert(task_id.clone(), summary);
+    let outcome = lock(&ctx.scheduler).on_failure(task_id, engine.now());
+    let status = match outcome {
+        Ok(status) => status,
+        Err(error) => {
+            eprintln!("sentinel: could not move {task_id} after a failure: {error}");
+            return;
+        }
+    };
+    if status == TaskStatus::Blocked {
+        record_end(ctx, task_id, status, reason);
+        return;
+    }
+    escalate(ctx, task_id);
+    engine.emit_quiet(&Event::TaskStatus {
+        task: task_id.clone(),
+        status,
+    });
+    engine.emit_quiet(&Event::Message {
+        from: "sentinel".to_owned(),
+        to: None,
+        text: format!("{task_id} did not work out: {reason} It goes back for another try."),
+    });
+}
+
+/// Record that a task ended for good: its status, its reason, and the verdict card.
+pub(crate) fn record_end(ctx: &RunCtx, task_id: &TaskId, status: TaskStatus, reason: &str) {
+    let record = sentinel_store::VerificationRecord {
+        task: task_id.clone(),
+        tests_pass: false,
+        new_test: false,
+        reviewer_ok: false,
+        tamper_clear: true,
+        verdict: status,
+        reason: reason.to_owned(),
+        receipt_json: "null".to_owned(),
+    };
+    if let Err(error) = ctx.engine.store().upsert_verification(&record) {
+        eprintln!("sentinel: could not record the end of {task_id}: {error}");
+    }
+    ctx.engine.emit_quiet(&Event::TaskStatus {
+        task: task_id.clone(),
+        status,
+    });
+    ctx.engine.emit_quiet(&Event::Verdict {
+        task: task_id.clone(),
+        status,
+        reason: reason.to_owned(),
+    });
+}
+
+/// A failed agent may leave half-written files inside its own scope. Put them back so the next
+/// attempt and the next wave start from a clean tree.
+pub(crate) fn undo_partial_writes(ctx: &RunCtx, task_id: &TaskId) {
+    let Ok(Some(task)) = ctx.engine.store().get_task(task_id) else {
+        return;
+    };
+    let Ok(changed) = ctx.git.changed_paths() else {
+        return;
+    };
+    for path in changed.into_iter().filter(|p| task.scope.covers(p)) {
+        let _ = restore_path(&ctx.git, &path, "HEAD");
+    }
+}
