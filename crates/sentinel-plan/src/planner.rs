@@ -153,27 +153,61 @@ pub fn holds_plan_json(text: &str) -> bool {
     text.contains("\"tasks\"")
 }
 
-/// The first `{ ... }` block in `text`, braces matched.
+/// The first `{ ... }` block in `text` that holds a `tasks` key, braces matched. Braces inside
+/// quoted strings do not count, and a block of prose braces before the plan is skipped. Without a
+/// block that holds `tasks`, the first block is returned so the error says what was wrong with it.
 fn first_json_object(text: &str) -> Result<&str> {
-    let start = text
-        .find('{')
-        .ok_or_else(|| PlanError::Parse("no JSON object found".to_string()))?;
-    let len = object_len(&text[start..])
-        .ok_or_else(|| PlanError::Parse("unclosed JSON object".to_string()))?;
-    Ok(&text[start..start + len])
+    let mut first: Option<&str> = None;
+    for (start, _) in text.match_indices('{') {
+        let Some(len) = object_len(&text[start..]) else {
+            continue;
+        };
+        let block = &text[start..start + len];
+        if holds_tasks_key(block) {
+            return Ok(block);
+        }
+        first.get_or_insert(block);
+    }
+    first.ok_or_else(|| {
+        let message = if text.contains('{') {
+            "unclosed JSON object"
+        } else {
+            "no JSON object found"
+        };
+        PlanError::Parse(message.to_string())
+    })
 }
 
-/// Byte length of the object at the start of `text`, which must begin with `{`.
+fn holds_tasks_key(block: &str) -> bool {
+    serde_json::from_str::<serde_json::Value>(block).is_ok_and(|value| value.get("tasks").is_some())
+}
+
+/// Byte length of the object at the start of `text`, which must begin with `{`. A brace inside a
+/// quoted string, with its escapes, is text and not part of the structure.
 fn object_len(text: &str) -> Option<usize> {
     let mut depth = 0usize;
+    let mut in_string = false;
+    let mut escaped = false;
     for (i, ch) in text.char_indices() {
-        depth = match ch {
-            '{' => depth + 1,
-            '}' => depth - 1,
-            _ => depth,
-        };
-        if ch == '}' && depth == 0 {
-            return Some(i + 1);
+        if in_string {
+            match (escaped, ch) {
+                (true, _) => escaped = false,
+                (false, '\\') => escaped = true,
+                (false, '"') => in_string = false,
+                (false, _) => {}
+            }
+            continue;
+        }
+        match ch {
+            '"' => in_string = true,
+            '{' => depth += 1,
+            '}' => {
+                depth = depth.checked_sub(1)?;
+                if depth == 0 {
+                    return Some(i + 1);
+                }
+            }
+            _ => {}
         }
     }
     None
@@ -309,6 +343,27 @@ impl PlannerBackend for FixedPlanner {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_brace_inside_a_string_does_not_end_the_plan() {
+        let text = r#"Plan: {"tasks": [], "note": "keep {fee} and } alone"} done"#;
+        assert_eq!(
+            first_json_object(text).unwrap(),
+            r#"{"tasks": [], "note": "keep {fee} and } alone"}"#
+        );
+    }
+
+    #[test]
+    fn prose_with_braces_before_the_plan_is_skipped() {
+        let text = r#"I will use {the fee table}. {"tasks": []}"#;
+        assert_eq!(first_json_object(text).unwrap(), r#"{"tasks": []}"#);
+    }
+
+    #[test]
+    fn a_cut_off_answer_says_the_object_is_unclosed() {
+        let error = first_json_object(r#"{"tasks": [{"id": "T-01""#).unwrap_err();
+        assert_eq!(error.to_string(), "parse error: unclosed JSON object");
+    }
 
     #[test]
     fn an_existing_test_file_is_never_named_as_scope() {
@@ -805,12 +860,13 @@ This task also adds a rate limit but differently. It has a longer body that shou
     }
 
     #[test]
-    fn the_planner_prompt_asks_for_dependencies_shared_files_and_contradiction_notes() {
+    fn the_planner_prompt_asks_for_dependencies_full_scopes_and_contradiction_notes() {
         let text = planner_prompt(&make_request(vec![], vec![]));
         for needle in [
             "names that task in depends_on",
             "names that task in read_after_write",
-            "lower id goes first",
+            "Do not add depends_on only because two tasks share a file",
+            "list the file",
             "cannot both be true",
             "\"note\"",
         ] {
