@@ -18,7 +18,7 @@ Sentinel is a harness written in Rust. It runs several coding agents in one shar
 
 ## What it got wrong
 
-These are real findings from the rehearsals on the practice repository, each now fixed unless it says otherwise.
+These are real findings from the rehearsals on the practice repository, each now fixed unless it says otherwise. Rehearsal 8, with all of them fixed, called 9 of 12 tasks Verified for $0.25 in about 18 minutes, and the practice grader passed 10 of 12 (the two tasks that contradict each other were skipped on purpose).
 
 - A failed suite sent every task of the wave back, although one task caused it.
 - A task whose agent needed a file outside its scope lost its work to the guard and kept failing.
@@ -28,6 +28,9 @@ These are real findings from the rehearsals on the practice repository, each now
 - A free model as reviewer printed only colour codes, which counted as "did not approve".
 - Tasks whose prerequisite failed were skipped, so five tasks never started.
 - The OpenRouter account had no credit, and the harness did not pause that agent.
+- The real git index went stale after checkpoints, so `git status` showed staged changes after a run. The index is now brought up to date after every wave.
+- A CLI that reports its cost only at the end was counted by a time guess, and the guess stayed in the total: the first rehearsal showed an estimated $2.37, the real spend was far lower. A reported cost now replaces the guess.
+- A later task that changed behaviour broke the own tests of an earlier task, and could not update them, so it failed three times. It may now update those tests on its next try.
 
 ## What is still weak
 
@@ -35,6 +38,8 @@ These are real findings from the rehearsals on the practice repository, each now
 - Scopes come from an agent that reads file names, not file contents. A wide scope costs parallelism, and a narrow one costs a retry.
 - The reviewer is strict. In the first rehearsal Sentinel called 2 tasks Verified while the practice grader passed 7. It under-claims, which is safe, but it leaves points on the table.
 - Free models are slow, and a task that times out wastes its whole timeout.
+- Tasks that list the same file run one after another. On the practice repository that was nearly every task, so no wave held more than one task and the parallel share stays low. Safe, but it leaves collision-efficiency points on the table.
+- The reviewer of a Claude task can be the other Claude agent (another model string, same model family). It is a second agent, but not an independent one.
 
 ## What I would fix next
 
