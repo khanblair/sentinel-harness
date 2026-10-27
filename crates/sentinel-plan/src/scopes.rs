@@ -136,10 +136,19 @@ pub fn new_test_path(repo_files: &[String], id: &TaskId) -> Option<String> {
     })
 }
 
-/// Gives every task a new test file in its scope, when it has none and the repository shows how
-/// test files are named. Returns the plan.
+/// Gives every task a new test file in its scope, named like the repository's own. A test path
+/// that sits in a folder the repository does not use for tests, such as `tests/` in a repository
+/// whose tests are in `test/`, is replaced: the suite would never run a test written there.
 pub fn ensure_test_files(request: &PlanRequest, mut plan: Plan) -> Plan {
+    let folders = test_folders(&request.repo_files);
     for pt in &mut plan.tasks {
+        if !folders.is_empty() {
+            pt.scope.retain(|entry| {
+                !is_test_path(entry)
+                    || request.repo_files.contains(entry)
+                    || folder_of(entry).is_some_and(|folder| folders.contains(folder))
+            });
+        }
         if pt.scope.iter().any(|entry| is_test_path(entry)) {
             continue;
         }
@@ -148,6 +157,19 @@ pub fn ensure_test_files(request: &PlanRequest, mut plan: Plan) -> Plan {
         }
     }
     plan
+}
+
+/// The folders that hold the repository's own test files, acceptance checks left out.
+fn test_folders(repo_files: &[String]) -> BTreeSet<&str> {
+    repo_files
+        .iter()
+        .filter(|file| is_test_path(file) && !file.starts_with("acceptance/"))
+        .filter_map(|file| folder_of(file))
+        .collect()
+}
+
+fn folder_of(file: &str) -> Option<&str> {
+    file.rsplit_once('/').map(|(folder, _)| folder)
 }
 
 /// Gives every task with no scope the files its text names, or else the repository's main source

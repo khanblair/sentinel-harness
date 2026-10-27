@@ -76,7 +76,7 @@ const PLAN_SHAPE: &str = r#"{
 
 const PLANNER_RULES: &[&str] = &[
     "If the message is not a request to change the project (a greeting, a question, thanks), do not write a plan. Answer it in one to four plain sentences instead, and put no JSON in the answer.",
-    "Every backlog item must have exactly one planned task.",
+    "Every backlog item must have exactly one planned task. Write each task id exactly as the backlog writes it.",
     "Scope entries are non-empty relative paths without '..'.",
     "Scope lists the files the task may write. Never list a test file that already exists: editing an existing test fails the task.",
     "Give each task one NEW test file for its own tests, named for the task and not in the repository files, for example tests/health.rs.",
@@ -113,7 +113,11 @@ pub fn planner_prompt_for(request: &PlanRequest, allow_reply: bool) -> String {
     } else {
         "The backlog above is the request. Output ONE JSON object with this shape and nothing else (no prose, no code fences):\n"
     });
-    prompt.push_str(PLAN_SHAPE);
+    let example = request
+        .items
+        .first()
+        .map_or("T-01", |item| item.id.as_str());
+    prompt.push_str(&PLAN_SHAPE.replace("T-01", example));
     prompt.push_str("\n\nRules:\n");
     for rule in PLANNER_RULES.iter().skip(usize::from(!allow_reply)) {
         prompt.push_str("- ");
@@ -161,8 +165,40 @@ pub fn parse_plan_json(text: &str, request: &PlanRequest) -> Result<Plan> {
         )));
     };
     let plan: Plan = serde_json::from_value(found.clone())?;
+    let plan = match_ids(plan, request);
     validate_plan(&plan, request)?;
     Ok(plan)
+}
+
+/// A key that ignores case and the dashes and underscores of an id, so `T-01` and `T01` match.
+fn id_key(id: &TaskId) -> String {
+    id.as_str()
+        .chars()
+        .filter(|ch| ch.is_alphanumeric())
+        .flat_map(char::to_lowercase)
+        .collect()
+}
+
+/// Gives every id of the plan the spelling of the backlog. A model that copies the example id
+/// `T-01` for a backlog that writes `T01` still names the same tasks.
+fn match_ids(mut plan: Plan, request: &PlanRequest) -> Plan {
+    let real: HashMap<String, TaskId> = request
+        .items
+        .iter()
+        .map(|item| (id_key(&item.id), item.id.clone()))
+        .collect();
+    let fix = |id: &TaskId| real.get(&id_key(id)).cloned().unwrap_or_else(|| id.clone());
+    for task in &mut plan.tasks {
+        task.id = fix(&task.id);
+        for list in [
+            &mut task.depends_on,
+            &mut task.read_after_write,
+            &mut task.contradicts,
+        ] {
+            *list = list.iter().map(&fix).collect();
+        }
+    }
+    plan
 }
 
 /// The object that holds the `tasks` list: the value itself, or an object inside it, such as
@@ -377,6 +413,33 @@ impl PlannerBackend for FixedPlanner {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_test_path_in_a_folder_the_repository_does_not_use_is_replaced() {
+        let request = make_request(vec![], vec!["test/accounts.test.js".to_owned()]);
+        let mut task = planned_task("T01", &[]);
+        task.scope = vec![
+            "src/fees.js".to_owned(),
+            "tests/t01-rounding.test.js".to_owned(),
+        ];
+        let shaped = ensure_test_files(&request, Plan { tasks: vec![task] });
+        assert_eq!(shaped.tasks[0].scope, ["src/fees.js", "test/t01.test.js"]);
+    }
+
+    #[test]
+    fn ids_that_differ_only_by_a_dash_match_the_backlog() {
+        let request = make_request(vec![make_item("T01", "Fix it", "", false)], vec![]);
+        let text = r#"{"tasks": [{"id": "T-01", "tier": "cheap"}]}"#;
+        let plan = parse_plan_json(text, &request).unwrap();
+        assert_eq!(plan.tasks[0].id, TaskId::new("T01"));
+    }
+
+    #[test]
+    fn the_prompt_example_uses_the_first_backlog_id() {
+        let request = make_request(vec![make_item("T07", "Fix it", "", false)], vec![]);
+        let prompt = planner_prompt_for(&request, false);
+        assert!(prompt.contains("\"id\": \"T07\""), "{prompt}");
+    }
 
     #[test]
     fn a_backlog_prompt_has_no_way_out_of_a_plan() {
