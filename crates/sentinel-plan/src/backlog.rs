@@ -1,4 +1,4 @@
-//! Backlog parser: reads a markdown backlog and extracts tasks.
+//! Backlog parser: reads a JSON or markdown backlog and extracts tasks.
 
 use std::collections::HashSet;
 
@@ -15,8 +15,18 @@ pub struct BacklogItem {
     pub claims_done: bool,
 }
 
-/// Parse a backlog markdown text into a list of backlog items.
+/// Parse a backlog into a list of backlog items. Text that starts with `{` or
+/// `[` is JSON; anything else is read as markdown.
 pub fn parse_backlog(text: &str) -> Result<Vec<BacklogItem>> {
+    let trimmed = text.trim();
+    if trimmed.starts_with('{') || trimmed.starts_with('[') {
+        return parse_json_backlog(trimmed);
+    }
+    parse_markdown_backlog(text)
+}
+
+/// Parse a markdown backlog text into a list of backlog items.
+fn parse_markdown_backlog(text: &str) -> Result<Vec<BacklogItem>> {
     let text = text.replace('\r', "");
     let lines: Vec<&str> = text.lines().collect();
 
@@ -54,6 +64,86 @@ pub fn parse_backlog(text: &str) -> Result<Vec<BacklogItem>> {
     }
 
     Ok(items)
+}
+
+/// One task as written in the JSON backlog. Every field is optional here so
+/// that a missing title gets a clear error instead of a generic parse error.
+#[derive(Deserialize)]
+struct JsonTask {
+    id: Option<String>,
+    title: Option<String>,
+    body: Option<String>,
+}
+
+/// The JSON backlog is either `{ "tasks": [...] }` or a bare array of tasks.
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum JsonBacklog {
+    Wrapped { tasks: Vec<JsonTask> },
+    Bare(Vec<JsonTask>),
+}
+
+impl JsonBacklog {
+    fn into_tasks(self) -> Vec<JsonTask> {
+        match self {
+            Self::Wrapped { tasks } => tasks,
+            Self::Bare(tasks) => tasks,
+        }
+    }
+}
+
+fn parse_json_backlog(text: &str) -> Result<Vec<BacklogItem>> {
+    let backlog: JsonBacklog = serde_json::from_str(text)
+        .map_err(|err| PlanError::Parse(format!("the backlog is not valid JSON: {err}")))?;
+    let tasks = backlog.into_tasks();
+    if tasks.is_empty() {
+        return Err(PlanError::Parse("no tasks".to_string()));
+    }
+    let ids = json_ids(&tasks)?;
+    tasks
+        .iter()
+        .zip(ids)
+        .enumerate()
+        .map(|(index, (task, id))| json_item(index + 1, task, id))
+        .collect()
+}
+
+/// Gives every JSON task its id. Explicit ids are registered first, so an
+/// auto id never takes a number that a later task uses on purpose.
+fn json_ids(tasks: &[JsonTask]) -> Result<Vec<TaskId>> {
+    let mut ids = IdAllocator::default();
+    let explicit: Vec<Option<TaskId>> = tasks
+        .iter()
+        .map(|task| explicit_json_id(task).map(|id| ids.explicit(id)).transpose())
+        .collect::<Result<_>>()?;
+    Ok(explicit
+        .into_iter()
+        .map(|id| id.unwrap_or_else(|| ids.auto()))
+        .collect())
+}
+
+/// An id that is missing or only spaces counts as no id.
+fn explicit_json_id(task: &JsonTask) -> Option<String> {
+    task.id
+        .as_deref()
+        .filter(|id| !id.trim().is_empty())
+        .map(str::to_string)
+}
+
+/// `position` is 1-based and only used in the error message.
+fn json_item(position: usize, task: &JsonTask, id: TaskId) -> Result<BacklogItem> {
+    let title = task.title.as_deref().unwrap_or_default().trim();
+    if title.is_empty() {
+        return Err(PlanError::Parse(format!("task {position} has no title")));
+    }
+    let body = task.body.as_deref().unwrap_or_default().trim().to_string();
+    let claims_done = check_claims_done(title, &body);
+    Ok(BacklogItem {
+        id,
+        title: title.to_string(),
+        body,
+        claims_done,
+    })
 }
 
 /// Skip a single top-level `#` title line if present.
@@ -316,5 +406,82 @@ Body.
         assert_eq!(items[0].id.as_str(), "T-03");
         assert_eq!(items[1].id.as_str(), "T-01");
         assert_eq!(items[2].id.as_str(), "T-02");
+    }
+
+    #[test]
+    fn json_object_keeps_ids_titles_and_order() {
+        let text = r#"{"version": 1, "tasks": [
+            {"id": "T01", "title": "First", "body": "One."},
+            {"id": "T02", "title": "Second", "body": "Two."},
+            {"id": "T03", "title": "Third"}
+        ]}"#;
+        let items = parse_backlog(text).unwrap();
+        let ids: Vec<&str> = items.iter().map(|item| item.id.as_str()).collect();
+        let titles: Vec<&str> = items.iter().map(|item| item.title.as_str()).collect();
+        assert_eq!(ids, ["T01", "T02", "T03"]);
+        assert_eq!(titles, ["First", "Second", "Third"]);
+        assert_eq!(items[0].body, "One.");
+        assert_eq!(items[2].body, "");
+    }
+
+    #[test]
+    fn json_bare_array_parses_tasks() {
+        let text = r#"[{"title": "Only task", "body": "Body."}]"#;
+        let items = parse_backlog(text).unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].id.as_str(), "T-01");
+        assert_eq!(items[0].title, "Only task");
+        assert_eq!(items[0].body, "Body.");
+    }
+
+    #[test]
+    fn json_duplicate_id_errors() {
+        let text = r#"{"tasks": [{"id": "T01", "title": "A"}, {"id": "T01", "title": "B"}]}"#;
+        let err = parse_backlog(text).unwrap_err();
+        assert!(matches!(err, PlanError::Parse(s) if s == "duplicate task id: T01"));
+    }
+
+    #[test]
+    fn json_missing_id_is_auto_numbered_without_clash() {
+        let text = r#"[{"title": "No id"}, {"id": "T-01", "title": "Explicit"}]"#;
+        let items = parse_backlog(text).unwrap();
+        assert_eq!(items[0].id.as_str(), "T-02");
+        assert_eq!(items[1].id.as_str(), "T-01");
+    }
+
+    #[test]
+    fn json_empty_title_errors() {
+        let text = r#"{"tasks": [{"id": "T01", "title": "Fine"}, {"id": "T02", "title": "   "}]}"#;
+        let err = parse_backlog(text).unwrap_err();
+        assert!(matches!(err, PlanError::Parse(s) if s == "task 2 has no title"));
+    }
+
+    #[test]
+    fn json_empty_task_list_errors_as_no_tasks() {
+        let err = parse_backlog(r#"{"tasks": []}"#).unwrap_err();
+        assert!(matches!(err, PlanError::Parse(s) if s == "no tasks"));
+    }
+
+    #[test]
+    fn invalid_json_errors_with_reason() {
+        let err = parse_backlog(r#"{"tasks": [ "#).unwrap_err();
+        let PlanError::Parse(message) = &err else {
+            panic!("expected a parse error, got {err:?}");
+        };
+        assert!(message.starts_with("the backlog is not valid JSON: "));
+    }
+
+    #[test]
+    fn json_body_saying_already_implemented_claims_done() {
+        let text = r#"[{"id": "T01", "title": "Auth", "body": "Already implemented in v2."}]"#;
+        let items = parse_backlog(text).unwrap();
+        assert!(items[0].claims_done);
+    }
+
+    #[test]
+    fn markdown_still_parses_when_text_does_not_start_with_brace() {
+        let items = parse_backlog("## T-07 Markdown task\nBody.\n").unwrap();
+        assert_eq!(items[0].id.as_str(), "T-07");
+        assert_eq!(items[0].title, "Markdown task");
     }
 }
