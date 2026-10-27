@@ -1,10 +1,13 @@
 //! Verification: test gate, verdict, quality notes, honest report.
 
 pub mod gate;
+pub mod protect;
 pub mod quality;
 pub mod report;
 pub mod verdict;
 pub mod verifier;
+
+pub use protect::Protected;
 
 use std::io;
 
