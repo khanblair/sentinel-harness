@@ -144,13 +144,7 @@ pub(crate) async fn barrier_and_verify(
     match barrier.decide(clean) {
         BarrierDecision::RunSuite => {}
         BarrierDecision::RefuseDirty | BarrierDecision::WaitForTasks => {
-            ctx.engine.emit(&Event::Message {
-                from: "sentinel".to_owned(),
-                to: None,
-                text: "The barrier did not run: the tree is not clean. Look at the Changes panel."
-                    .to_owned(),
-            })?;
-            return fail_wave(ctx, &checkpointed, "The tree was not clean at the barrier.");
+            return refuse_dirty_barrier(ctx, &checkpointed);
         }
     }
     let suite = run_barrier(ctx, number).await?;
@@ -162,6 +156,17 @@ pub(crate) async fn barrier_and_verify(
         return Ok(());
     }
     verify_wave(ctx, &suite, &checkpointed).await
+}
+
+/// The tree is not clean, so the suite cannot say anything about the wave: every task goes back.
+fn refuse_dirty_barrier(ctx: &RunCtx, checkpointed: &[TaskId]) -> Result<()> {
+    ctx.engine.emit(&Event::Message {
+        from: "sentinel".to_owned(),
+        to: None,
+        text: "The barrier did not run: the tree is not clean. Look at the Changes panel."
+            .to_owned(),
+    })?;
+    fail_wave(ctx, checkpointed, "The tree was not clean at the barrier.")
 }
 
 /// Run the full suite on the clean tree and record it as a barrier.
