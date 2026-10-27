@@ -1,0 +1,5 @@
+say T-01 needs a file that its scope does not name
+write src/alpha.txt::alpha changed by T-01
+write src/gamma.txt::gamma changed by T-01
+sleep 1
+fail 1

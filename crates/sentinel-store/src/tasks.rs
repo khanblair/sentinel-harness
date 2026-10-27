@@ -108,6 +108,16 @@ impl Store {
         Ok(())
     }
 
+    /// Replace the files a task may write. The next wave reserves the new scope.
+    pub fn set_task_scope(&self, id: &TaskId, scope: &sentinel_core::Scope) -> Result<()> {
+        let scope_json = serde_json::to_string(scope)?;
+        self.connection()?.execute(
+            "UPDATE tasks SET scope_json = ?2 WHERE id = ?1",
+            params![id.as_str(), scope_json],
+        )?;
+        Ok(())
+    }
+
     pub fn increment_attempts(&self, id: &TaskId) -> Result<u32> {
         let connection = self.connection()?;
         let changed = connection.execute(

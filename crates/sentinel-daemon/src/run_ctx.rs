@@ -43,6 +43,8 @@ pub(crate) struct RunMemory {
     pub failed_tries: HashMap<TaskId, u32>,
     /// Tries given back to each task because its agent failed for its own reasons.
     pub refunds: HashMap<TaskId, u32>,
+    /// Paths the write guard blocked in this wave. A task that fails may have needed them.
+    pub strays: Vec<String>,
 }
 
 impl RunMemory {
@@ -50,6 +52,17 @@ impl RunMemory {
     pub(crate) fn turn_of(&mut self, task: &TaskId) -> usize {
         let next = self.turns.len();
         *self.turns.entry(task.clone()).or_insert(next)
+    }
+
+    pub(crate) fn note_stray(&mut self, path: &str) {
+        if !self.strays.iter().any(|known| known == path) {
+            self.strays.push(path.to_owned());
+        }
+    }
+
+    /// The blocked paths so far. The list starts again after this.
+    pub(crate) fn take_strays(&mut self) -> Vec<String> {
+        std::mem::take(&mut self.strays)
     }
 
     pub(crate) fn failures_of(&self, task: &TaskId) -> u32 {

@@ -1,8 +1,10 @@
 //! How an attempt ends for good or goes back: the failure summary, the status, and the undo of
 //! half-written files.
 
-use sentinel_core::{Event, TaskId, TaskStatus, ToolInfo};
+use sentinel_core::{Event, Scope, TaskId, TaskStatus, ToolInfo};
 use sentinel_tree::restore_path;
+use sentinel_verify::Protected;
+use sentinel_verify::verdict::looks_like_test_path;
 use sentinel_workers::RunOutcome;
 use sentinel_workers::context::{FailureInput, failure_summary};
 
@@ -36,10 +38,43 @@ pub(crate) fn note_agent_failure(
     }
 }
 
+/// The write guard blocked paths while this task ran, and the task failed. It may have needed them,
+/// so its next try may write them too, unless they are protected or are tests. A file listed by
+/// two tasks only makes them run one after the other.
+fn widen_scope_after_strays(ctx: &RunCtx, task_id: &TaskId) {
+    let strays = lock(&ctx.memory).take_strays();
+    let Ok(Some(task)) = ctx.engine.store().get_task(task_id) else {
+        return;
+    };
+    let protected = Protected::load(&ctx.engine.repo_path(), &ctx.config.protected_paths);
+    let mut paths: Vec<String> = task.scope.entries().map(str::to_owned).collect();
+    let known = paths.len();
+    for stray in strays {
+        if !protected.covers(&stray) && !looks_like_test_path(&stray) && !paths.contains(&stray) {
+            paths.push(stray);
+        }
+    }
+    let Ok(wider) = Scope::from_paths(&paths) else {
+        return;
+    };
+    if paths.len() == known || ctx.engine.store().set_task_scope(task_id, &wider).is_err() {
+        return;
+    }
+    ctx.engine.emit_quiet(&Event::Message {
+        from: "sentinel".to_owned(),
+        to: None,
+        text: format!(
+            "{task_id} also gets {} on its next try: its agent wrote there and the guard blocked it.",
+            paths[known..].join(", ")
+        ),
+    });
+}
+
 /// Put a task back for another try at a higher tier, or block it when the tries are used up.
 pub(crate) fn fail_task(ctx: &RunCtx, task_id: &TaskId, reason: &str, output: &str) {
     let engine = &ctx.engine;
     undo_partial_writes(ctx, task_id);
+    widen_scope_after_strays(ctx, task_id);
     lock(&ctx.memory).record_failed_try(task_id);
     let summary = failure_summary(
         &FailureInput {

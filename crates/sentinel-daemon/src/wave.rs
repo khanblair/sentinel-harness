@@ -102,6 +102,7 @@ async fn run_tasks(ctx: &Arc<RunCtx>, number: u32, tasks: &[TaskId]) -> Result<(
     if let Some(run) = lock(&ctx.engine.inner.live).run.as_mut() {
         run.wave = number;
     }
+    lock(&ctx.memory).take_strays();
     let mut set = JoinSet::new();
     for id in tasks {
         let ctx = Arc::clone(ctx);

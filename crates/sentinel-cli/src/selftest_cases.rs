@@ -114,6 +114,19 @@ pub(crate) fn expect_liar(outcome: &Outcome) -> Check {
     Ok("a claim of done with no change was not verified".to_owned())
 }
 
+/// The agent needs a file that its scope does not name. The guard blocks it, the try fails, and the
+/// next try may write that file.
+pub(crate) fn expect_misscoper(outcome: &Outcome) -> Check {
+    let widened = outcome.events_seen.iter().any(|event| {
+        matches!(event, Event::Message { from, text, .. }
+            if from == "sentinel" && text.contains("also gets src/gamma.txt"))
+    });
+    if !widened {
+        return Err("the scope of T-01 did not grow to the file that was blocked".to_owned());
+    }
+    Ok("a task that needed a file outside its scope got that file on its next try".to_owned())
+}
+
 /// The run reports the cap through a budget threshold, a task ceiling, or the 70 percent stop.
 pub(crate) fn reported_cap(outcome: &Outcome) -> bool {
     outcome.saw(|event| {
@@ -153,7 +166,14 @@ pub(crate) fn expect_crasher(outcome: &Outcome) -> Check {
 
 /// Every scenario, in the order the command prints them.
 pub(crate) fn scenarios() -> Vec<Scenario> {
-    vec![collider(), tamperer(), liar(), overspender(), crasher()]
+    vec![
+        collider(),
+        tamperer(),
+        liar(),
+        overspender(),
+        crasher(),
+        misscoper(),
+    ]
 }
 
 // Each agent misbehaves once, on its own backlog. T-NN.fake files are the scripts.
@@ -244,5 +264,18 @@ pub(crate) fn crasher() -> Scenario {
             ),
         ],
         expect: expect_crasher,
+    }
+}
+
+pub(crate) fn misscoper() -> Scenario {
+    Scenario {
+        name: "misscoper",
+        backlog: include_str!("../../../fixtures/selftest/misscoper/backlog.md"),
+        plan_json: include_str!("../../../fixtures/selftest/misscoper/plan.json"),
+        plans: &[(
+            "T-01.fake",
+            include_str!("../../../fixtures/selftest/misscoper/T-01.fake"),
+        )],
+        expect: expect_misscoper,
     }
 }

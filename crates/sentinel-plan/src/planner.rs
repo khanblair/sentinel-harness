@@ -86,7 +86,8 @@ const PLANNER_RULES: &[&str] = &[
     "Two tasks with identical titles (ignoring case) should contradict each other.",
     "A task that needs something another task creates, such as an id, a field, an endpoint or a function, names that task in depends_on.",
     "A task that must read the final text of a file another task writes names that task in read_after_write.",
-    "Tasks that write the same file are ordered: the lower id goes first, unless one already depends on the other.",
+    "Tasks that list the same file run one after the other on their own. Do not add depends_on only because two tasks share a file.",
+    "Scope must list every file the task has to change, including route tables, wiring and config files. A file that is missing from the scope blocks the task and loses its work. A file that two tasks list only makes them run one after the other, so when unsure, list the file.",
     "If two tasks ask for things that cannot both be true, for example one removes a charge and the other sets a minimum for that charge, list each in the other's contradicts and give one sentence of reason per task in note.",
 ];
 

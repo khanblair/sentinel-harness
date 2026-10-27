@@ -1,7 +1,7 @@
 //! Two small background jobs of a run: the write guard's events become stream events, and the
 //! budget guard's spend and thresholds become stream events every half second.
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use sentinel_core::Event;
@@ -9,7 +9,8 @@ use sentinel_workers::Budget;
 use sentinel_workers::budget::BudgetEvent;
 use tokio::sync::{mpsc, watch};
 
-use crate::engine::Engine;
+use crate::engine::{Engine, lock};
+use crate::run_ctx::RunMemory;
 
 const PUMP_INTERVAL: Duration = Duration::from_millis(500);
 
@@ -17,8 +18,12 @@ const PUMP_INTERVAL: Duration = Duration::from_millis(500);
 pub(crate) async fn forward_guard_events(
     engine: Engine,
     mut events: mpsc::UnboundedReceiver<Event>,
+    memory: Arc<Mutex<RunMemory>>,
 ) {
     while let Some(event) = events.recv().await {
+        if let Event::WriteBlocked { path, .. } = &event {
+            lock(&memory).note_stray(path);
+        }
         engine.emit_quiet(&event);
     }
 }

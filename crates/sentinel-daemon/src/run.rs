@@ -91,7 +91,11 @@ impl Engine {
         });
         let guard = start_guard(ctx.git.clone(), policy, guard_tx, GuardOptions::default())
             .map_err(|e| EngineError::Invalid(e.to_string()))?;
-        tokio::spawn(forward_guard_events(self.clone(), guard_rx));
+        tokio::spawn(forward_guard_events(
+            self.clone(),
+            guard_rx,
+            ctx.memory.clone(),
+        ));
         let budget = ctx.budget.clone();
         tokio::spawn(budget_pump(self.clone(), budget, ctx.stop.clone()));
         tokio::spawn(run_main(ctx, request, guard, stop_tx));
