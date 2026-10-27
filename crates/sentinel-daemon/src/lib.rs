@@ -55,6 +55,7 @@ mod plan_contradictions;
 mod plan_phase;
 mod prompt;
 mod pumps;
+mod proof;
 mod quit;
 mod report_build;
 mod resume;

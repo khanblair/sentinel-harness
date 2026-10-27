@@ -66,6 +66,7 @@ pub(crate) async fn run(args: RunArgs) -> Result<ExitCode> {
     println!("test command: {}", command.join(" "));
     engine.update_config(|c| c.test_command = command)?;
     engine.update_config(|c| c.park_contradictions = true)?;
+    engine.update_config(|c| c.prove_new_tests = true)?;
     engine.scan_tools().await?;
     if let Some(text) = args.agents.as_deref() {
         apply_agents(&engine, text)?;

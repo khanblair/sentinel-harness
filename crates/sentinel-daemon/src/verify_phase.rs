@@ -14,6 +14,7 @@ use sentinel_workers::context::{FailureInput, failure_summary};
 
 use crate::attempt::record_end;
 use crate::engine::{EngineError, Result, lock};
+use crate::proof::{ProofTarget, prove_verdict};
 use crate::run_ctx::RunCtx;
 
 pub(crate) async fn verify_wave(
@@ -107,7 +108,12 @@ async fn verify_one(ctx: &Arc<RunCtx>, suite: &SuiteResult, id: &TaskId) -> Resu
         reviewer_ok: review.ok,
         tamper_clear: evidence.tamper_clear,
     };
-    let verdict = decide(&checks);
+    let target = ProofTarget {
+        id,
+        checkpoint: &checkpoint,
+        diff: &evidence.diff,
+    };
+    let verdict = prove_verdict(ctx, &target, decide(&checks)).await?;
     store_notes(ctx, id, &evidence.diff)?;
     let judgement = Judgement {
         checks,
