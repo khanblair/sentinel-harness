@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use sentinel_core::{Tier, ToolId, ToolInfo};
-use sentinel_plan::planner::{PlanRequest, planner_prompt};
+use sentinel_plan::planner::{PlanRequest, parse_plan_json, planner_prompt};
 use sentinel_workers::Worker;
 
 use crate::agents::{TEXT_TIMEOUT, TextJob, run_for_outcome};
@@ -14,6 +14,9 @@ use crate::answer::{NO_PLANNER, read_answer};
 use crate::engine::Engine;
 use crate::plan_phase::Asked;
 use crate::run_ctx::RunCtx;
+
+/// How many times one agent is asked for a plan. The second ask carries the reason for the first.
+const PLAN_ASKS: u32 = 2;
 
 /// Ask the planner agents in turn. A message run stops at the first answer that is not a plan,
 /// so a greeting costs one call. A forced agent is asked once, and its answer is final.
@@ -68,16 +71,44 @@ async fn ask_picked(
         Ok(found) => found,
         Err(reason) => return Asked::Failed(reason),
     };
-    let job = TextJob {
-        stop: ctx.stop.clone(),
-        budget: ctx.budget.clone(),
-        worker: worker.as_ref(),
-        tool: &tool,
-        prompt: planner_prompt(request),
-    };
-    let (text, outcome) = run_for_outcome(&ctx.engine, job, TEXT_TIMEOUT).await;
-    crate::agent_health::pause_after_failure(&ctx.engine, &tool, &outcome);
-    read_answer(&text, &outcome, request, ctx.source.words.is_some())
+    let message = ctx.source.words.is_some();
+    let mut feedback = String::new();
+    for attempt in 0..PLAN_ASKS {
+        let job = TextJob {
+            stop: ctx.stop.clone(),
+            budget: ctx.budget.clone(),
+            worker: worker.as_ref(),
+            tool: &tool,
+            prompt: format!("{}{feedback}", planner_prompt(request)),
+        };
+        let (text, outcome) = run_for_outcome(&ctx.engine, job, TEXT_TIMEOUT).await;
+        crate::agent_health::pause_after_failure(&ctx.engine, &tool, &outcome);
+        let asked = read_answer(&text, &outcome, request, message);
+        if message || attempt + 1 == PLAN_ASKS || !matches!(asked, Asked::Unusable) {
+            return asked;
+        }
+        feedback = unusable_feedback(ctx, &tool, &text, request);
+    }
+    Asked::Unusable
+}
+
+/// A plan that does not parse or does not validate is said in the stream, with the reason, and
+/// the same agent is asked once more with that reason in the prompt.
+fn unusable_feedback(ctx: &RunCtx, tool: &ToolInfo, text: &str, request: &PlanRequest) -> String {
+    let reason = parse_plan_json(text, request)
+        .err()
+        .map_or_else(|| "it was not a plan".to_owned(), |error| error.to_string());
+    let reason: String = reason.chars().take(200).collect();
+    crate::plan_phase::say(
+        ctx,
+        format!(
+            "{} gave no usable plan: {reason} Asking once more.",
+            tool.name
+        ),
+    );
+    format!(
+        "\n\nYour last answer could not be used: {reason}\nAnswer again with ONE JSON object that follows the rules, and nothing else."
+    )
 }
 
 /// The tool and worker of the planner agent for a tier, or the reason there is none. A forced
