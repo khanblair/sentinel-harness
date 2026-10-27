@@ -216,7 +216,13 @@ fn guard_protected(ctx: &RunCtx, checkpointed: &[TaskId]) -> Result<Vec<TaskId>>
         };
         let diff = ctx
             .git
-            .run(&["show", "--format=", "--no-color", "--no-renames", &checkpoint.commit])
+            .run(&[
+                "show",
+                "--format=",
+                "--no-color",
+                "--no-renames",
+                &checkpoint.commit,
+            ])
             .map_err(|e| EngineError::Invalid(e.to_string()))?;
         match tamper_verdict(&protected.touched_by_diff(&diff)) {
             Some(verdict) => block_tampered(ctx, id, &checkpoint, &verdict)?,
@@ -235,8 +241,12 @@ fn block_tampered(
     checkpoint: &Checkpoint,
     verdict: &Verdict,
 ) -> Result<()> {
-    revert_checkpoint(&ctx.git, checkpoint, &format!("revert {id}: {}", verdict.reason))
-        .map_err(|e| EngineError::Invalid(e.to_string()))?;
+    revert_checkpoint(
+        &ctx.git,
+        checkpoint,
+        &format!("revert {id}: {}", verdict.reason),
+    )
+    .map_err(|e| EngineError::Invalid(e.to_string()))?;
     let record = VerificationRecord {
         task: id.clone(),
         tests_pass: false,
