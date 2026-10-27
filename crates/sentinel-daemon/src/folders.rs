@@ -2,6 +2,7 @@
 
 use std::fs;
 use std::path::{Component, Path, PathBuf};
+#[cfg(target_os = "macos")]
 use std::process::Command;
 
 use sentinel_core::api::{CheckRow, CheckStatus, FolderEntry, RepoCheckResponse};
