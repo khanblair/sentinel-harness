@@ -6,6 +6,7 @@ mod commands;
 mod doctor_host;
 mod login_path;
 mod projects;
+mod results_page;
 mod selftest;
 mod selftest_cases;
 mod selftest_repo;
@@ -72,6 +73,10 @@ enum Command {
         /// Print a one-page Markdown draft of what the run did, built from the report and the log.
         #[arg(long)]
         writeup: bool,
+        /// Write the run as one HTML page and print its path. Without a file, the page goes to
+        /// `.sentinel/results.html` in the repository.
+        #[arg(long)]
+        page: Option<Option<PathBuf>>,
     },
     /// Serve the UI and the API for a repository until you press Ctrl+C.
     Daemon {
@@ -241,7 +246,7 @@ async fn dispatch(command: Command) -> anyhow::Result<ExitCode> {
         }
         Command::Scan { repo } => commands::scan(repo).await,
         Command::Doctor { repo } => commands::doctor(repo).await,
-        Command::Report { repo, writeup } => commands::report(repo, writeup),
+        Command::Report { repo, writeup, page } => commands::report(repo, writeup, page),
         Command::Mcp => commands::mcp().await,
         Command::App { repo } => app::app(repo).await,
         Command::Stop { repo } => serve::stop(repo).await,

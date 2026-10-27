@@ -255,8 +255,17 @@ fn print_rows(rows: &[CheckRow]) {
     }
 }
 
-pub(crate) fn report(repo: Option<PathBuf>, writeup: bool) -> Result<ExitCode> {
+pub(crate) fn report(
+    repo: Option<PathBuf>,
+    writeup: bool,
+    page: Option<Option<PathBuf>>,
+) -> Result<ExitCode> {
     let repo = repo_or_current(repo)?;
+    if let Some(target) = page {
+        let written = crate::results_page::write_page(&repo, target)?;
+        println!("{}", written.display());
+        return Ok(ExitCode::SUCCESS);
+    }
     let path = repo.join(".sentinel/report.md");
     let text = std::fs::read_to_string(&path)
         .with_context(|| format!("no report yet at {}", path.display()))?;
