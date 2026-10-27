@@ -75,7 +75,7 @@ enum Command {
         writeup: bool,
         /// Write the run as one HTML page and print its path. Without a file, the page goes to
         /// `.sentinel/results.html` in the repository.
-        #[arg(long, num_args = 0..=1, default_missing_value = "")]
+        #[arg(long, num_args = 0..=1, default_missing_value = "auto")]
         page: Option<PathBuf>,
     },
     /// Serve the UI and the API for a repository until you press Ctrl+C.

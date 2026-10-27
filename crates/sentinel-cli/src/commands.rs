@@ -262,7 +262,7 @@ pub(crate) fn report(
 ) -> Result<ExitCode> {
     let repo = repo_or_current(repo)?;
     if let Some(target) = page {
-        let target = (!target.as_os_str().is_empty()).then_some(target);
+        let target = (target != Path::new("auto")).then_some(target);
         let written = crate::results_page::write_page(&repo, target)?;
         println!("{}", written.display());
         return Ok(ExitCode::SUCCESS);
