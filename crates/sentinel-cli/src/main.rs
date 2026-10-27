@@ -43,6 +43,10 @@ enum Command {
         /// The budget cap in dollars, for example 1.50.
         #[arg(long)]
         cap: Option<String>,
+        /// The command the barrier runs, for example `npm test` or `node scripts/run-suite.js`.
+        /// Without it, Sentinel uses the saved setting, then the project's own test command.
+        #[arg(long)]
+        test_cmd: Option<String>,
     },
     /// Find the agent CLIs on this computer.
     Scan {
@@ -206,7 +210,12 @@ fn show_help() -> ExitCode {
 
 async fn dispatch(command: Command) -> anyhow::Result<ExitCode> {
     match command {
-        Command::Run { backlog, repo, cap } => commands::run(&backlog, repo, cap).await,
+        Command::Run {
+            backlog,
+            repo,
+            cap,
+            test_cmd,
+        } => commands::run(&backlog, repo, cap, test_cmd).await,
         Command::Scan { repo } => commands::scan(repo).await,
         Command::Doctor { repo } => commands::doctor(repo).await,
         Command::Report { repo, writeup } => commands::report(repo, writeup),
