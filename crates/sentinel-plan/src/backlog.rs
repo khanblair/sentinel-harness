@@ -264,11 +264,23 @@ fn extract_id_and_title(raw: &str) -> (Option<String>, String) {
 /// Check if the task claims to be done (case-insensitive).
 fn check_claims_done(title: &str, body: &str) -> bool {
     let text = format!("{} {}", title.to_lowercase(), body.to_lowercase());
-    text.contains("[x]")
-        || text.contains("(done)")
-        || text.contains("already done")
-        || text.contains("already implemented")
+    text.contains("[x]") || DONE_PHRASES.iter().any(|phrase| text.contains(phrase))
 }
+
+/// Ways a ticket says the work is finished. The text is a claim, not proof, so the task is still
+/// checked.
+const DONE_PHRASES: [&str; 10] = [
+    "(done)",
+    "already done",
+    "already implemented",
+    "already in place",
+    "already shipped",
+    "nothing left to build",
+    "nothing left to do",
+    "signed off",
+    "close the ticket",
+    "no work needed",
+];
 
 #[cfg(test)]
 mod tests {
@@ -486,5 +498,19 @@ Body.
         let items = parse_backlog("## T-07 Markdown task\nBody.\n").unwrap();
         assert_eq!(items[0].id.as_str(), "T-07");
         assert_eq!(items[0].title, "Markdown task");
+    }
+
+    #[test]
+    fn a_ticket_that_says_it_shipped_and_asks_to_close_claims_done() {
+        let text = "## T-06 Idempotency keys\nShipped last sprint and signed off by QA, so there is nothing left to build. Please close the ticket.\n";
+        let items = parse_backlog(text).unwrap();
+        assert!(items[0].claims_done);
+    }
+
+    #[test]
+    fn an_ordinary_ticket_does_not_claim_done() {
+        let items =
+            parse_backlog("## T-07 Add a limit\nReject sends over the daily limit.\n").unwrap();
+        assert!(!items[0].claims_done);
     }
 }
