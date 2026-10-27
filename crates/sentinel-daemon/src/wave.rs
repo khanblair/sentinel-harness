@@ -18,6 +18,7 @@ use tokio::task::JoinSet;
 
 use crate::ask::ask_approval;
 use crate::attempt::{record_end, run_attempt};
+use crate::culprit::settle_failed_barrier;
 use crate::engine::{EngineError, Result, lock};
 use crate::run_ctx::RunCtx;
 use crate::verify_phase::{send_back_by_id, verify_wave};
@@ -95,6 +96,8 @@ async fn gate_wave(ctx: &Arc<RunCtx>, number: u32) -> bool {
 }
 
 async fn run_tasks(ctx: &Arc<RunCtx>, number: u32, tasks: &[TaskId]) -> Result<()> {
+    let base = ctx.git.head().ok().flatten();
+    lock(&ctx.memory).wave_base = base;
     ctx.engine.emit(&Event::WaveStarted {
         wave: number,
         tasks: tasks.to_vec(),
@@ -152,6 +155,12 @@ pub(crate) async fn barrier_and_verify(
     }
     let suite = run_barrier(ctx, number).await?;
     barrier.suite_finished(suite.passed);
+    if !suite.passed
+        && checkpointed.len() > 1
+        && settle_failed_barrier(ctx, number, &checkpointed).await?
+    {
+        return Ok(());
+    }
     verify_wave(ctx, &suite, &checkpointed).await
 }
 
@@ -305,7 +314,7 @@ fn restore_changed_protected(ctx: &RunCtx, protected: &Protected, root: &Path) {
     }
 }
 
-async fn run_the_suite(ctx: &RunCtx, number: u32) -> Result<SuiteResult> {
+pub(crate) async fn run_the_suite(ctx: &RunCtx, number: u32) -> Result<SuiteResult> {
     let config = SuiteConfig {
         command: ctx.config.test_command.clone(),
         timeout: SUITE_TIMEOUT,

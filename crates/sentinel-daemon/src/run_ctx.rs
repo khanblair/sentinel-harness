@@ -45,6 +45,8 @@ pub(crate) struct RunMemory {
     pub refunds: HashMap<TaskId, u32>,
     /// Paths the write guard blocked in this wave. A task that fails may have needed them.
     pub strays: Vec<String>,
+    /// HEAD before the tasks of the current wave started. A failed barrier rebuilds from here.
+    pub wave_base: Option<String>,
 }
 
 impl RunMemory {
