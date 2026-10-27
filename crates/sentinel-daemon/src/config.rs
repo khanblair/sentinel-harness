@@ -30,6 +30,7 @@ const TOP_LEVEL_KEYS: &[&str] = &[
     "task_timeout_seconds",
     "decision_timeout_seconds",
     "approval_timeout_seconds",
+    "prove_new_tests",
     "telegram",
 ];
 const ROUTING_KEYS: &[&str] = &["cheap", "mid", "smart"];
@@ -68,6 +69,8 @@ pub struct Config {
     pub decision_timeout_seconds: u64,
     /// An approval card nobody answers in this time is denied.
     pub approval_timeout_seconds: u64,
+    /// A verified task's new tests must fail on the code from before the task.
+    pub prove_new_tests: bool,
     pub telegram: TelegramConfig,
 }
 
@@ -129,6 +132,7 @@ impl Default for Config {
             task_timeout_seconds: 900,
             decision_timeout_seconds: 120,
             approval_timeout_seconds: 300,
+            prove_new_tests: false,
             telegram: TelegramConfig::default(),
         }
     }
@@ -301,6 +305,7 @@ mod tests {
             task_timeout_seconds: 300,
             decision_timeout_seconds: 60,
             approval_timeout_seconds: 90,
+            prove_new_tests: true,
             telegram: TelegramConfig {
                 enabled: true,
                 detail: "Status".to_owned(),
