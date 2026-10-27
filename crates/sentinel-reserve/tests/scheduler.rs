@@ -306,6 +306,25 @@ fn unrunnable_tasks_lists_a_ready_task_whose_dependency_is_blocked() {
 }
 
 #[test]
+fn a_lenient_scheduler_tries_a_task_whose_dependency_is_blocked() {
+    let store = fresh_store();
+    seed(&store, "A", &["src/a.rs"], TaskStatus::Blocked);
+    seed_ready(&store, "B", &["src/b.rs"]);
+    depend(&store, "B", "A");
+    let scheduler = Scheduler::new(store.clone())
+        .expect("test setup")
+        .with_lenient_dependencies(true);
+
+    assert_eq!(
+        scheduler.unrunnable_tasks().expect("test setup"),
+        Vec::<TaskId>::new()
+    );
+    let ready = scheduler.ready_tasks().expect("test setup");
+    assert_eq!(ready.len(), 1);
+    assert_eq!(ready[0].id, id("B"));
+}
+
+#[test]
 fn the_store_view_equals_the_live_table_through_reservations_and_checkpoints() {
     let store = fresh_store();
     seed_ready(&store, "A", &["src/a.rs"]);

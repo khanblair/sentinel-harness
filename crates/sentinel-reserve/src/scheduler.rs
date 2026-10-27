@@ -23,6 +23,7 @@ pub struct Scheduler {
     store: Store,
     table: ReservationTable,
     retry_limit: u32,
+    lenient: bool,
 }
 
 impl Scheduler {
@@ -33,7 +34,17 @@ impl Scheduler {
             store,
             table,
             retry_limit: 3,
+            lenient: false,
         })
+    }
+
+    /// A task whose dependency ended without a checkpoint is still tried, after that dependency
+    /// has ended. The default skips it, because it cannot build on work that does not exist. A
+    /// run that is scored on what works prefers a try.
+    #[must_use]
+    pub fn with_lenient_dependencies(mut self, lenient: bool) -> Scheduler {
+        self.lenient = lenient;
+        self
     }
 
     #[must_use]
@@ -55,13 +66,16 @@ impl Scheduler {
         let ready = tasks
             .into_iter()
             .filter(is_ready)
-            .filter(|task| deps_for(&deps, &task.id).all(|dep| dependency_met(&status, dep)))
+            .filter(|task| deps_for(&deps, &task.id).all(|dep| self.dependency_ready(&status, dep)))
             .collect();
         Ok(ready)
     }
 
     /// Tasks that can never run because a dependency ended in a dead status.
     pub fn unrunnable_tasks(&self) -> Result<Vec<TaskId>> {
+        if self.lenient {
+            return Ok(Vec::new());
+        }
         let tasks = self.store.list_tasks()?;
         let status = status_by_id(&tasks);
         let deps = self.store.list_dependencies()?;
@@ -217,6 +231,13 @@ fn deps_for<'a>(deps: &'a [Dependency], task: &'a TaskId) -> impl Iterator<Item 
 }
 
 /// Both dependency kinds wait for the dependency's checkpoint.
+impl Scheduler {
+    /// A dependency is ready when it checkpointed. In lenient mode, also when it ended for good.
+    fn dependency_ready(&self, status: &BTreeMap<TaskId, TaskStatus>, dep: &Dependency) -> bool {
+        dependency_met(status, dep) || (self.lenient && dependency_ends(status, dep))
+    }
+}
+
 fn dependency_met(status: &BTreeMap<TaskId, TaskStatus>, dep: &Dependency) -> bool {
     matches!(
         status.get(&dep.depends_on),

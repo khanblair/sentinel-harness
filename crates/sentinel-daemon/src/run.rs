@@ -217,7 +217,9 @@ impl Engine {
     fn make_scheduler(&self, config: &Config) -> Result<Scheduler> {
         let scheduler = Scheduler::new(self.store().clone())
             .map_err(|e| EngineError::Invalid(e.to_string()))?;
-        Ok(scheduler.with_retry_limit(config.max_attempts.max(1)))
+        Ok(scheduler
+            .with_retry_limit(config.max_attempts.max(1))
+            .with_lenient_dependencies(config.try_after_failed_dependency))
     }
 
     fn prepare_run(

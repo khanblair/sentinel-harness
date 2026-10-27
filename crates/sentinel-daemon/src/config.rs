@@ -32,6 +32,7 @@ const TOP_LEVEL_KEYS: &[&str] = &[
     "approval_timeout_seconds",
     "park_contradictions",
     "max_attempts",
+    "try_after_failed_dependency",
     "prove_new_tests",
     "telegram",
 ];
@@ -77,6 +78,8 @@ pub struct Config {
     pub approval_timeout_seconds: u64,
     /// Tries a task gets before it ends Blocked. A failed try moves the next one to a stronger agent.
     pub max_attempts: u32,
+    /// Try a task whose dependency ended without a checkpoint, instead of skipping it.
+    pub try_after_failed_dependency: bool,
     /// Skip both tasks of a contradiction at once, with no question. `sentinel run` sets it.
     pub park_contradictions: bool,
     /// A verified task's new tests must fail on the code from before the task.
@@ -143,6 +146,7 @@ impl Default for Config {
             decision_timeout_seconds: 120,
             approval_timeout_seconds: 300,
             max_attempts: 3,
+            try_after_failed_dependency: false,
             park_contradictions: false,
             prove_new_tests: false,
             telegram: TelegramConfig::default(),
@@ -327,6 +331,7 @@ mod tests {
             decision_timeout_seconds: 60,
             approval_timeout_seconds: 90,
             max_attempts: 5,
+            try_after_failed_dependency: true,
             park_contradictions: true,
             prove_new_tests: true,
             telegram: TelegramConfig {
