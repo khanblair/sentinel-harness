@@ -65,7 +65,16 @@ pub(crate) async fn run_wave(ctx: &Arc<RunCtx>, number: u32) -> Result<WaveEnd> 
     }
     run_tasks(ctx, number, &wave.tasks).await?;
     barrier_and_verify(ctx, number, &wave.tasks).await?;
+    sync_real_index(ctx);
     Ok(WaveEnd::Ran)
+}
+
+/// Checkpoints move HEAD through the private index. Bring the user's real index along, so
+/// `git status` and a plain `git commit` see the state the run left. No agent runs here.
+pub(crate) fn sync_real_index(ctx: &RunCtx) {
+    if let Err(error) = ctx.git.sync_real_index() {
+        eprintln!("sentinel: could not bring the git index up to date: {error}");
+    }
 }
 
 /// Tasks that wait on a task that ended badly can never run: say so and skip them.

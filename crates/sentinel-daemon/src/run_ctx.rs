@@ -1,7 +1,7 @@
 //! Everything the tasks of one run share. A run owns one `RunCtx`; every wave and attempt gets an
 //! `Arc` of it.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -47,6 +47,8 @@ pub(crate) struct RunMemory {
     pub strays: Vec<String>,
     /// HEAD before the tasks of the current wave started. A failed barrier rebuilds from here.
     pub wave_base: Option<String>,
+    /// Test files of earlier tasks that a task may update, because its change broke them.
+    pub older_tests: HashMap<TaskId, BTreeSet<String>>,
 }
 
 impl RunMemory {

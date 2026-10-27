@@ -162,7 +162,7 @@ fn task_row(task: &TaskReport) -> String {
 fn receipt_cell(receipt: Option<&Receipt>) -> String {
     match receipt {
         Some(r) => format!(
-            "{} ({})",
+            "{} (reviewed by {})",
             r.commit.chars().take(8).collect::<String>(),
             r.reviewer
         ),
@@ -338,7 +338,7 @@ mod tests {
     fn render_markdown_receipt_format() {
         let report = sample_report();
         let md = render_markdown(&report);
-        assert!(md.contains("abc12345 (opencode)"));
+        assert!(md.contains("abc12345 (reviewed by opencode)"));
     }
 
     #[test]

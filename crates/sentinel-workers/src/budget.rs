@@ -39,7 +39,10 @@ pub enum BudgetEvent {
 
 struct State {
     cap: Cost,
+    /// Spend that a tool reported, or that was carried over from before a restart.
     spent: Cost,
+    /// Time guesses for runs that have not reported a cost yet. A reported cost replaces them.
+    guessed: Cost,
     per_task: HashMap<TaskId, Cost>,
     ceilings: HashMap<TaskId, Cost>,
     fired_70: bool,
@@ -60,6 +63,7 @@ impl Budget {
         let state = State {
             cap,
             spent: Cost::ZERO,
+            guessed: Cost::ZERO,
             per_task: HashMap::new(),
             ceilings: HashMap::new(),
             fired_70: false,
@@ -87,8 +91,9 @@ impl Budget {
         self.lock().cap
     }
 
+    /// Everything counted so far, reported or guessed.
     pub fn spent(&self) -> Cost {
-        self.lock().spent
+        total(&self.lock())
     }
 
     pub fn task_spent(&self, task: &TaskId) -> Cost {
@@ -119,7 +124,7 @@ impl Budget {
     /// False once 70 percent is spent.
     pub fn can_start_task(&self) -> bool {
         let state = self.lock();
-        state.spent.percent_of(state.cap) < NO_NEW_TASKS_PERCENT
+        total(&state).percent_of(state.cap) < NO_NEW_TASKS_PERCENT
     }
 
     /// Count spend from before a restart, so the cap holds across a crash. No task owns it.
@@ -138,7 +143,8 @@ impl Budget {
         let mut state = self.lock();
         let task_total = state.per_task.get(task).copied().unwrap_or(Cost::ZERO) + cost;
         state.per_task.insert(task.clone(), task_total);
-        let mut events = self.add_spend(&mut state, cost);
+        state.spent = state.spent + cost;
+        let mut events = self.thresholds(&mut state);
         if let Some(ceiling) = state
             .ceilings
             .get(task)
@@ -159,15 +165,27 @@ impl Budget {
     /// cannot end a run by itself. The cap still sees it.
     pub fn record_guess(&self, cost: Cost) -> Vec<BudgetEvent> {
         let mut state = self.lock();
-        let events = self.add_spend(&mut state, cost);
+        state.guessed = state.guessed + cost;
+        let events = self.thresholds(&mut state);
         state.pending.extend(events.iter().cloned());
         events
     }
 
-    /// Count spend toward the cap. Fires the 70 and 95 percent thresholds once each.
-    fn add_spend(&self, state: &mut State, cost: Cost) -> Vec<BudgetEvent> {
-        state.spent = state.spent + cost;
-        let percent = state.spent.percent_of(state.cap);
+    /// Take back time guesses once the tool has reported its real cost, so the total shows what
+    /// was spent and no longer says it is an estimate.
+    pub fn refund_guess(&self, cost: Cost) {
+        let mut state = self.lock();
+        let left = state.guessed.saturating_sub(cost);
+        state.guessed = if left.micro_usd() == 0 {
+            Cost::ZERO
+        } else {
+            left
+        };
+    }
+
+    /// Fire the 70 and 95 percent thresholds once each.
+    fn thresholds(&self, state: &mut State) -> Vec<BudgetEvent> {
+        let percent = total(state).percent_of(state.cap);
         let mut events = Vec::new();
         if percent >= NO_NEW_TASKS_PERCENT && !state.fired_70 {
             state.fired_70 = true;
@@ -186,6 +204,10 @@ impl Budget {
     pub fn drain_events(&self) -> Vec<BudgetEvent> {
         std::mem::take(&mut self.lock().pending)
     }
+}
+
+fn total(state: &State) -> Cost {
+    state.spent + state.guessed
 }
 
 /// Typical spend for one task of this tier. The per-task ceiling is twice this.

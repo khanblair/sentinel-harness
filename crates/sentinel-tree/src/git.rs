@@ -98,6 +98,32 @@ impl Git {
         Ok(())
     }
 
+    /// Put the user's real index back in step with HEAD. Checkpoints move HEAD through the private
+    /// index, so without this `git status` shows every checkpointed file as staged the other way
+    /// and a plain `git commit` would commit the old state. The work tree is not touched. Call it
+    /// only while no agent runs, because it takes the real index lock.
+    pub fn sync_real_index(&self) -> Result<()> {
+        if self.head()?.is_none() {
+            return Ok(());
+        }
+        let output = Command::new("git")
+            .current_dir(&self.root)
+            .env("GIT_TERMINAL_PROMPT", "0")
+            .env("LC_ALL", "C")
+            .env_remove("GIT_INDEX_FILE")
+            .args(["reset", "--quiet"])
+            .stdin(Stdio::null())
+            .output()
+            .map_err(TreeError::Io)?;
+        if output.status.success() {
+            return Ok(());
+        }
+        Err(TreeError::Git {
+            args: "reset --quiet".to_owned(),
+            stderr: String::from_utf8_lossy(&output.stderr).trim().to_owned(),
+        })
+    }
+
     /// Paths whose work tree form differs from the private index, plus untracked files.
     pub fn changed_paths(&self) -> Result<Vec<String>> {
         let raw = self.run_bytes(&["status", "--porcelain=v1", "-z", "--untracked-files=all"])?;

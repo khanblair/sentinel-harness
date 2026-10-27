@@ -109,7 +109,7 @@ fn is_source_folder(name: &str) -> bool {
 /// A repository with this file locks its test folders: a new file there counts as tampering.
 const LOCK_FILE: &str = "tests.lock.json";
 /// Where the new tests of a task go when the repository locks its own test folders.
-const OWN_TEST_FOLDER: &str = "sentinel-tests";
+pub const OWN_TEST_FOLDER: &str = "sentinel-tests";
 
 fn is_locked(repo_files: &[String]) -> bool {
     repo_files.iter().any(|file| file == LOCK_FILE)

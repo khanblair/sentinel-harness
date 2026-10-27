@@ -16,6 +16,7 @@ pub(crate) async fn finish(ctx: &Arc<RunCtx>) {
         eprintln!("sentinel: could not close out the run: {error}");
     }
     let _ = lock(&ctx.scheduler).recover_after_crash(engine.now());
+    crate::wave::sync_real_index(ctx);
     if let Err(error) = engine.write_report_file().await {
         engine.emit_quiet(&Event::Message {
             from: "sentinel".to_owned(),

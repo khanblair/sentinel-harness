@@ -401,6 +401,7 @@ crates/sentinel-daemon/
   src/keys.rs                          Keys for the model providers: the provider table, the rows the UI shows, the live check of a
   src/lib.rs                           exports
   src/live.rs                          What the engine keeps while a run is live: control channels, the budget, and the questions the
+  src/older_tests.rs                   A later task can change behaviour that an earlier task's own tests check. Those tests are files
   src/onboarding.rs                    onboarding state and steps
   src/openrouter_tool.rs               The `OpenRouter` worker offered as a tool: its entry in the tool list and the worker built for
   src/pairing.rs                       QR payload and one-time code

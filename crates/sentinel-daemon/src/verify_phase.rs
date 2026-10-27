@@ -1,6 +1,7 @@
 //! After the barrier: check each checkpointed task of the wave and give it a status. Only
 //! `sentinel_verify::verdict::decide` can say Verified, from evidence, never from agent text.
 
+use std::path::Path;
 use std::sync::Arc;
 
 use sentinel_core::{Event, TaskId, TaskStatus};
@@ -14,6 +15,7 @@ use sentinel_workers::context::{FailureInput, failure_summary};
 
 use crate::attempt::record_end;
 use crate::engine::{EngineError, Result, lock};
+use crate::older_tests::{allow_older_tests, without_allowed};
 use crate::proof::{ProofTarget, prove_verdict};
 use crate::run_ctx::RunCtx;
 
@@ -56,6 +58,8 @@ struct Failure<'a> {
     reason: &'a str,
     failing_tests: &'a [String],
     tail: &'a str,
+    /// The log of a suite that failed. It may name tests of earlier tasks.
+    suite_log: Option<&'a Path>,
 }
 
 fn invalid(error: impl std::fmt::Display) -> EngineError {
@@ -71,13 +75,14 @@ fn set_status(ctx: &RunCtx, id: &TaskId, status: TaskStatus) -> Result<()> {
     Ok(())
 }
 
-fn read_evidence(ctx: &RunCtx, checkpoint: &Checkpoint) -> Result<Evidence> {
+fn read_evidence(ctx: &RunCtx, id: &TaskId, checkpoint: &Checkpoint) -> Result<Evidence> {
     let diff = ctx
         .git
         .run(&["show", "--format=", "--no-color", &checkpoint.commit])
         .map_err(invalid)?;
     let parent = format!("{}^", checkpoint.commit);
     let edited = edited_tests(&ctx.git, &parent, &checkpoint.commit).map_err(invalid)?;
+    let edited = without_allowed(ctx, id, edited);
     Ok(Evidence {
         diff,
         tamper_clear: edited.is_empty(),
@@ -89,7 +94,7 @@ async fn verify_one(ctx: &Arc<RunCtx>, suite: &SuiteResult, id: &TaskId) -> Resu
         return Ok(());
     };
     set_status(ctx, id, TaskStatus::Verifying)?;
-    let evidence = read_evidence(ctx, &checkpoint)?;
+    let evidence = read_evidence(ctx, id, &checkpoint)?;
     let review = review_diff(ctx, id, &evidence.diff).await?;
     let checks = Checks {
         tests_pass: suite.passed,
@@ -145,6 +150,7 @@ fn apply_verdict(ctx: &RunCtx, id: &TaskId, judgement: &Judgement) -> Result<()>
             reason: &verdict.reason,
             failing_tests: &suite.failing_tests,
             tail: &tail,
+            suite_log: (!suite.passed).then_some(suite.log_ref.as_path()),
         };
         return send_back(ctx, id, checkpoint, &failure);
     }
@@ -209,6 +215,7 @@ pub(crate) fn send_back_by_id(ctx: &RunCtx, id: &TaskId, reason: &str) -> Result
         reason,
         failing_tests: &[],
         tail: "",
+        suite_log: None,
     };
     send_back(ctx, id, &checkpoint, &failure)
 }
@@ -220,15 +227,7 @@ fn send_back(ctx: &RunCtx, id: &TaskId, checkpoint: &Checkpoint, failure: &Failu
     ctx.revert_quietly(checkpoint, &format!("revert {id}: {reason}"))
         .map_err(invalid)?;
     ctx.engine.store().set_task_status(id, TaskStatus::Failed)?;
-    let summary = failure_summary(
-        &FailureInput {
-            failing_tests: failure.failing_tests,
-            error_blocks: &[reason.to_owned()],
-            output: failure.tail,
-        },
-        &ctx.limits,
-    );
-    lock(&ctx.memory).failures.insert(id.clone(), summary);
+    remember_failure(ctx, id, failure);
     let task = ctx
         .engine
         .store()
@@ -252,6 +251,26 @@ fn send_back(ctx: &RunCtx, id: &TaskId, checkpoint: &Checkpoint, failure: &Failu
         ),
     })?;
     Ok(())
+}
+
+/// Keep what the suite said for the next try. A suite that failed on tests of earlier tasks also
+/// opens those tests to the task.
+fn remember_failure(ctx: &RunCtx, id: &TaskId, failure: &Failure) {
+    let mut blocks = vec![failure.reason.to_owned()];
+    blocks.extend(
+        failure
+            .suite_log
+            .and_then(|log| allow_older_tests(ctx, id, log)),
+    );
+    let summary = failure_summary(
+        &FailureInput {
+            failing_tests: failure.failing_tests,
+            error_blocks: &blocks,
+            output: failure.tail,
+        },
+        &ctx.limits,
+    );
+    lock(&ctx.memory).failures.insert(id.clone(), summary);
 }
 
 fn raise_tier(ctx: &RunCtx, id: &TaskId, base: sentinel_core::Tier) {

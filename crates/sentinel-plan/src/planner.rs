@@ -7,8 +7,8 @@ use std::pin::Pin;
 pub use crate::plan_json::{holds_plan_json, parse_plan_json};
 pub use crate::plan_prompt::{planner_prompt, planner_prompt_for};
 pub use crate::scopes::{
-    common_source_folder, ensure_test_files, fill_empty_scopes, new_test_path, order_shared_scopes,
-    scope_from_text,
+    OWN_TEST_FOLDER, common_source_folder, ensure_test_files, fill_empty_scopes, new_test_path,
+    order_shared_scopes, scope_from_text,
 };
 use crate::{PlanError, Result, backlog::BacklogItem};
 use futures::FutureExt;

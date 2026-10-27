@@ -259,7 +259,17 @@ impl Spend {
         let total = self.reported_amount(line)?;
         let delta = total.saturating_sub(self.recorded);
         self.source = SpendSource::Reported;
-        self.charge(delta)
+        let stop = self.charge(delta);
+        self.drop_guess();
+        stop
+    }
+
+    /// The tool reported its real cost, so the time guess for this run is taken back.
+    fn drop_guess(&mut self) {
+        if self.guessed.micro_usd() > 0 {
+            self.budget.refund_guess(self.guessed);
+            self.guessed = Cost::ZERO;
+        }
     }
 
     fn reported_amount(&self, line: &str) -> Option<Cost> {
@@ -710,7 +720,33 @@ mod tests {
             spend.tick();
         }
         assert!(spend.observe("Total cost: $0.01").is_none());
-        assert!(spend.spent() > usd("0.05"));
+        assert_eq!(spend.spent(), usd("0.01"));
+    }
+
+    #[test]
+    fn a_real_cost_replaces_the_time_guess_in_the_total() {
+        let (ctrl, _received) = control("10.00");
+        let mut spend = spend_on(&ctrl, &cost_source(Some("Total cost: $")));
+        for _ in 0..400 {
+            spend.tick();
+        }
+        assert!(ctrl.budget.spent().is_estimated());
+
+        assert!(spend.observe("Total cost: $0.01").is_none());
+
+        assert_eq!(ctrl.budget.spent(), usd("0.01"));
+    }
+
+    #[test]
+    fn a_guess_stays_in_the_total_when_no_cost_is_ever_reported() {
+        let (ctrl, _received) = control("10.00");
+        let mut spend = spend_on(&ctrl, &cost_source(Some("Total cost: $")));
+        for _ in 0..400 {
+            spend.tick();
+        }
+        assert!(spend.observe("no cost here").is_none());
+        assert!(ctrl.budget.spent() > usd("0.05"));
+        assert!(ctrl.budget.spent().is_estimated());
     }
 
     #[test]

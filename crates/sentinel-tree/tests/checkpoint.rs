@@ -344,6 +344,43 @@ fn edited_tests_flags_a_deleted_test_file() {
 }
 
 #[test]
+fn sync_real_index_makes_git_status_clean_after_checkpoints() {
+    let repo = repo_with_commit().unwrap();
+    write_file(repo.root(), "src/lib.rs", "two\n").unwrap();
+    write_file(repo.root(), "sentinel-tests/t01.test.js", "test\n").unwrap();
+    let paths = vec![
+        "src/lib.rs".to_owned(),
+        "sentinel-tests/t01.test.js".to_owned(),
+    ];
+    checkpoint(&repo.git, &paths, "T01: two files")
+        .unwrap()
+        .unwrap();
+    let stale = git_cmd(repo.root(), &["status", "--porcelain"]).unwrap();
+    assert_ne!(stale, "", "the real index is stale after a checkpoint");
+
+    repo.git.sync_real_index().unwrap();
+
+    // Only the private index folder is left, which a real repository ignores.
+    assert_eq!(
+        git_cmd(repo.root(), &["status", "--porcelain"]).unwrap(),
+        "?? .sentinel/"
+    );
+    assert_eq!(
+        fs::read_to_string(repo.root().join("src/lib.rs")).unwrap(),
+        "two\n"
+    );
+}
+
+#[test]
+fn sync_real_index_does_nothing_in_a_repo_without_commits() {
+    let repo = repo_without_commit().unwrap();
+
+    repo.git.sync_real_index().unwrap();
+
+    assert_eq!(repo.git.head().unwrap(), None);
+}
+
+#[test]
 fn checkpoint_moves_head_and_keeps_the_private_index_aligned() {
     let repo = repo_with_commit().unwrap();
     write_file(repo.root(), "src/lib.rs", "two\n").unwrap();

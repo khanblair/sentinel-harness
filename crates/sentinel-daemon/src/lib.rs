@@ -51,6 +51,7 @@ mod hub_inherit;
 mod intent;
 mod keys;
 pub mod live;
+mod older_tests;
 pub mod onboarding;
 mod openrouter_tool;
 pub mod pairing;
