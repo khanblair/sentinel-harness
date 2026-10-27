@@ -144,7 +144,7 @@ fn assert_finished_honestly(repo: &Path) {
         ("T-01", "Verified"),
         ("T-02", "Verified"),
         ("T-04", "Verified"),
-        ("T-06", "Skipped"),
+        ("T-06", "Blocked"),
         ("T-09", "Blocked"),
     ] {
         assert!(
