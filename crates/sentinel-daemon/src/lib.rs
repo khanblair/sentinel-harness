@@ -76,6 +76,7 @@ mod telegram_notify;
 mod telegram_poll;
 mod telegram_router;
 mod telegram_store;
+pub mod test_command;
 mod verify_phase;
 mod wave;
 pub mod ws;

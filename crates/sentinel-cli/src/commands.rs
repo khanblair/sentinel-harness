@@ -5,14 +5,16 @@ use std::process::ExitCode;
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use sentinel_core::api::{CheckRow, CheckStatus, RunRequest};
 use sentinel_core::{Event, HarnessState, TaskStatus};
 use sentinel_daemon::cmd::SystemRunner;
+use sentinel_daemon::config::Config;
 use sentinel_daemon::doctor::{current_os, install_check};
 use sentinel_daemon::engine::{Engine, EngineOptions};
 use sentinel_daemon::secrets::{EnvFallback, KeychainStore};
 use sentinel_daemon::starter;
+use sentinel_daemon::test_command::{detect, split_command};
 
 use crate::doctor_host::host_check_rows;
 use crate::writeup;
@@ -48,12 +50,16 @@ pub(crate) async fn run(
     backlog: &str,
     repo: Option<PathBuf>,
     cap: Option<String>,
+    test_cmd: Option<String>,
 ) -> Result<ExitCode> {
     let repo = repo_or_current(repo)?;
     let engine = open_engine(&repo)?;
     if let Some(cap) = cap {
         engine.update_config(|c| c.cap_usd = cap)?;
     }
+    let command = choose_test_command(&engine, &repo, test_cmd.as_deref())?;
+    println!("test command: {}", command.join(" "));
+    engine.update_config(|c| c.test_command = command)?;
     engine.scan_tools().await?;
     let mut events = engine.subscribe();
     engine
@@ -75,6 +81,32 @@ pub(crate) async fn run(
         print_event(&record.event);
     }
     print_summary(&engine, &repo)
+}
+
+/// The test command for this run. An empty `--test-cmd` is a mistake, so it stops the run.
+fn choose_test_command(engine: &Engine, repo: &Path, flag: Option<&str>) -> Result<Vec<String>> {
+    if flag.is_some_and(|text| split_command(text).is_empty()) {
+        bail!("--test-cmd needs a command");
+    }
+    let saved = engine.config().test_command;
+    Ok(pick_command(flag, &saved, detect(repo)))
+}
+
+/// The order of choice: the flag, then the saved setting when it is not the default, then
+/// what the project says it runs, then the default.
+fn pick_command(
+    flag: Option<&str>,
+    saved: &[String],
+    detected: Option<Vec<String>>,
+) -> Vec<String> {
+    if let Some(words) = flag.map(split_command).filter(|words| !words.is_empty()) {
+        return words;
+    }
+    let default = Config::default().test_command;
+    if !saved.is_empty() && saved != default.as_slice() {
+        return saved.to_vec();
+    }
+    detected.unwrap_or(default)
 }
 
 #[expect(
@@ -218,5 +250,59 @@ fn read_log(path: &Path) -> Result<String> {
         Ok(text) => Ok(text),
         Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(String::new()),
         Err(error) => Err(error).with_context(|| format!("could not read {}", path.display())),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn words(parts: &[&str]) -> Vec<String> {
+        parts.iter().map(ToString::to_string).collect()
+    }
+
+    fn default_command() -> Vec<String> {
+        words(&["cargo", "test"])
+    }
+
+    #[test]
+    fn the_flag_beats_a_saved_setting_and_detection() {
+        let picked = pick_command(
+            Some("npm test"),
+            &words(&["make", "check"]),
+            Some(words(&["go", "test", "./..."])),
+        );
+        assert_eq!(picked, words(&["npm", "test"]));
+    }
+
+    #[test]
+    fn a_saved_setting_beats_detection_when_it_is_not_the_default() {
+        let picked = pick_command(
+            None,
+            &words(&["make", "check"]),
+            Some(words(&["go", "test", "./..."])),
+        );
+        assert_eq!(picked, words(&["make", "check"]));
+    }
+
+    #[test]
+    fn detection_beats_the_saved_default() {
+        let picked = pick_command(
+            None,
+            &default_command(),
+            Some(words(&["go", "test", "./..."])),
+        );
+        assert_eq!(picked, words(&["go", "test", "./..."]));
+    }
+
+    #[test]
+    fn the_default_is_used_when_nothing_else_applies() {
+        assert_eq!(pick_command(None, &default_command(), None), default_command());
+    }
+
+    #[test]
+    fn a_blank_flag_falls_through_to_the_saved_setting() {
+        let picked = pick_command(Some("   "), &words(&["make", "check"]), None);
+        assert_eq!(picked, words(&["make", "check"]));
     }
 }

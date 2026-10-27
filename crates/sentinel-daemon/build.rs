@@ -1,19 +1,26 @@
-//! The daemon embeds the built UI from `crates/sentinel-ui/dist/`. On a fresh clone that folder
-//! does not exist yet, so this script puts a one-page placeholder there and the crate still
-//! compiles. `trunk build` replaces it with the real UI.
+//! The daemon embeds the built UI from `crates/sentinel-ui/dist/`. A fresh clone has no such
+//! folder, so this script writes a placeholder page there and the crate still compiles.
+//! `trunk build` replaces the placeholder with the real UI.
 
 use std::fs;
+use std::io;
 use std::path::Path;
 
-const PLACEHOLDER: &str = "<!doctype html>\n<html lang=\"en\">\n<head><meta charset=\"utf-8\"><title>Sentinel</title></head>\n<body><p>The UI has not been built. Run <code>trunk build --release</code> in crates/sentinel-ui, then rebuild the daemon.</p></body>\n</html>\n";
+const DIST: &str = "../sentinel-ui/dist";
+const PLACEHOLDER: &str = "<!doctype html>\n<html lang=\"en\">\n<head><meta charset=\"utf-8\"><title>Sentinel</title></head>\n<body><p>The Sentinel UI is not built in this copy. Build it with <code>cd crates/sentinel-ui &amp;&amp; trunk build</code>, then build the daemon again. <code>sentinel run</code> works without the UI.</p></body>\n</html>\n";
 
 fn main() {
-    let dist = Path::new("../sentinel-ui/dist");
-    let index = dist.join("index.html");
-    if !index.exists() {
-        // A failure here only means the embed has nothing to serve. The compiler says so next.
-        let _ = fs::create_dir_all(dist);
-        let _ = fs::write(&index, PLACEHOLDER);
+    println!("cargo:rerun-if-changed={DIST}");
+    // A failed placeholder only leaves the embed empty. It must not fail the build.
+    if let Err(error) = write_placeholder(Path::new(DIST)) {
+        eprintln!("could not write the UI placeholder: {error}");
     }
-    println!("cargo:rerun-if-changed=../sentinel-ui/dist/index.html");
+}
+
+fn write_placeholder(dist: &Path) -> io::Result<()> {
+    if dist.exists() {
+        return Ok(());
+    }
+    fs::create_dir_all(dist)?;
+    fs::write(dist.join("index.html"), PLACEHOLDER)
 }
