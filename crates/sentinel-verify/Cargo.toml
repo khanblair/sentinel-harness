@@ -8,6 +8,9 @@ publish = false
 
 [dependencies]
 sentinel-core = { path = "../sentinel-core" }
+hex = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
 thiserror = { workspace = true }
 time = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "process", "sync", "time", "fs", "signal", "io-util", "io-std"] }

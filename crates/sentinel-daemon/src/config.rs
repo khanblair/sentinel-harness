@@ -23,6 +23,7 @@ const TOP_LEVEL_KEYS: &[&str] = &[
     "free_models",
     "openrouter_base_url",
     "test_command",
+    "protected_paths",
     "hackathon_mode",
     "dev_loopback",
     "max_parallel",
@@ -57,6 +58,8 @@ pub struct Config {
     /// The API root of `OpenRouter`. Tests point it at a local mock server.
     pub openrouter_base_url: String,
     pub test_command: Vec<String>,
+    /// Repo paths, or folders ending in `/`, that no agent may change. Added to `tests.lock.json`.
+    pub protected_paths: Vec<String>,
     pub hackathon_mode: bool,
     pub dev_loopback: bool,
     pub max_parallel: u32,
@@ -119,6 +122,7 @@ impl Default for Config {
             free_models: Vec::new(),
             openrouter_base_url: OPENROUTER_API_URL.to_owned(),
             test_command: vec!["cargo".to_owned(), "test".to_owned()],
+            protected_paths: Vec::new(),
             hackathon_mode: false,
             dev_loopback: false,
             max_parallel: 3,
@@ -290,6 +294,7 @@ mod tests {
             free_models: vec!["ornith/ornith".to_owned()],
             openrouter_base_url: "http://127.0.0.1:9/api/v1".to_owned(),
             test_command: vec!["cargo".to_owned(), "nextest".to_owned()],
+            protected_paths: vec!["scripts/".to_owned(), "backlog/backlog.json".to_owned()],
             hackathon_mode: true,
             dev_loopback: true,
             max_parallel: 2,

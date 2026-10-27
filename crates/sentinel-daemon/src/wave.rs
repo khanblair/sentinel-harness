@@ -1,14 +1,19 @@
 //! One wave: reserve files, run the tasks together, wait at the barrier, run the full suite on a
 //! clean tree, and verify.
 
+use std::path::Path;
 use std::sync::Arc;
 use std::time::Duration;
 
 use sentinel_core::{Event, TaskId, TaskStatus};
 use sentinel_gate::policy::{WaveGate, wave_gate};
 use sentinel_reserve::{Barrier, BarrierDecision};
-use sentinel_tree::restore_path;
+use sentinel_store::VerificationRecord;
+use sentinel_tree::{Checkpoint, restore_path, revert_checkpoint};
+use sentinel_verify::Protected;
 use sentinel_verify::gate::{SuiteConfig, SuiteResult, run_suite};
+use sentinel_verify::protect::tamper_verdict;
+use sentinel_verify::verdict::Verdict;
 use tokio::task::JoinSet;
 
 use crate::ask::ask_approval;
@@ -117,6 +122,7 @@ pub(crate) async fn barrier_and_verify(
     tasks: &[TaskId],
 ) -> Result<()> {
     let checkpointed = checkpointed(ctx, tasks)?;
+    let checkpointed = guard_protected(ctx, &checkpointed)?;
     let mut barrier = Barrier::new(number, tasks.len());
     for _ in tasks {
         barrier.task_finished();
@@ -193,6 +199,82 @@ fn restore_strays(ctx: &RunCtx) {
                 restored: true,
             });
         }
+    }
+}
+
+/// Protected files must not change. A checkpoint that touched one is reverted and blocked. A
+/// protected file that still differs from its lock hash goes back to git. Returns the tasks that
+/// may still be verified.
+fn guard_protected(ctx: &RunCtx, checkpointed: &[TaskId]) -> Result<Vec<TaskId>> {
+    let root = ctx.engine.repo_path();
+    let protected = Protected::load(&root, &ctx.config.protected_paths);
+    let mut kept = Vec::new();
+    for id in checkpointed {
+        let Some(checkpoint) = lock(&ctx.memory).checkpoints.get(id).cloned() else {
+            kept.push(id.clone());
+            continue;
+        };
+        let diff = ctx
+            .git
+            .run(&["show", "--format=", "--no-color", "--no-renames", &checkpoint.commit])
+            .map_err(|e| EngineError::Invalid(e.to_string()))?;
+        match tamper_verdict(&protected.touched_by_diff(&diff)) {
+            Some(verdict) => block_tampered(ctx, id, &checkpoint, &verdict)?,
+            None => kept.push(id.clone()),
+        }
+    }
+    restore_changed_protected(ctx, &protected, &root);
+    Ok(kept)
+}
+
+/// The checkpoint touched a protected file: undo it and block the task for good. A retry would
+/// only repeat the tamper.
+fn block_tampered(
+    ctx: &RunCtx,
+    id: &TaskId,
+    checkpoint: &Checkpoint,
+    verdict: &Verdict,
+) -> Result<()> {
+    revert_checkpoint(&ctx.git, checkpoint, &format!("revert {id}: {}", verdict.reason))
+        .map_err(|e| EngineError::Invalid(e.to_string()))?;
+    let record = VerificationRecord {
+        task: id.clone(),
+        tests_pass: false,
+        new_test: false,
+        reviewer_ok: false,
+        tamper_clear: false,
+        verdict: verdict.status,
+        reason: verdict.reason.clone(),
+        receipt_json: "null".to_owned(),
+    };
+    ctx.engine.store().upsert_verification(&record)?;
+    ctx.engine.store().set_task_status(id, verdict.status)?;
+    ctx.engine.emit(&Event::TaskStatus {
+        task: id.clone(),
+        status: verdict.status,
+    })?;
+    ctx.engine.emit(&Event::Verdict {
+        task: id.clone(),
+        status: verdict.status,
+        reason: verdict.reason.clone(),
+    })?;
+    Ok(())
+}
+
+/// Restore each protected file that differs from its lock hash, and say whether it worked.
+fn restore_changed_protected(ctx: &RunCtx, protected: &Protected, root: &Path) {
+    let changed = protected.changed(root);
+    for path in &changed {
+        let _ = restore_path(&ctx.git, path, "HEAD");
+    }
+    let still = protected.changed(root);
+    for path in changed {
+        let restored = !still.contains(&path);
+        ctx.engine.emit_quiet(&Event::WriteBlocked {
+            task: None,
+            path,
+            restored,
+        });
     }
 }
 
