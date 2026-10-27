@@ -119,6 +119,7 @@ mod tests {
             tier: Tier::Cheap,
             already_done: false,
             contradicts: contradicts.into_iter().map(TaskId::new).collect(),
+            note: String::new(),
         }
     }
 

@@ -287,15 +287,15 @@ fn text_of(item: &BacklogItem) -> String {
 /// Repo files whose path parts match the words of `text`. A word matches a part with or without a
 /// plural `s` or `es`. Files with more matching words come first, and at most four are kept.
 pub fn scope_from_text(text: &str, repo_files: &[String]) -> Vec<String> {
-    let words: Vec<BTreeSet<String>> = words_of(text)
-        .iter()
-        .map(|word| word_forms(word))
-        .collect();
+    let words: Vec<BTreeSet<String>> = words_of(text).iter().map(|word| word_forms(word)).collect();
     let mut ranked: Vec<(usize, &String)> = repo_files
         .iter()
         .filter_map(|file| {
             let parts = path_forms(file);
-            let score = words.iter().filter(|forms| !forms.is_disjoint(&parts)).count();
+            let score = words
+                .iter()
+                .filter(|forms| !forms.is_disjoint(&parts))
+                .count();
             (score > 0).then_some((score, file))
         })
         .collect();
@@ -341,7 +341,8 @@ fn path_forms(file: &str) -> BTreeSet<String> {
 
 /// Test files are never a task's scope: editing an existing test fails the task.
 fn is_test_path(file: &str) -> bool {
-    file.split('/').any(|part| part == "test" || part == "tests")
+    file.split('/')
+        .any(|part| part == "test" || part == "tests")
 }
 
 /// The top-level folder with the most repository files. Tests, docs, scripts, and hidden folders
@@ -457,7 +458,12 @@ fn reaches(plan: &Plan, from: &TaskId, to: &TaskId) -> bool {
             continue;
         }
         if let Some(task) = plan.tasks.iter().find(|task| task.id == current) {
-            stack.extend(task.depends_on.iter().chain(&task.read_after_write).cloned());
+            stack.extend(
+                task.depends_on
+                    .iter()
+                    .chain(&task.read_after_write)
+                    .cloned(),
+            );
         }
     }
     false
@@ -844,7 +850,10 @@ This task also adds a rate limit but differently. It has a longer body that shou
     #[test]
     fn scope_is_empty_when_no_path_part_matches_a_word() {
         let repo = files(&["src/ledger/transfers.js"]);
-        assert!(scope_from_text("Refactor the logger", &repo).is_empty());
+        assert_eq!(
+            scope_from_text("Refactor the logger", &repo),
+            Vec::<String>::new()
+        );
     }
 
     #[test]
@@ -873,10 +882,14 @@ This task also adds a rate limit but differently. It has a longer body that shou
             vec![make_item("T-01", "Fix fees", "Schedule fees.", false)],
             files(&["src/fees/schedule.js", "src/app.js"]),
         );
-        let (plan, folder_only) =
-            fill_empty_scopes(&request, Plan { tasks: vec![planned_task("T-01", &[])] });
+        let (plan, folder_only) = fill_empty_scopes(
+            &request,
+            Plan {
+                tasks: vec![planned_task("T-01", &[])],
+            },
+        );
         assert_eq!(plan.tasks[0].scope, vec!["src/fees/schedule.js"]);
-        assert!(folder_only.is_empty());
+        assert_eq!(folder_only, Vec::new());
     }
 
     #[test]
@@ -885,8 +898,12 @@ This task also adds a rate limit but differently. It has a longer body that shou
             vec![make_item("T-05", "Polish copy", "Words only.", false)],
             files(&["src/a.rs", "src/b.rs", "tests/c.rs", "docs/d.md"]),
         );
-        let (plan, folder_only) =
-            fill_empty_scopes(&request, Plan { tasks: vec![planned_task("T-05", &[])] });
+        let (plan, folder_only) = fill_empty_scopes(
+            &request,
+            Plan {
+                tasks: vec![planned_task("T-05", &[])],
+            },
+        );
         assert_eq!(plan.tasks[0].scope, vec!["src/"]);
         assert_eq!(folder_only, vec![(TaskId::new("T-05"), "src/".to_owned())]);
     }
@@ -897,8 +914,12 @@ This task also adds a rate limit but differently. It has a longer body that shou
             vec![make_item("T-01", "Fix transfers", "", false)],
             files(&["tests/transfers.rs", "src/ledger/transfers.js"]),
         );
-        let (plan, _) =
-            fill_empty_scopes(&request, Plan { tasks: vec![planned_task("T-01", &[])] });
+        let (plan, _) = fill_empty_scopes(
+            &request,
+            Plan {
+                tasks: vec![planned_task("T-01", &[])],
+            },
+        );
         assert_eq!(plan.tasks[0].scope, vec!["src/ledger/transfers.js"]);
     }
 
@@ -928,7 +949,7 @@ This task also adds a rate limit but differently. It has a longer body that shou
         };
         let ordered = order_shared_scopes(plan);
         assert_eq!(ordered.tasks[1].depends_on, vec![TaskId::new("T-01")]);
-        assert!(ordered.tasks[0].depends_on.is_empty());
+        assert_eq!(ordered.tasks[0].depends_on, Vec::<TaskId>::new());
     }
 
     #[test]
@@ -954,7 +975,7 @@ This task also adds a rate limit but differently. It has a longer body that shou
             ],
         };
         let ordered = order_shared_scopes(plan);
-        assert!(ordered.tasks[1].depends_on.is_empty());
+        assert_eq!(ordered.tasks[1].depends_on, Vec::<TaskId>::new());
     }
 
     #[test]

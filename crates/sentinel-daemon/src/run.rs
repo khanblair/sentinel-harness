@@ -1,6 +1,7 @@
 //! Starting, steering, and finishing a run. The work itself lives in `plan_phase`, `wave`,
 //! `attempt`, and `verify_phase`.
 
+use std::collections::HashSet;
 use std::sync::{Arc, Mutex};
 
 use sentinel_core::api::RunRequest;
@@ -86,6 +87,7 @@ impl Engine {
         let (guard_tx, guard_rx) = mpsc::unbounded_channel();
         let policy = Arc::new(RunPolicy {
             scheduler: ctx.scheduler.clone(),
+            reverting: ctx.reverting.clone(),
         });
         let guard = start_guard(ctx.git.clone(), policy, guard_tx, GuardOptions::default())
             .map_err(|e| EngineError::Invalid(e.to_string()))?;
@@ -243,6 +245,7 @@ impl Engine {
             forced: self.chat_agent(&source.chat)?,
             source,
             checkpoint_lock: Mutex::new(()),
+            reverting: Arc::new(Mutex::new(HashSet::new())),
             resuming: resume.is_some(),
         });
         self.register_live(run_info, &budget, (pause_tx, stop_tx.clone()));

@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use sentinel_core::{Event, TaskId, TaskStatus};
 use sentinel_store::VerificationRecord;
-use sentinel_tree::{Checkpoint, edited_tests, revert_checkpoint};
+use sentinel_tree::{Checkpoint, edited_tests};
 use sentinel_verify::gate::SuiteResult;
 use sentinel_verify::quality::quality_notes;
 use sentinel_verify::verdict::{Checks, Verdict, adds_new_test, decide};
@@ -206,7 +206,8 @@ pub(crate) fn send_back_by_id(ctx: &RunCtx, id: &TaskId, reason: &str) -> Result
 /// then retry it one tier up, or block it when its tries are used up.
 fn send_back(ctx: &RunCtx, id: &TaskId, checkpoint: &Checkpoint, failure: &Failure) -> Result<()> {
     let reason = failure.reason;
-    revert_checkpoint(&ctx.git, checkpoint, &format!("revert {id}: {reason}")).map_err(invalid)?;
+    ctx.revert_quietly(checkpoint, &format!("revert {id}: {reason}"))
+        .map_err(invalid)?;
     ctx.engine.store().set_task_status(id, TaskStatus::Failed)?;
     let summary = failure_summary(
         &FailureInput {

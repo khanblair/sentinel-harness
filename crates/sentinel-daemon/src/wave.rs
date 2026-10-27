@@ -9,7 +9,7 @@ use sentinel_core::{Event, TaskId, TaskStatus};
 use sentinel_gate::policy::{WaveGate, wave_gate};
 use sentinel_reserve::{Barrier, BarrierDecision};
 use sentinel_store::VerificationRecord;
-use sentinel_tree::{Checkpoint, restore_path, revert_checkpoint};
+use sentinel_tree::{Checkpoint, restore_path};
 use sentinel_verify::Protected;
 use sentinel_verify::gate::{SuiteConfig, SuiteResult, run_suite};
 use sentinel_verify::protect::tamper_verdict;
@@ -243,12 +243,8 @@ fn block_tampered(
     checkpoint: &Checkpoint,
     verdict: &Verdict,
 ) -> Result<()> {
-    revert_checkpoint(
-        &ctx.git,
-        checkpoint,
-        &format!("revert {id}: {}", verdict.reason),
-    )
-    .map_err(|e| EngineError::Invalid(e.to_string()))?;
+    ctx.revert_quietly(checkpoint, &format!("revert {id}: {}", verdict.reason))
+        .map_err(|e| EngineError::Invalid(e.to_string()))?;
     let record = VerificationRecord {
         task: id.clone(),
         tests_pass: false,

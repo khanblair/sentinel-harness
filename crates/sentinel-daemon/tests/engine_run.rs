@@ -35,7 +35,11 @@ fn assert_sample_statuses(engine: &Engine) {
         ("T-01", TaskStatus::Verified, "real work"),
         ("T-02", TaskStatus::Verified, "real work"),
         ("T-04", TaskStatus::Verified, "real work"),
-        ("T-06", TaskStatus::Skipped, "claims done"),
+        (
+            "T-06",
+            TaskStatus::Blocked,
+            "claims done, is checked, not confirmed",
+        ),
         (
             "T-03",
             TaskStatus::Contradiction,

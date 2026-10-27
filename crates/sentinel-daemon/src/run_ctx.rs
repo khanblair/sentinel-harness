@@ -1,7 +1,7 @@
 //! Everything the tasks of one run share. A run owns one `RunCtx`; every wave and attempt gets an
 //! `Arc` of it.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -9,7 +9,7 @@ use std::time::Duration;
 use sentinel_core::{ChatId, PermissionMode, TaskId, Tier, ToolId};
 use sentinel_gate::ApprovalBook;
 use sentinel_reserve::Scheduler;
-use sentinel_tree::{Checkpoint, Git, WritePolicy, WriteVerdict};
+use sentinel_tree::{Checkpoint, Git, WritePolicy, WriteVerdict, revert_checkpoint};
 use sentinel_verify::verifier::DiffReviewer;
 use sentinel_workers::Budget;
 use sentinel_workers::context::ContextLimits;
@@ -81,9 +81,36 @@ pub(crate) struct RunCtx {
     pub forced: Option<ToolId>,
     /// Checkpoints share one private git index, so only one may stage, write, and commit at a time.
     pub checkpoint_lock: Mutex<()>,
+    /// Paths a revert is rewriting. The write guard leaves them alone, so it cannot undo the revert.
+    pub reverting: Arc<Mutex<HashSet<String>>>,
 }
 
+/// How long the guard leaves a reverted path alone. The guard collects events for 100 ms first.
+const REVERT_QUIET: Duration = Duration::from_millis(400);
+
 impl RunCtx {
+    /// Undo a checkpoint. The guard watches the same tree and would restore the files that the
+    /// revert writes from the old HEAD, which brings the bad code back. So the paths are open to
+    /// writes until the revert is committed and the guard has caught up.
+    pub(crate) fn revert_quietly(
+        &self,
+        target: &Checkpoint,
+        message: &str,
+    ) -> sentinel_tree::Result<Option<Checkpoint>> {
+        lock(&self.reverting).extend(target.paths.iter().cloned());
+        let result = revert_checkpoint(&self.git, target, message);
+        let held = self.reverting.clone();
+        let paths = target.paths.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(REVERT_QUIET).await;
+            let mut open = lock(&held);
+            for path in &paths {
+                open.remove(path);
+            }
+        });
+        result
+    }
+
     pub fn stopped(&self) -> bool {
         *self.stop.borrow()
     }
@@ -114,10 +141,14 @@ impl RunCtx {
 /// held by task A is also open to task B's writes. MCP file tools close that gap.)
 pub(crate) struct RunPolicy {
     pub scheduler: Arc<Mutex<Scheduler>>,
+    pub reverting: Arc<Mutex<HashSet<String>>>,
 }
 
 impl WritePolicy for RunPolicy {
     fn check(&self, path: &str) -> WriteVerdict {
+        if lock(&self.reverting).contains(path) {
+            return WriteVerdict::Allowed;
+        }
         let holder = lock(&self.scheduler).table().holder_of(path);
         match holder {
             Some(_) => WriteVerdict::Allowed,

@@ -251,7 +251,9 @@ fn shape_plan(ctx: &RunCtx, request: &PlanRequest, plan: Plan) -> Plan {
     if added > 0 {
         say(
             ctx,
-            format!("Tasks that write the same file run in id order. {added} ordering link(s) added."),
+            format!(
+                "Tasks that write the same file run in id order. {added} ordering link(s) added."
+            ),
         );
     }
     plan
@@ -267,7 +269,10 @@ fn flag_claimed_done(ctx: &RunCtx, tasks: &[Task]) -> u32 {
     for task in tasks.iter().filter(|t| t.flags.already_done) {
         say(
             ctx,
-            format!("{} says it is already done. It will be checked, not skipped.", task.id),
+            format!(
+                "{} says it is already done. It will be checked, not skipped.",
+                task.id
+            ),
         );
         flagged += 1;
     }
@@ -516,7 +521,10 @@ mod tests {
             "These two tasks contradict each other: T-01 and T-02. Neither was done."
         );
         assert_eq!(
-            parked_reason(&pair, "One removes a fee and the other sets a minimum for it."),
+            parked_reason(
+                &pair,
+                "One removes a fee and the other sets a minimum for it."
+            ),
             "These two tasks contradict each other: T-01 and T-02. Neither was done. One removes a fee and the other sets a minimum for it."
         );
     }

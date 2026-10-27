@@ -288,12 +288,22 @@ fn finish_success(ctx: &RunCtx, task: &Task, outcome: &RunOutcome) -> Result<()>
         fail_task(
             ctx,
             &task.id,
-            "The agent finished but changed none of the files of its task.",
+            no_change_reason(task),
             &outcome.output_tail.join("\n"),
         );
         return Ok(());
     };
     record_checkpoint(ctx, task, made)
+}
+
+/// Why an attempt that changed nothing counts as a failure. A task that the ticket calls done
+/// says so: the claim stays unconfirmed until a test proves it.
+fn no_change_reason(task: &Task) -> &'static str {
+    if task.flags.already_done {
+        "The ticket says this is already done, but the agent changed nothing and added no test, so the claim is not confirmed."
+    } else {
+        "The agent finished but changed none of the files of its task."
+    }
 }
 
 /// Store a new checkpoint, move the task to Checkpointed, and tell the stream.
