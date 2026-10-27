@@ -37,7 +37,7 @@ pub(crate) struct RunMemory {
     pub tiers: HashMap<TaskId, Tier>,
     pub agents: HashMap<TaskId, ToolId>,
     /// The turn of each task, in the order the run first picked it. A roster gives turn `k` to
-    /// `roster[k % n]`, so every agent gets work.
+    /// `roster[k]` for the first `n` tasks, so every agent gets work.
     pub turns: HashMap<TaskId, usize>,
     /// The failed tries of each task. A roster moves each one to a stronger agent.
     pub failed_tries: HashMap<TaskId, u32>,

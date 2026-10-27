@@ -100,8 +100,10 @@ pub(crate) fn without_paused(
         .collect()
 }
 
-/// The roster agent for one attempt. The turn picks the first try's agent (`roster[turn % n]`), and
-/// each failed try moves to the next stronger agent; the last one stays. An agent in `skip` is passed
+/// The roster agent for one attempt. The first `n` tasks of a run take the agents in turn
+/// (`roster[turn]`), so every agent does real work. Every later task starts with the strongest
+/// agent, because a weak agent costs time and tries on a task that the strong one finishes. Each
+/// failed try moves to the next stronger agent; the last one stays. An agent in `skip` is passed
 /// over for the next one in the roster. `None` only when every agent is skipped.
 pub(crate) fn roster_pick(
     roster: &[ToolId],
@@ -110,7 +112,7 @@ pub(crate) fn roster_pick(
     skip: &HashSet<ToolId>,
 ) -> Option<ToolId> {
     let last = roster.len().checked_sub(1)?;
-    let start = turn % roster.len();
+    let start = if turn < roster.len() { turn } else { last };
     let failed = usize::try_from(failures).unwrap_or(usize::MAX);
     let escalated = start.saturating_add(failed).min(last);
     (escalated..=last)
@@ -384,13 +386,13 @@ mod tests {
     }
 
     #[test]
-    fn each_turn_takes_the_next_agent_of_the_roster_in_turn() {
+    fn the_first_tasks_take_the_agents_in_turn_and_later_tasks_the_strongest() {
         let roster = three_agents();
         let none = HashSet::new();
         let picked: Vec<ToolId> = (0..6)
             .filter_map(|turn| roster_pick(&roster, turn, 0, &none))
             .collect();
-        let expected = [0, 1, 2, 0, 1, 2].map(|index| roster[index].clone());
+        let expected = [0, 1, 2, 2, 2, 2].map(|index| roster[index].clone());
         assert_eq!(picked, expected);
     }
 
