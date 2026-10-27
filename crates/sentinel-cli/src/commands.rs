@@ -69,6 +69,7 @@ pub(crate) struct RunArgs {
 
 pub(crate) async fn run(args: RunArgs) -> Result<ExitCode> {
     let repo = repo_or_current(args.repo)?;
+    sentinel_daemon::folders::exclude_sentinel_folder(&repo);
     let engine = open_engine(&repo)?;
     if let Some(cap) = args.cap {
         engine.update_config(|c| c.cap_usd = cap)?;
