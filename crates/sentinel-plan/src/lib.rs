@@ -4,6 +4,8 @@ pub mod backlog;
 pub mod contradiction;
 pub mod graph;
 mod plan_check;
+mod plan_json;
+mod plan_prompt;
 pub mod planner;
 mod scopes;
 
