@@ -90,18 +90,7 @@ async fn verify_one(ctx: &Arc<RunCtx>, suite: &SuiteResult, id: &TaskId) -> Resu
     };
     set_status(ctx, id, TaskStatus::Verifying)?;
     let evidence = read_evidence(ctx, &checkpoint)?;
-    let task = ctx
-        .engine
-        .store()
-        .get_task(id)?
-        .ok_or_else(|| EngineError::NotFound(id.to_string()))?;
-    let request = ReviewRequest {
-        task_id: id.clone(),
-        title: task.title,
-        body: task.body,
-        diff: evidence.diff.clone(),
-    };
-    let review = ctx.reviewer.review(&request).await.map_err(invalid)?;
+    let review = review_diff(ctx, id, &evidence.diff).await?;
     let checks = Checks {
         tests_pass: suite.passed,
         new_test: adds_new_test(&evidence.diff),
@@ -124,6 +113,22 @@ async fn verify_one(ctx: &Arc<RunCtx>, suite: &SuiteResult, id: &TaskId) -> Resu
     };
     store_verification(ctx, id, &judgement)?;
     apply_verdict(ctx, id, &judgement)
+}
+
+/// The second agent reads the diff against the ticket.
+async fn review_diff(ctx: &Arc<RunCtx>, id: &TaskId, diff: &str) -> Result<Review> {
+    let task = ctx
+        .engine
+        .store()
+        .get_task(id)?
+        .ok_or_else(|| EngineError::NotFound(id.to_string()))?;
+    let request = ReviewRequest {
+        task_id: id.clone(),
+        title: task.title,
+        body: task.body,
+        diff: diff.to_owned(),
+    };
+    ctx.reviewer.review(&request).await.map_err(invalid)
 }
 
 fn apply_verdict(ctx: &RunCtx, id: &TaskId, judgement: &Judgement) -> Result<()> {

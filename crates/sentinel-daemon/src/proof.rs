@@ -235,7 +235,7 @@ mod tests {
 
     use super::*;
 
-    const DIFF: &str = r#"diff --git a/tests/new.rs b/tests/new.rs
+    const DIFF: &str = r"diff --git a/tests/new.rs b/tests/new.rs
 new file mode 100644
 --- /dev/null
 +++ b/tests/new.rs
@@ -253,7 +253,7 @@ diff --git a/tests/old.rs b/tests/old.rs
 @@ -1 +1 @@
 -fn old() {}
 +fn old() { }
-"#;
+";
 
     #[test]
     fn added_test_files_lists_only_added_test_paths() {
@@ -263,13 +263,13 @@ diff --git a/tests/old.rs b/tests/old.rs
     #[test]
     fn added_test_files_ignores_an_added_source_file() {
         let diff = "--- /dev/null\n+++ b/src/lib.rs\n";
-        assert!(added_test_files(diff).is_empty());
+        assert_eq!(added_test_files(diff), Vec::<String>::new());
     }
 
     #[test]
     fn added_test_files_ignores_an_edited_test_file() {
         let diff = "--- a/tests/old.rs\n+++ b/tests/old.rs\n";
-        assert!(added_test_files(diff).is_empty());
+        assert_eq!(added_test_files(diff), Vec::<String>::new());
     }
 
     #[test]
@@ -370,7 +370,10 @@ diff --git a/tests/old.rs b/tests/old.rs
         let check = tempfile::tempdir().unwrap();
         build_check_tree(&git, &second, &["tests/new.sh".to_owned()], check.path()).unwrap();
 
-        assert_eq!(fs::read_to_string(check.path().join("a.txt")).unwrap(), "no");
+        assert_eq!(
+            fs::read_to_string(check.path().join("a.txt")).unwrap(),
+            "no"
+        );
         let status = Command::new("sh")
             .arg("tests/new.sh")
             .current_dir(check.path())
