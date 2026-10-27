@@ -19,6 +19,9 @@ const RULES: &str = "Rules:\n\
 - Do not run git commands that change history. Do not install or remove tools.\n\
 - When you are done, stop. Do not claim success in text: the test suite decides.";
 
+/// Said to a task the backlog calls done. The backlog may be wrong, so the agent checks.
+const CLAIMED_DONE: &str = "The backlog says this is already done. Do not trust that. Read the code against the ticket first. Build whatever is missing. Either way, add a new test file that proves each requirement of the ticket.";
+
 /// The prompt for one attempt. The first attempt gets the task and the rules. A retry also gets
 /// what went wrong, already cut down to a few lines.
 pub fn task_prompt(
@@ -28,6 +31,7 @@ pub fn task_prompt(
     limits: &ContextLimits,
 ) -> String {
     let scope: Vec<String> = task.scope.entries().map(str::to_owned).collect();
+    let claimed = claimed_done_paragraph(task);
     if let Some(retry) = retry {
         let parts = RetryParts {
             task_title: &task.title,
@@ -38,7 +42,7 @@ pub fn task_prompt(
             failure: retry.failure,
             diff_stat: retry.diff_stat,
         };
-        return format!("{}\n\n{RULES}", retry_prompt(&parts, limits));
+        return format!("{}\n\n{claimed}{RULES}", retry_prompt(&parts, limits));
     }
     let files = file_list(&scope);
     let memory = if memory.is_empty() {
@@ -48,11 +52,21 @@ pub fn task_prompt(
     };
     format!(
         "You are one of several coding agents working in the same folder. Do this one task.\n\n\
-         Task {id}: {title}\n{body}\n\nFiles you may write:\n{files}\n\n{memory}{RULES}",
+         Task {id}: {title}\n{body}\n\nFiles you may write:\n{files}\n\n{memory}{claimed}{RULES}",
         id = task.id,
         title = task.title,
         body = task.body.trim(),
     )
+}
+
+/// The claimed-done paragraph, with its blank line, for a task the backlog calls done. Empty for
+/// any other task.
+fn claimed_done_paragraph(task: &Task) -> String {
+    if task.flags.already_done {
+        format!("{CLAIMED_DONE}\n\n")
+    } else {
+        String::new()
+    }
 }
 
 fn file_list(scope: &[String]) -> String {
@@ -110,6 +124,22 @@ mod tests {
         let mut t = task();
         t.scope = Scope::new();
         assert!(task_prompt(&t, None, "", &ContextLimits::default()).contains("read only"));
+    }
+
+    #[test]
+    fn a_task_the_backlog_calls_done_is_told_to_check_it_before_the_rules() {
+        let mut claimed = task();
+        claimed.flags.already_done = true;
+        let text = task_prompt(&claimed, None, "", &ContextLimits::default());
+        let paragraph = text.find("Do not trust that.").unwrap();
+        assert!(paragraph < text.find("Rules:").unwrap(), "{text}");
+        assert!(text.contains("add a new test file that proves each requirement"));
+    }
+
+    #[test]
+    fn an_ordinary_task_prompt_has_no_claimed_done_paragraph() {
+        let text = task_prompt(&task(), None, "", &ContextLimits::default());
+        assert!(!text.contains("Do not trust that."), "{text}");
     }
 
     #[test]
