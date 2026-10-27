@@ -13,13 +13,16 @@ use common::{fake_engine, sample_repo, wait_done};
 fn agents_that_took_a_task(events: &[sentinel_core::EventRecord]) -> HashSet<ToolId> {
     events
         .iter()
-        .filter_map(|record| match &record.event {
-            Event::Message {
+        .filter_map(|record| {
+            let Event::Message {
                 to: Some(agent),
                 text,
                 ..
-            } if text.contains(" goes to ") => Some(agent.clone()),
-            _ => None,
+            } = &record.event
+            else {
+                return None;
+            };
+            text.contains(" goes to ").then(|| agent.clone())
         })
         .collect()
 }

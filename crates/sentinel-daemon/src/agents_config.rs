@@ -398,7 +398,10 @@ mod tests {
     fn a_failed_try_moves_to_the_next_stronger_agent() {
         let roster = three_agents();
         let none = HashSet::new();
-        assert_eq!(roster_pick(&roster, 0, 1, &none), Some(ToolId::new("deepseek")));
+        assert_eq!(
+            roster_pick(&roster, 0, 1, &none),
+            Some(ToolId::new("deepseek"))
+        );
         assert_eq!(roster_pick(&roster, 0, 2, &none), Some(ToolId::new("qwen")));
     }
 
@@ -413,14 +416,20 @@ mod tests {
     fn a_paused_agent_is_passed_to_the_next_one_in_the_roster() {
         let roster = three_agents();
         let skip = HashSet::from([ToolId::new("haiku")]);
-        assert_eq!(roster_pick(&roster, 0, 0, &skip), Some(ToolId::new("deepseek")));
+        assert_eq!(
+            roster_pick(&roster, 0, 0, &skip),
+            Some(ToolId::new("deepseek"))
+        );
     }
 
     #[test]
     fn a_skipped_last_agent_wraps_to_the_start_of_the_roster() {
         let roster = three_agents();
         let skip = HashSet::from([ToolId::new("qwen")]);
-        assert_eq!(roster_pick(&roster, 2, 0, &skip), Some(ToolId::new("haiku")));
+        assert_eq!(
+            roster_pick(&roster, 2, 0, &skip),
+            Some(ToolId::new("haiku"))
+        );
     }
 
     #[test]

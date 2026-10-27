@@ -156,7 +156,7 @@ fn not_ready_hint(tool: &ToolInfo) -> &'static str {
     }
 }
 
-fn invalid(error: RosterError) -> EngineError {
+fn invalid(error: &RosterError) -> EngineError {
     EngineError::Invalid(error.to_string())
 }
 
@@ -165,10 +165,10 @@ impl Engine {
     /// is turned off, and the models go into the config. Returns the roster ids, cheapest first.
     pub fn apply_roster(&self, specs: &[RosterSpec]) -> Result<Vec<ToolId>> {
         if specs.is_empty() {
-            return Err(invalid(RosterError::Empty));
+            return Err(invalid(&RosterError::Empty));
         }
         let found = self.store().list_tools()?;
-        let agents = roster_agents(specs, &found).map_err(invalid)?;
+        let agents = roster_agents(specs, &found).map_err(|error| invalid(&error))?;
         for agent in &agents {
             self.store().upsert_tool(&agent.info)?;
         }
@@ -222,7 +222,11 @@ impl Engine {
 }
 
 fn roster_line(number: usize, tool: &ToolInfo, config: &Config) -> String {
-    let label = match config.models.get(tool.id.as_str()).filter(|m| !m.is_empty()) {
+    let label = match config
+        .models
+        .get(tool.id.as_str())
+        .filter(|m| !m.is_empty())
+    {
         Some(model) => format!("{} ({model})", tool.id),
         None => tool.id.to_string(),
     };
@@ -339,8 +343,8 @@ mod tests {
     #[test]
     fn a_later_entry_of_a_tool_becomes_a_virtual_agent_with_its_model() {
         let found = [tool("openrouter", "openrouter-loop", ToolStatus::Ready)];
-        let specs = parse_roster("openrouter=deepseek/deepseek-v3.2,openrouter=qwen/qwen3-coder")
-            .unwrap();
+        let specs =
+            parse_roster("openrouter=deepseek/deepseek-v3.2,openrouter=qwen/qwen3-coder").unwrap();
         let agents = roster_agents(&specs, &found).unwrap();
         assert_eq!(agents[0].info.id, ToolId::new("openrouter"));
         assert_eq!(agents[1].info.id, ToolId::new("openrouter~2"));
@@ -361,7 +365,11 @@ mod tests {
 
     #[test]
     fn a_tool_that_is_not_ready_says_how_to_fix_it() {
-        let found = [tool("openrouter", "openrouter-loop", ToolStatus::NeedsLogin)];
+        let found = [tool(
+            "openrouter",
+            "openrouter-loop",
+            ToolStatus::NeedsLogin,
+        )];
         let specs = parse_roster("openrouter").unwrap();
         let error = roster_agents(&specs, &found).unwrap_err();
         assert_eq!(
