@@ -86,8 +86,7 @@ enum JsonBacklog {
 impl JsonBacklog {
     fn into_tasks(self) -> Vec<JsonTask> {
         match self {
-            Self::Wrapped { tasks } => tasks,
-            Self::Bare(tasks) => tasks,
+            Self::Wrapped { tasks } | Self::Bare(tasks) => tasks,
         }
     }
 }
@@ -114,7 +113,11 @@ fn json_ids(tasks: &[JsonTask]) -> Result<Vec<TaskId>> {
     let mut ids = IdAllocator::default();
     let explicit: Vec<Option<TaskId>> = tasks
         .iter()
-        .map(|task| explicit_json_id(task).map(|id| ids.explicit(id)).transpose())
+        .map(|task| {
+            explicit_json_id(task)
+                .map(|id| ids.explicit(id))
+                .transpose()
+        })
         .collect::<Result<_>>()?;
     Ok(explicit
         .into_iter()
