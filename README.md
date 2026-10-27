@@ -90,13 +90,13 @@ cargo run --release -- run backlog/backlog.json --repo ../collision-course-ledge
 ```
 
 - `--cap` is the hard budget in dollars. The run stops starting tasks at 70 percent of it and kills the workers at 95 percent. A free model spends nothing, a Claude run reports its own cost, and an OpenRouter call returns its usage. An agent that reports no cost is counted by a time guess.
-- `--agents` names the agents, cheapest first. `TOOL=MODEL` runs the same tool with another model as a separate agent. The strongest agent writes the plan. The first try of each task rotates across the agents, and a failed try moves to the next stronger one. Run `sentinel scan` to see the tools on your machine.
+- `--agents` names the agents, cheapest first. `TOOL=MODEL` runs the same tool with another model as a separate agent. The strongest agent writes the plan. The first tasks take the agents in turn, so each agent does real work, later tasks start with the strongest agent, and a failed try moves to the next stronger one. Run `sentinel scan` to see the tools on your machine.
 - `--test-cmd` sets the full suite command. Without it, Sentinel reads `package.json`, `Cargo.toml`, pytest files, `go.mod`, or a Makefile. It never needs npm: a `package.json` test script runs through `sh -c`.
 - The backlog is `backlog.json` (`{ "tasks": [{ "id", "title", "body" }] }`) or markdown.
 
-What the run does: it asks the strongest agent for a plan with a scope of files for every task, runs tasks with different files in waves, runs the full suite after each wave, and finds the one task that broke the suite when it fails. A task is Verified only when the suite passes, its new tests fail without the change, no protected file changed, and a second, different agent approved the diff. Two tasks that contradict each other are both skipped, with the reason. A ticket that says it is finished is checked, not trusted. Files in `tests.lock.json` can never change.
+What the run does: it asks the strongest agent for a plan with a scope of files for every task, runs tasks with different files in waves, runs the full suite after each wave, and finds the one task that broke the suite when it fails. A task is Verified only when the suite passes, its new tests fail without the change, no protected file changed, and a second, different agent approved the diff. Two tasks that contradict each other are both skipped, with the reason. A ticket that says it is finished is checked, not trusted. Files in `tests.lock.json` can never change, and a repository that locks its tests gets the new tests of the tasks in `sentinel-tests/`.
 
-The result is in `.sentinel/` of the repository: `report.md` (statuses, reasons, cost, and an Evidence section), `evidence.json`, and `log.jsonl` (every event). `sentinel report --writeup` drafts the one page write-up from them.
+The result is in `.sentinel/` of the repository: `report.md` (statuses, reasons, cost, and an Evidence section), `evidence.json`, and `log.jsonl` (every event). `sentinel report --writeup` drafts the one page write-up from them, and `sentinel report --page` writes the run as one HTML page.
 
 Prove the harness catches cheating, with no agent and no money:
 
