@@ -92,20 +92,30 @@ const PLANNER_RULES: &[&str] = &[
     "If two tasks ask for things that cannot both be true, for example one removes a charge and the other sets a minimum for that charge, list each in the other's contradicts and give one sentence of reason per task in note.",
 ];
 
-/// Generate the prompt for the planner model.
+/// Generate the prompt for the planner model. The planner may answer a message that is not a
+/// request to change the project with plain sentences.
 pub fn planner_prompt(request: &PlanRequest) -> String {
+    planner_prompt_for(request, true)
+}
+
+/// The same prompt, with or without the way out of a plan. A backlog is always a request to change
+/// the project, so for a backlog the model must answer with a plan: given the way out, a model
+/// may say that no request came through.
+pub fn planner_prompt_for(request: &PlanRequest, allow_reply: bool) -> String {
     let mut prompt = String::new();
     prompt.push_str("You are a task planner for Sentinel, a multi-agent coding system.\n");
     prompt.push_str("Given a backlog and a list of repository files, produce a JSON plan.\n\n");
     push_repo_files(&mut prompt, &request.repo_files);
     push_backlog(&mut prompt, &request.items);
 
-    prompt.push_str(
-        "For a request to change the project, output ONE JSON object with this shape (no prose, no code fences). Otherwise answer in plain sentences:\n",
-    );
+    prompt.push_str(if allow_reply {
+        "For a request to change the project, output ONE JSON object with this shape (no prose, no code fences). Otherwise answer in plain sentences:\n"
+    } else {
+        "The backlog above is the request. Output ONE JSON object with this shape and nothing else (no prose, no code fences):\n"
+    });
     prompt.push_str(PLAN_SHAPE);
     prompt.push_str("\n\nRules:\n");
-    for rule in PLANNER_RULES {
+    for rule in PLANNER_RULES.iter().skip(usize::from(!allow_reply)) {
         prompt.push_str("- ");
         prompt.push_str(rule);
         prompt.push('\n');
@@ -367,6 +377,17 @@ impl PlannerBackend for FixedPlanner {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_backlog_prompt_has_no_way_out_of_a_plan() {
+        let request = make_request(vec![make_item("T-01", "Fix it", "", false)], vec![]);
+        let backlog = planner_prompt_for(&request, false);
+        assert!(!backlog.contains("Otherwise answer in plain sentences"));
+        assert!(!backlog.contains("not a request to change the project"));
+        assert!(backlog.contains("The backlog above is the request"));
+        let message = planner_prompt_for(&request, true);
+        assert!(message.contains("not a request to change the project"));
+    }
 
     #[test]
     fn a_plan_inside_another_object_is_found() {

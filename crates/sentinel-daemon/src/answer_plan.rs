@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use sentinel_core::{Tier, ToolId, ToolInfo};
-use sentinel_plan::planner::{PlanRequest, parse_plan_json, planner_prompt};
+use sentinel_plan::planner::{PlanRequest, parse_plan_json, planner_prompt_for};
 use sentinel_workers::Worker;
 
 use crate::agents::{TEXT_TIMEOUT, TextJob, run_for_outcome};
@@ -79,7 +79,7 @@ async fn ask_picked(
             budget: ctx.budget.clone(),
             worker: worker.as_ref(),
             tool: &tool,
-            prompt: format!("{}{feedback}", planner_prompt(request)),
+            prompt: format!("{}{feedback}", planner_prompt_for(request, message)),
         };
         let (text, outcome) = run_for_outcome(&ctx.engine, job, TEXT_TIMEOUT).await;
         crate::agent_health::pause_after_failure(&ctx.engine, &tool, &outcome);
