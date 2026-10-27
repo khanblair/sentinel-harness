@@ -30,6 +30,7 @@ const TOP_LEVEL_KEYS: &[&str] = &[
     "task_timeout_seconds",
     "decision_timeout_seconds",
     "approval_timeout_seconds",
+    "park_contradictions",
     "telegram",
 ];
 const ROUTING_KEYS: &[&str] = &["cheap", "mid", "smart"];
@@ -68,6 +69,8 @@ pub struct Config {
     pub decision_timeout_seconds: u64,
     /// An approval card nobody answers in this time is denied.
     pub approval_timeout_seconds: u64,
+    /// Skip both tasks of a contradiction at once, with no question. `sentinel run` sets it.
+    pub park_contradictions: bool,
     pub telegram: TelegramConfig,
 }
 
@@ -129,6 +132,7 @@ impl Default for Config {
             task_timeout_seconds: 900,
             decision_timeout_seconds: 120,
             approval_timeout_seconds: 300,
+            park_contradictions: false,
             telegram: TelegramConfig::default(),
         }
     }
@@ -267,6 +271,15 @@ mod tests {
     }
 
     #[test]
+    fn a_config_without_a_park_line_asks_about_contradictions() {
+        let folder = tempfile::tempdir().unwrap();
+        let path = config_path(folder.path());
+        fs::create_dir_all(path.parent().unwrap()).unwrap();
+        fs::write(&path, "cap_usd = \"1.00\"\n").unwrap();
+        assert!(!load(&path).unwrap().park_contradictions);
+    }
+
+    #[test]
     fn load_of_a_missing_file_gives_defaults() {
         let folder = tempfile::tempdir().unwrap();
         let config = load(&config_path(folder.path())).unwrap();
@@ -301,6 +314,7 @@ mod tests {
             task_timeout_seconds: 300,
             decision_timeout_seconds: 60,
             approval_timeout_seconds: 90,
+            park_contradictions: true,
             telegram: TelegramConfig {
                 enabled: true,
                 detail: "Status".to_owned(),

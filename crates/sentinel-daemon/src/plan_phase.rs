@@ -12,7 +12,9 @@ use sentinel_plan::backlog::{BacklogItem, parse_backlog};
 use sentinel_plan::contradiction::{
     ContradictionPair, Resolution, apply_answer, decision_for, find_contradictions,
 };
-use sentinel_plan::planner::{Plan, PlanRequest, build_tasks};
+use sentinel_plan::planner::{
+    Plan, PlanRequest, build_tasks, fill_empty_scopes, order_shared_scopes,
+};
 use sentinel_store::VerificationRecord;
 
 use crate::answer::unreached_text;
@@ -91,6 +93,7 @@ pub(crate) async fn plan_phase(ctx: &Arc<RunCtx>, request: &RunRequest) -> Resul
     if message {
         ctx.engine.announce_run_started()?;
     }
+    let plan = shape_plan(ctx, &plan_request, plan);
     let (tasks, dependencies) =
         build_tasks(&plan_request, &plan).map_err(|e| EngineError::Invalid(e.to_string()))?;
     if message {
@@ -98,13 +101,13 @@ pub(crate) async fn plan_phase(ctx: &Arc<RunCtx>, request: &RunRequest) -> Resul
     }
     let pairs = find_contradictions(&plan);
     store_plan(ctx, &tasks, &dependencies)?;
-    let already_done = skip_claimed_done(ctx, &tasks)?;
+    let already_done = flag_claimed_done(ctx, &tasks);
     ctx.engine.emit(&Event::PlanReady {
         tasks: count(tasks.len()),
         contradictions: count(pairs.len()),
         already_done,
     })?;
-    settle_contradictions(ctx, &pairs, &tasks).await?;
+    settle_contradictions(ctx, &pairs, &tasks, &plan).await?;
     mark_ready(ctx)?;
     if approve_plan(ctx).await {
         Ok(PlanOutcome::Approved)
@@ -221,19 +224,54 @@ fn repo_files(ctx: &RunCtx) -> Vec<String> {
         .unwrap_or_default()
 }
 
-/// A task the backlog calls done has nothing to verify: it is skipped, with the reason on record.
-fn skip_claimed_done(ctx: &RunCtx, tasks: &[Task]) -> Result<u32> {
-    let mut skipped = 0;
-    for task in tasks.iter().filter(|t| t.flags.already_done) {
-        finish_without_work(
+/// Puts a note from the run in the stream, from `sentinel`.
+fn say(ctx: &RunCtx, text: String) {
+    ctx.engine.emit_quiet(&Event::Message {
+        from: "sentinel".to_owned(),
+        to: None,
+        text,
+    });
+}
+
+/// Gives unnamed tasks a scope, then orders the tasks that write the same file. Each change is
+/// said in the stream, so the owner can see why a task waits.
+fn shape_plan(ctx: &RunCtx, request: &PlanRequest, plan: Plan) -> Plan {
+    let (plan, folder_only) = fill_empty_scopes(request, plan);
+    for (id, folder) in &folder_only {
+        say(
             ctx,
-            &task.id,
-            TaskStatus::Skipped,
-            "The backlog says this is already done, so there was nothing to verify.",
-        )?;
-        skipped += 1;
+            format!(
+                "{id} has no named files, so it may write inside {folder} and waits for other tasks that use it."
+            ),
+        );
     }
-    Ok(skipped)
+    let before = dependency_count(&plan);
+    let plan = order_shared_scopes(plan);
+    let added = dependency_count(&plan).saturating_sub(before);
+    if added > 0 {
+        say(
+            ctx,
+            format!("Tasks that write the same file run in id order. {added} ordering link(s) added."),
+        );
+    }
+    plan
+}
+
+fn dependency_count(plan: &Plan) -> usize {
+    plan.tasks.iter().map(|task| task.depends_on.len()).sum()
+}
+
+/// A task the backlog calls done is still checked. It stays ready, and the stream says so.
+fn flag_claimed_done(ctx: &RunCtx, tasks: &[Task]) -> u32 {
+    let mut flagged = 0;
+    for task in tasks.iter().filter(|t| t.flags.already_done) {
+        say(
+            ctx,
+            format!("{} says it is already done. It will be checked, not skipped.", task.id),
+        );
+        flagged += 1;
+    }
+    flagged
 }
 
 /// Move a task to an end status that no worker produced, and record why.
@@ -271,6 +309,7 @@ async fn settle_contradictions(
     ctx: &Arc<RunCtx>,
     pairs: &[ContradictionPair],
     tasks: &[Task],
+    plan: &Plan,
 ) -> Result<()> {
     let title = |id: &TaskId| {
         tasks
@@ -279,6 +318,10 @@ async fn settle_contradictions(
             .map_or_else(String::new, |t| t.title.clone())
     };
     for pair in pairs {
+        if ctx.config.park_contradictions {
+            park_pair(ctx, pair, plan)?;
+            continue;
+        }
         let decision = decision_for(pair, &title);
         let answer = ask_decision(ctx, &decision).await;
         let state = if answer.is_some() {
@@ -295,6 +338,43 @@ async fn settle_contradictions(
         apply_resolution(ctx, resolution, answer.is_some())?;
     }
     Ok(())
+}
+
+/// Skips both tasks of a contradiction without asking. Each task gives its planner note as the reason.
+fn park_pair(ctx: &RunCtx, pair: &ContradictionPair, plan: &Plan) -> Result<()> {
+    say(
+        ctx,
+        format!(
+            "{} and {} contradict each other, so both are skipped without a question.",
+            pair.a, pair.b
+        ),
+    );
+    for id in [&pair.a, &pair.b] {
+        let reason = parked_reason(pair, &note_of(plan, id));
+        finish_without_work(ctx, id, TaskStatus::Skipped, &reason)?;
+    }
+    Ok(())
+}
+
+/// The reason a parked task is skipped. It names both tasks and, when the planner gave one, the note.
+fn parked_reason(pair: &ContradictionPair, note: &str) -> String {
+    let base = format!(
+        "These two tasks contradict each other: {} and {}. Neither was done.",
+        pair.a, pair.b
+    );
+    let note = note.trim();
+    if note.is_empty() {
+        base
+    } else {
+        format!("{base} {note}")
+    }
+}
+
+fn note_of(plan: &Plan, id: &TaskId) -> String {
+    plan.tasks
+        .iter()
+        .find(|task| &task.id == id)
+        .map_or_else(String::new, |task| task.note.clone())
 }
 
 /// Carry out what the user chose: skip the loser, or mark both tasks as contradicting.
@@ -422,6 +502,22 @@ mod tests {
         assert_eq!(
             text,
             "I could not reach a planning agent: it timed out. Check Settings, Agents and press Test."
+        );
+    }
+
+    #[test]
+    fn a_parked_reason_names_both_tasks_and_adds_the_planner_note() {
+        let pair = ContradictionPair {
+            a: TaskId::new("T-01"),
+            b: TaskId::new("T-02"),
+        };
+        assert_eq!(
+            parked_reason(&pair, ""),
+            "These two tasks contradict each other: T-01 and T-02. Neither was done."
+        );
+        assert_eq!(
+            parked_reason(&pair, "One removes a fee and the other sets a minimum for it."),
+            "These two tasks contradict each other: T-01 and T-02. Neither was done. One removes a fee and the other sets a minimum for it."
         );
     }
 }
