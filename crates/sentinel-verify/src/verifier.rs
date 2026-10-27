@@ -78,47 +78,78 @@ fn cut_diff(diff: &str, max_bytes: usize) -> String {
 
 /// Parses a review answer from the model's response.
 ///
-/// The first non-empty line starting with YES (any case) means ok.
-/// NO or anything else means not ok.
-/// The reason is the rest of the text, trimmed, at most 300 chars.
+/// Colour codes and blank lines are dropped first. The first line that starts with the word YES
+/// or NO (any case) is the verdict: YES means ok. A tool may print a banner before the answer, so
+/// the lines before the verdict are skipped. An answer with no such line is not ok, and its first
+/// line is the reason. The reason is the rest of the verdict line, at most 300 chars.
 pub fn parse_review_answer(text: &str, reviewer: &str) -> Review {
-    let mut ok = false;
-    let mut reason = String::new();
-
-    for line in text.lines() {
-        let trimmed = line.trim();
-        if trimmed.is_empty() {
-            continue;
-        }
-        let upper = trimmed.to_uppercase();
-        if upper.starts_with("YES") {
-            ok = true;
-            reason = trimmed[3..]
-                .trim_start_matches(|c: char| c.is_ascii_punctuation() || c.is_whitespace())
-                .to_string();
-        } else if upper.starts_with("NO") {
-            ok = false;
-            reason = trimmed[2..]
-                .trim_start_matches(|c: char| c.is_ascii_punctuation() || c.is_whitespace())
-                .to_string();
-        } else {
-            // First non-empty line that isn't YES/NO - treat as NO
-            ok = false;
-            reason = trimmed.to_string();
-        }
-        break;
-    }
-
-    // Truncate reason to 300 chars
-    if reason.len() > 300 {
-        reason.truncate(300);
-    }
-
+    let lines: Vec<String> = text
+        .lines()
+        .map(|line| strip_colour(line).trim().to_owned())
+        .filter(|line| !line.is_empty())
+        .collect();
+    let (ok, reason) = match lines.iter().find_map(|line| verdict_of(line)) {
+        Some(found) => found,
+        None => (false, lines.first().cloned().unwrap_or_default()),
+    };
     Review {
         ok,
-        reason,
+        reason: reason.chars().take(300).collect(),
         reviewer: reviewer.to_string(),
     }
+}
+
+/// `Some((ok, reason))` when the line starts with the word YES or NO.
+fn verdict_of(line: &str) -> Option<(bool, String)> {
+    let head: String = line
+        .chars()
+        .take_while(|ch| ch.is_alphabetic())
+        .collect::<String>()
+        .to_uppercase();
+    let ok = match head.as_str() {
+        "YES" => true,
+        "NO" => false,
+        _ => return None,
+    };
+    let rest = line[head.len()..]
+        .trim_start_matches(|c: char| c.is_ascii_punctuation() || c.is_whitespace())
+        .to_owned();
+    Some((ok, rest))
+}
+
+/// Removes terminal colour codes, such as `ESC[0m`, and the bare `[0m` that is left when the
+/// escape character was lost on the way.
+fn strip_colour(line: &str) -> String {
+    let mut out = String::with_capacity(line.len());
+    let mut chars = line.chars().peekable();
+    while let Some(ch) = chars.next() {
+        let starts_code = ch == '\u{1b}' || (ch == '[' && is_bare_code(&mut chars.clone()));
+        if !starts_code {
+            out.push(ch);
+            continue;
+        }
+        if ch == '\u{1b}' && chars.peek() == Some(&'[') {
+            chars.next();
+        }
+        while chars
+            .next_if(|next| next.is_ascii_digit() || *next == ';')
+            .is_some()
+        {}
+        chars.next_if(|next| next.is_ascii_alphabetic());
+    }
+    out
+}
+
+/// True when the characters after a `[` are digits and semicolons and then a letter, as in `[0m`.
+fn is_bare_code(chars: &mut std::iter::Peekable<std::str::Chars<'_>>) -> bool {
+    let mut digits = 0;
+    while chars
+        .next_if(|next| next.is_ascii_digit() || *next == ';')
+        .is_some()
+    {
+        digits += 1;
+    }
+    digits > 0 && chars.next_if(char::is_ascii_alphabetic).is_some()
 }
 
 /// A fixed reviewer that returns a stored review (for tests).
@@ -136,6 +167,28 @@ impl DiffReviewer for FixedReviewer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_banner_and_colour_codes_before_the_verdict_are_skipped() {
+        let text = "\u{1b}[0m> build · glm-5.3-flash-free\n\u{1b}[0m\nYES the rounding is right.";
+        let review = parse_review_answer(text, "opencode");
+        assert!(review.ok);
+        assert_eq!(review.reason, "the rounding is right.");
+    }
+
+    #[test]
+    fn a_bare_colour_fragment_is_not_a_reason() {
+        let review = parse_review_answer("[0m\n[0m", "opencode");
+        assert!(!review.ok);
+        assert_eq!(review.reason, "");
+    }
+
+    #[test]
+    fn a_word_that_only_starts_with_no_is_not_a_verdict() {
+        let review = parse_review_answer("Note: all fine\nNO the test is missing.", "r");
+        assert!(!review.ok);
+        assert_eq!(review.reason, "the test is missing.");
+    }
 
     #[test]
     fn parse_review_answer_yes() {
