@@ -72,8 +72,15 @@ fn path_forms(file: &str) -> BTreeSet<String> {
 
 /// Test files are never a task's scope: editing an existing test fails the task.
 fn is_test_path(file: &str) -> bool {
-    file.split('/')
-        .any(|part| part == "test" || part == "tests")
+    let in_test_folder = file
+        .split('/')
+        .any(|part| matches!(part, "test" | "tests" | "acceptance" | "__tests__" | "spec"));
+    let name = file.rsplit('/').next().unwrap_or(file).to_lowercase();
+    in_test_folder
+        || name.contains(".test.")
+        || name.contains(".spec.")
+        || name.contains("_test.")
+        || name.starts_with("test_")
 }
 
 /// The top-level folder with the most repository files. Tests, docs, scripts, and hidden folders
@@ -97,6 +104,50 @@ pub fn common_source_folder(repo_files: &[String]) -> Option<String> {
 
 fn is_source_folder(name: &str) -> bool {
     !name.starts_with('.') && !NON_SOURCE_FOLDERS.contains(&name)
+}
+
+/// The path of a new test file for a task, named like the repository's own test files, or `None`
+/// when the repository has no test file to copy the style of. A task needs a new test file in its
+/// scope: without one it cannot prove its work, and the guard would undo a test written anyway.
+pub fn new_test_path(repo_files: &[String], id: &TaskId) -> Option<String> {
+    let example = repo_files
+        .iter()
+        .find(|file| is_test_path(file) && !file.starts_with("acceptance/"))?;
+    let (folder, name) = example
+        .rsplit_once('/')
+        .map_or(("", example.as_str()), |(f, n)| (f, n));
+    let lower_id = id.as_str().to_lowercase();
+    let fresh = match name.split_once('.') {
+        Some((stem, rest)) if rest.starts_with("test.") || rest.starts_with("spec.") => {
+            let kind = rest.split('.').next().unwrap_or("test");
+            let ext = rest.split_once('.').map_or("", |(_, ext)| ext);
+            let _ = stem;
+            format!("{lower_id}.{kind}.{ext}")
+        }
+        Some((stem, ext)) if stem.starts_with("test_") => format!("test_{lower_id}.{ext}"),
+        Some((stem, ext)) if stem.ends_with("_test") => format!("{lower_id}_test.{ext}"),
+        Some((_, ext)) => format!("{lower_id}.{ext}"),
+        None => lower_id,
+    };
+    Some(if folder.is_empty() {
+        fresh
+    } else {
+        format!("{folder}/{fresh}")
+    })
+}
+
+/// Gives every task a new test file in its scope, when it has none and the repository shows how
+/// test files are named. Returns the plan.
+pub fn ensure_test_files(request: &PlanRequest, mut plan: Plan) -> Plan {
+    for pt in &mut plan.tasks {
+        if pt.scope.iter().any(|entry| is_test_path(entry)) {
+            continue;
+        }
+        if let Some(path) = new_test_path(&request.repo_files, &pt.id) {
+            pt.scope.push(path);
+        }
+    }
+    plan
 }
 
 /// Gives every task with no scope the files its text names, or else the repository's main source

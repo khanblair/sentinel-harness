@@ -10,7 +10,9 @@ use sentinel_core::{Event, Task, TaskId, TaskStatus};
 use sentinel_gate::policy::{next_mode_after_plan_approval, plan_gate};
 use sentinel_plan::backlog::{BacklogItem, parse_backlog};
 use sentinel_plan::contradiction::find_contradictions;
-use sentinel_plan::planner::{Plan, PlanRequest, build_tasks, fill_empty_scopes};
+use sentinel_plan::planner::{
+    Plan, PlanRequest, build_tasks, ensure_test_files, fill_empty_scopes,
+};
 use sentinel_store::VerificationRecord;
 
 use crate::answer::unreached_text;
@@ -242,7 +244,7 @@ fn shape_plan(ctx: &RunCtx, request: &PlanRequest, plan: Plan) -> Plan {
             ),
         );
     }
-    plan
+    ensure_test_files(request, plan)
 }
 
 /// A task the backlog calls done is still checked. It stays ready, and the stream says so.

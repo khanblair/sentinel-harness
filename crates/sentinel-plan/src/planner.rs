@@ -5,7 +5,8 @@ use std::future::Future;
 use std::pin::Pin;
 
 pub use crate::scopes::{
-    common_source_folder, fill_empty_scopes, order_shared_scopes, scope_from_text,
+    common_source_folder, ensure_test_files, fill_empty_scopes, new_test_path, order_shared_scopes,
+    scope_from_text,
 };
 use crate::{PlanError, Result, backlog::BacklogItem};
 use futures::FutureExt;
@@ -82,7 +83,7 @@ const PLANNER_RULES: &[&str] = &[
     "depends_on, read_after_write, contradicts name known task ids and never the task itself.",
     "No dependency cycles.",
     "Tier is one of: cheap, mid, smart.",
-    "If a task claims done, set already_done to true.",
+    "If a task claims done, set already_done to true. The claim may be wrong, so its scope still lists the files that implement the feature, plus one new test file.",
     "Two tasks with identical titles (ignoring case) should contradict each other.",
     "A task that needs something another task creates, such as an id, a field, an endpoint or a function, names that task in depends_on.",
     "A task that must read the final text of a file another task writes names that task in read_after_write.",
@@ -343,6 +344,39 @@ impl PlannerBackend for FixedPlanner {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_new_test_path_copies_the_style_of_the_repository_tests() {
+        let id = TaskId::new("T06");
+        let node = vec!["src/a.js".to_owned(), "test/accounts.test.js".to_owned()];
+        assert_eq!(
+            new_test_path(&node, &id),
+            Some("test/t06.test.js".to_owned())
+        );
+        let python = vec!["tests/test_fees.py".to_owned()];
+        assert_eq!(
+            new_test_path(&python, &id),
+            Some("tests/test_t06.py".to_owned())
+        );
+        let rust = vec!["tests/ledger.rs".to_owned()];
+        assert_eq!(new_test_path(&rust, &id), Some("tests/t06.rs".to_owned()));
+        assert_eq!(new_test_path(&["src/a.js".to_owned()], &id), None);
+    }
+
+    #[test]
+    fn every_task_gets_a_test_file_unless_it_has_one() {
+        let request = make_request(vec![], vec!["test/accounts.test.js".to_owned()]);
+        let mut first = planned_task("T-01", &[]);
+        first.scope = vec!["src/fees.js".to_owned()];
+        let mut second = planned_task("T-02", &[]);
+        second.scope = vec!["src/ledger.js".to_owned(), "test/t02.test.js".to_owned()];
+        let plan = Plan {
+            tasks: vec![first, second],
+        };
+        let shaped = ensure_test_files(&request, plan);
+        assert_eq!(shaped.tasks[0].scope, ["src/fees.js", "test/t-01.test.js"]);
+        assert_eq!(shaped.tasks[1].scope, ["src/ledger.js", "test/t02.test.js"]);
+    }
 
     #[test]
     fn a_brace_inside_a_string_does_not_end_the_plan() {
