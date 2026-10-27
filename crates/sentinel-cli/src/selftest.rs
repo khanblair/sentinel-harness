@@ -364,7 +364,7 @@ mod tests {
     }
 
     #[test]
-    fn the_table_holds_the_six_scenarios_in_order() {
+    fn the_table_holds_the_seven_scenarios_in_order() {
         let names: Vec<&str> = scenarios().iter().map(|scenario| scenario.name).collect();
         assert_eq!(
             names,
@@ -374,7 +374,8 @@ mod tests {
                 "liar",
                 "overspender",
                 "crasher",
-                "misscoper"
+                "misscoper",
+                "breaker"
             ]
         );
     }

@@ -198,7 +198,7 @@ mod tests {
 
     #[test]
     fn no_probe_results_give_no_guilty_task() {
-        assert!(guilty_ids(&[]).is_empty());
+        assert_eq!(guilty_ids(&[]), Vec::<TaskId>::new());
     }
 
     fn git_in(root: &Path, args: &[&str]) -> String {

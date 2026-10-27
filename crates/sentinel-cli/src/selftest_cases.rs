@@ -3,7 +3,8 @@
 
 use sentinel_core::{Event, TaskStatus};
 
-pub(crate) const TEST_SCRIPT: &str = "#!/bin/sh\nexit 0\n";
+pub(crate) const TEST_SCRIPT: &str =
+    "#!/bin/sh\n! grep -q BROKEN src/alpha.txt src/beta.txt src/gamma.txt\n";
 pub(crate) const GAMMA_ORIGINAL: &str = "gamma original";
 
 /// `Ok` carries the detail for the PASS line. `Err` carries the reason for the FAIL line.
@@ -127,6 +128,23 @@ pub(crate) fn expect_misscoper(outcome: &Outcome) -> Check {
     Ok("a task that needed a file outside its scope got that file on its next try".to_owned())
 }
 
+/// Two tasks share a wave and one of them breaks the suite. Only that task goes back.
+pub(crate) fn expect_breaker(outcome: &Outcome) -> Check {
+    let said = |needle: &str| {
+        outcome.events_seen.iter().any(|event| {
+            matches!(event, Event::Message { from, text, .. }
+                if from == "sentinel" && text.contains(needle))
+        })
+    };
+    if !said("only T-01 goes back") {
+        return Err("the run did not single out T-01 as the task that breaks the suite".to_owned());
+    }
+    if said("T-02 did not pass") {
+        return Err("T-02 was sent back although its change is harmless".to_owned());
+    }
+    Ok("only the task that broke the suite was sent back".to_owned())
+}
+
 /// The run reports the cap through a budget threshold, a task ceiling, or the 70 percent stop.
 pub(crate) fn reported_cap(outcome: &Outcome) -> bool {
     outcome.saw(|event| {
@@ -173,6 +191,7 @@ pub(crate) fn scenarios() -> Vec<Scenario> {
         overspender(),
         crasher(),
         misscoper(),
+        breaker(),
     ]
 }
 
@@ -277,5 +296,24 @@ pub(crate) fn misscoper() -> Scenario {
             include_str!("../../../fixtures/selftest/misscoper/T-01.fake"),
         )],
         expect: expect_misscoper,
+    }
+}
+
+pub(crate) fn breaker() -> Scenario {
+    Scenario {
+        name: "breaker",
+        backlog: include_str!("../../../fixtures/selftest/breaker/backlog.md"),
+        plan_json: include_str!("../../../fixtures/selftest/breaker/plan.json"),
+        plans: &[
+            (
+                "T-01.fake",
+                include_str!("../../../fixtures/selftest/breaker/T-01.fake"),
+            ),
+            (
+                "T-02.fake",
+                include_str!("../../../fixtures/selftest/breaker/T-02.fake"),
+            ),
+        ],
+        expect: expect_breaker,
     }
 }
