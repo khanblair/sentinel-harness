@@ -95,12 +95,11 @@ pub fn split_command(text: &str) -> Vec<String> {
                 quote = Some(ch);
                 in_word = true;
             }
-            (None, _) if ch.is_whitespace() => {
-                if in_word {
-                    parts.push(std::mem::take(&mut word));
-                    in_word = false;
-                }
+            (None, _) if ch.is_whitespace() && in_word => {
+                parts.push(std::mem::take(&mut word));
+                in_word = false;
             }
+            (None, _) if ch.is_whitespace() => {}
             (None, _) => {
                 word.push(ch);
                 in_word = true;
