@@ -61,7 +61,7 @@ async fn try_attempt(ctx: &Arc<RunCtx>, task_id: &TaskId) -> Result<()> {
     if outcome.end == sentinel_workers::EndKind::Completed {
         return finish_success(ctx, &task, &outcome);
     }
-    crate::agent_health::pause_after_failure(engine, attempt.tool, &outcome);
+    note_agent_failure(ctx, attempt.tool, task_id, &outcome);
     let reason = reason_for(ctx, &outcome);
     if ctx.forced.is_some() && outcome.end == sentinel_workers::EndKind::Failed {
         return stop_at_agent(ctx, task_id, &attempt.tool.id, &reason);
@@ -337,4 +337,6 @@ fn record_checkpoint(ctx: &RunCtx, task: &Task, made: Checkpoint) -> Result<()> 
     Ok(())
 }
 
-pub(crate) use crate::attempt_end::{fail_task, record_end, undo_partial_writes};
+pub(crate) use crate::attempt_end::{
+    fail_task, note_agent_failure, record_end, undo_partial_writes,
+};

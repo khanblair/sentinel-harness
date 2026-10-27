@@ -82,6 +82,10 @@ pub(crate) async fn ask_agent_for_plan(ctx: &RunCtx, request: &PlanRequest) -> A
     if ctx.forced.is_some() {
         return ask_tier(ctx, request, Tier::Cheap).await;
     }
+    let roster = ctx.engine.roster();
+    if !roster.is_empty() {
+        return ask_roster_for_plan(ctx, request, &roster).await;
+    }
     let message = ctx.source.words.is_some();
     let mut tier = Tier::Cheap;
     for _ in 0..2 {
@@ -95,9 +99,33 @@ pub(crate) async fn ask_agent_for_plan(ctx: &RunCtx, request: &PlanRequest) -> A
     Asked::Unusable
 }
 
+/// With a roster, the plan is the most important call of the run, so the strongest agent plans.
+/// An agent that fails or answers with no plan is left out, and the next one is asked.
+async fn ask_roster_for_plan(ctx: &RunCtx, request: &PlanRequest, roster: &[ToolId]) -> Asked {
+    let message = ctx.source.words.is_some();
+    for agent in roster.iter().rev() {
+        match ask_picked(ctx, request, Tier::Smart, Some(agent)).await {
+            Asked::Unusable | Asked::Failed(_) if !message => {}
+            asked @ (Asked::Plan(_) | Asked::Reply(_) | Asked::Failed(_)) => return asked,
+            Asked::Unusable => {}
+        }
+    }
+    Asked::Unusable
+}
+
 /// One question to the planner agent of a tier.
 async fn ask_tier(ctx: &RunCtx, request: &PlanRequest, tier: Tier) -> Asked {
-    let (tool, worker) = match planner_agent(&ctx.engine, tier, ctx.forced.as_ref()) {
+    ask_picked(ctx, request, tier, ctx.forced.as_ref()).await
+}
+
+/// One question to a planner agent: the named one, or the pick of the tier.
+async fn ask_picked(
+    ctx: &RunCtx,
+    request: &PlanRequest,
+    tier: Tier,
+    agent: Option<&ToolId>,
+) -> Asked {
+    let (tool, worker) = match planner_agent(&ctx.engine, tier, agent) {
         Ok(found) => found,
         Err(reason) => return Asked::Failed(reason),
     };
@@ -109,6 +137,7 @@ async fn ask_tier(ctx: &RunCtx, request: &PlanRequest, tier: Tier) -> Asked {
         prompt: planner_prompt(request),
     };
     let (text, outcome) = run_for_outcome(&ctx.engine, job, TEXT_TIMEOUT).await;
+    crate::agent_health::pause_after_failure(&ctx.engine, &tool, &outcome);
     read_answer(&text, &outcome, request, ctx.source.words.is_some())
 }
 

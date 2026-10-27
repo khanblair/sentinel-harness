@@ -41,6 +41,8 @@ pub(crate) struct RunMemory {
     pub turns: HashMap<TaskId, usize>,
     /// The failed tries of each task. A roster moves each one to a stronger agent.
     pub failed_tries: HashMap<TaskId, u32>,
+    /// Tries given back to each task because its agent failed for its own reasons.
+    pub refunds: HashMap<TaskId, u32>,
 }
 
 impl RunMemory {

@@ -1,13 +1,40 @@
 //! How an attempt ends for good or goes back: the failure summary, the status, and the undo of
 //! half-written files.
 
-use sentinel_core::{Event, TaskId, TaskStatus};
+use sentinel_core::{Event, TaskId, TaskStatus, ToolInfo};
 use sentinel_tree::restore_path;
+use sentinel_workers::RunOutcome;
 use sentinel_workers::context::{FailureInput, failure_summary};
 
-use crate::agent_health::escalate;
+use crate::agent_health::{escalate, pause_after_failure};
 use crate::engine::lock;
 use crate::run_ctx::RunCtx;
+
+/// How many tries one task may get back. Past that, a broken agent counts against the task, so a
+/// run with only broken agents still ends.
+const MAX_REFUNDS: u32 = 3;
+
+/// An attempt failed. When the agent failed for its own reasons (no login, no credit, a limit), it
+/// is paused and the task gets the try back, because the task did nothing wrong.
+pub(crate) fn note_agent_failure(
+    ctx: &RunCtx,
+    tool: &ToolInfo,
+    task_id: &TaskId,
+    outcome: &RunOutcome,
+) {
+    if !pause_after_failure(&ctx.engine, tool, outcome) {
+        return;
+    }
+    let refunds = {
+        let mut memory = lock(&ctx.memory);
+        let count = memory.refunds.entry(task_id.clone()).or_insert(0);
+        *count += 1;
+        *count
+    };
+    if refunds <= MAX_REFUNDS {
+        let _ = ctx.engine.store().give_back_attempt(task_id);
+    }
+}
 
 /// Put a task back for another try at a higher tier, or block it when the tries are used up.
 pub(crate) fn fail_task(ctx: &RunCtx, task_id: &TaskId, reason: &str, output: &str) {

@@ -129,6 +129,17 @@ fn increment_attempts_counts_up() {
     assert_eq!(store.get_task(&task.id).unwrap().unwrap().attempts, 2);
 }
 
+#[test]
+fn a_given_back_attempt_lowers_the_count_and_stops_at_zero() {
+    let store = Store::open_in_memory().unwrap();
+    let task = sample_task("T-01");
+    store.upsert_task(&task).unwrap();
+    store.increment_attempts(&task.id).unwrap();
+    store.give_back_attempt(&task.id).unwrap();
+    store.give_back_attempt(&task.id).unwrap();
+    assert_eq!(store.get_task(&task.id).unwrap().unwrap().attempts, 0);
+}
+
 fn dependency(task: &str, depends_on: &str, kind: DependencyKind) -> Dependency {
     Dependency {
         task: TaskId::new(task),

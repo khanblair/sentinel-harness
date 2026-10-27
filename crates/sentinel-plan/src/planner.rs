@@ -308,6 +308,19 @@ impl PlannerBackend for FixedPlanner {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_existing_test_file_is_never_named_as_scope() {
+        let repo = vec![
+            "src/accounts.js".to_owned(),
+            "test/accounts.test.js".to_owned(),
+            "acceptance/T05.test.js".to_owned(),
+        ];
+        assert_eq!(
+            scope_from_text("Add KYC tiers on accounts", &repo),
+            vec!["src/accounts.js".to_owned()]
+        );
+    }
     use crate::backlog::BacklogItem;
 
     fn make_request(items: Vec<BacklogItem>, repo_files: Vec<String>) -> PlanRequest {

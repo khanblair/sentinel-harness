@@ -20,6 +20,7 @@ pub fn scope_from_text(text: &str, repo_files: &[String]) -> Vec<String> {
     let words: Vec<BTreeSet<String>> = words_of(text).iter().map(|word| word_forms(word)).collect();
     let mut ranked: Vec<(usize, &String)> = repo_files
         .iter()
+        .filter(|file| !is_test_path(file))
         .filter_map(|file| {
             let parts = path_forms(file);
             let score = words

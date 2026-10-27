@@ -98,6 +98,16 @@ impl Store {
         Ok(())
     }
 
+    /// Take back one try that failed for a reason that is not the task's, such as an agent with no
+    /// credit. The count never goes below zero.
+    pub fn give_back_attempt(&self, id: &TaskId) -> Result<()> {
+        self.connection()?.execute(
+            "UPDATE tasks SET attempts = MAX(attempts - 1, 0) WHERE id = ?1",
+            params![id.as_str()],
+        )?;
+        Ok(())
+    }
+
     pub fn increment_attempts(&self, id: &TaskId) -> Result<u32> {
         let connection = self.connection()?;
         let changed = connection.execute(

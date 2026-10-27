@@ -18,7 +18,7 @@ use crate::run_ctx::RunCtx;
 const PAUSE: Duration = Duration::from_mins(30);
 const MAX_REASON_CHARS: usize = 100;
 /// Lower-case text that marks a failure a retry will not fix. Matched one output line at a time.
-const PAUSE_MARKERS: [&str; 16] = [
+const PAUSE_MARKERS: [&str; 19] = [
     "login",
     "log in",
     "sign in",
@@ -32,6 +32,9 @@ const PAUSE_MARKERS: [&str; 16] = [
     "quota",
     "rate limit",
     "429",
+    "http 402",
+    "payment required",
+    "insufficient credits",
     "keytar",
     "ineligible",
     "project id",
@@ -230,12 +233,15 @@ pub(crate) fn stop_at_agent(
 
 /// An attempt ended with an error exit. When its output names a failure a retry will not fix,
 /// pause the agent. The owner hears about it once per pause.
-pub(crate) fn pause_after_failure(engine: &Engine, tool: &ToolInfo, outcome: &RunOutcome) {
+///
+/// Returns true when the failure belongs to the agent (a login, a limit, no credit), not to the
+/// task. Such a try should not count against the task.
+pub(crate) fn pause_after_failure(engine: &Engine, tool: &ToolInfo, outcome: &RunOutcome) -> bool {
     if outcome.end != EndKind::Failed {
-        return;
+        return false;
     }
     let Some(reason) = pause_reason(&outcome.output_tail.join("\n")) else {
-        return;
+        return false;
     };
     if engine.inner.health.pause(&tool.id, &reason) {
         engine.emit_quiet(&Event::Message {
@@ -244,6 +250,7 @@ pub(crate) fn pause_after_failure(engine: &Engine, tool: &ToolInfo, outcome: &Ru
             text: pause_notice(&tool.name, &reason),
         });
     }
+    true
 }
 
 /// A Test that fails for a login or limit reason pauses the agent. A passing Test lifts the pause.
@@ -268,6 +275,13 @@ mod tests {
     use sentinel_core::{Tier, ToolStatus};
 
     use super::*;
+
+    #[test]
+    fn a_payment_error_is_the_agents_failure_not_the_tasks() {
+        let reason = pause_reason("Model call failed: HTTP 402.");
+        assert_eq!(reason.as_deref(), Some("Model call failed: HTTP 402."));
+        assert!(pause_reason("Payment Required: add credits").is_some());
+    }
 
     fn tool(id: &str) -> ToolInfo {
         ToolInfo {
