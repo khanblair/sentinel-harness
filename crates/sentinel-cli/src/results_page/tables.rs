@@ -176,12 +176,7 @@ fn collisions_section(evidence: &Value) -> String {
         ("Tampers blocked", "/collisions/tampers_blocked"),
     ]
     .into_iter()
-    .map(|(label, pointer)| {
-        row(&[
-            esc(label),
-            count_shown(value_at(Some(evidence), pointer)),
-        ])
-    })
+    .map(|(label, pointer)| row(&[esc(label), count_shown(value_at(Some(evidence), pointer))]))
     .collect::<String>();
     // The evidence file does not count tasks that waited, so the row says it is not known.
     let waited = row(&["Tasks that waited".to_owned(), NOT_KNOWN.to_owned()]);
@@ -210,7 +205,10 @@ fn cost_section(evidence: &Value) -> String {
     let percent = value_at(Some(evidence), "/cost/percent_of_cap").and_then(Value::as_u64);
     let body = match percent {
         Some(percent) => cost_bar(percent, &spent, &cap),
-        None => notice(&format!("There is no cap to measure against. Spent {}.", esc(&spent))),
+        None => notice(&format!(
+            "There is no cap to measure against. Spent {}.",
+            esc(&spent)
+        )),
     };
     section("Cost", &body)
 }

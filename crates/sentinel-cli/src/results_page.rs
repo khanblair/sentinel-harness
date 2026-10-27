@@ -9,7 +9,7 @@ use anyhow::{Context, Result};
 use serde_json::Value;
 
 use tables::{
-    count_shown, cost_of, evidence_sections, money_text, share_shown, task_table, value_at,
+    cost_of, count_shown, evidence_sections, money_text, share_shown, task_table, value_at,
 };
 
 /// Where the page goes when `--page` has no path.
@@ -22,7 +22,7 @@ const EVIDENCE_MISSING: &str = "The evidence file was not found, so only the tas
 const FOOTER: &str = "<footer>Made by sentinel report --page from .sentinel/report.md and \
     .sentinel/evidence.json.</footer>";
 
-const STYLE: &str = r##"
+const STYLE: &str = r"
 :root {
   --page: #f6f7f9;
   --card: #ffffff;
@@ -124,7 +124,7 @@ tr:last-child td { border-bottom: none; }
   border: 1px solid var(--line);
   border-radius: 0.75rem;
 }
-"##;
+";
 
 /// One row of the task table in the report.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -275,7 +275,10 @@ fn tiles(rows: &[TaskRow], evidence: Option<&Value>) -> String {
     let verified = verified_count(rows);
     let cells = [
         tile("Verified", &verified.to_string()),
-        tile("Not verified", &rows.len().saturating_sub(verified).to_string()),
+        tile(
+            "Not verified",
+            &rows.len().saturating_sub(verified).to_string(),
+        ),
         tile(
             "Writes blocked",
             &count_shown(value_at(evidence, "/collisions/writes_blocked")),
@@ -337,9 +340,9 @@ mod tests {
         json!({
             "agents": [
                 {"agent": "claude", "tasks_started": 2, "tasks_verified": 1,
-                 "spend": {"micro_usd": 120000, "estimated": true}, "spend_source": "estimate"},
+                 "spend": {"micro_usd": 120_000, "estimated": true}, "spend_source": "estimate"},
                 {"agent": "codex", "tasks_started": 1, "tasks_verified": 0,
-                 "spend": {"micro_usd": 50000, "estimated": false}, "spend_source": "reported"}
+                 "spend": {"micro_usd": 50_000, "estimated": false}, "spend_source": "reported"}
             ],
             "waves": {"count": 1, "most_tasks": 2, "parallel_share": 1.08},
             "collisions": {
@@ -349,11 +352,11 @@ mod tests {
                 "tampers_blocked": 1
             },
             "cost": {
-                "spent": {"micro_usd": 170000, "estimated": true},
-                "cap": {"micro_usd": 2000000, "estimated": false},
+                "spent": {"micro_usd": 170_000, "estimated": true},
+                "cap": {"micro_usd": 2_000_000, "estimated": false},
                 "percent_of_cap": 8,
                 "tasks_verified": 1,
-                "per_verified": {"micro_usd": 170000, "estimated": true},
+                "per_verified": {"micro_usd": 170_000, "estimated": true},
                 "highest_threshold": 70
             },
             "claims": [

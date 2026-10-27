@@ -258,10 +258,11 @@ fn print_rows(rows: &[CheckRow]) {
 pub(crate) fn report(
     repo: Option<PathBuf>,
     writeup: bool,
-    page: Option<Option<PathBuf>>,
+    page: Option<PathBuf>,
 ) -> Result<ExitCode> {
     let repo = repo_or_current(repo)?;
     if let Some(target) = page {
+        let target = (!target.as_os_str().is_empty()).then_some(target);
         let written = crate::results_page::write_page(&repo, target)?;
         println!("{}", written.display());
         return Ok(ExitCode::SUCCESS);

@@ -75,8 +75,8 @@ enum Command {
         writeup: bool,
         /// Write the run as one HTML page and print its path. Without a file, the page goes to
         /// `.sentinel/results.html` in the repository.
-        #[arg(long)]
-        page: Option<Option<PathBuf>>,
+        #[arg(long, num_args = 0..=1, default_missing_value = "")]
+        page: Option<PathBuf>,
     },
     /// Serve the UI and the API for a repository until you press Ctrl+C.
     Daemon {
@@ -246,7 +246,11 @@ async fn dispatch(command: Command) -> anyhow::Result<ExitCode> {
         }
         Command::Scan { repo } => commands::scan(repo).await,
         Command::Doctor { repo } => commands::doctor(repo).await,
-        Command::Report { repo, writeup, page } => commands::report(repo, writeup, page),
+        Command::Report {
+            repo,
+            writeup,
+            page,
+        } => commands::report(repo, writeup, page),
         Command::Mcp => commands::mcp().await,
         Command::App { repo } => app::app(repo).await,
         Command::Stop { repo } => serve::stop(repo).await,
