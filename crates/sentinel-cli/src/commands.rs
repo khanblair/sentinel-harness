@@ -13,7 +13,7 @@ use sentinel_daemon::config::Config;
 use sentinel_daemon::doctor::{current_os, install_check};
 use sentinel_daemon::engine::{Engine, EngineOptions};
 use sentinel_daemon::roster::{HACKATHON_AGENTS, parse_roster};
-use sentinel_daemon::secrets::{EnvFallback, KeychainStore};
+use sentinel_daemon::secrets::{EnvFallback, KeychainStore, MemoryStore, SecretStore};
 use sentinel_daemon::starter;
 use sentinel_daemon::test_command::{detect, split_command};
 
@@ -40,11 +40,22 @@ pub(crate) fn open_engine(repo: &Path) -> Result<Engine> {
         repo_root: repo.to_path_buf(),
         home: home_dir(),
         runner: Arc::new(SystemRunner),
-        secrets: Arc::new(EnvFallback::new(KeychainStore)),
+        secrets: secret_store(),
         fake_agents: None,
         in_memory: false,
     })
     .context("could not open Sentinel state")
+}
+
+/// Keys come from the system keychain, then from the environment. With `SENTINEL_NO_KEYCHAIN`
+/// set, the keychain is never touched and only the environment answers. A headless or scripted
+/// run uses that, because an unsigned build makes the keychain ask a person for permission.
+fn secret_store() -> Arc<dyn SecretStore> {
+    if std::env::var_os("SENTINEL_NO_KEYCHAIN").is_some() {
+        Arc::new(EnvFallback::new(MemoryStore::new()))
+    } else {
+        Arc::new(EnvFallback::new(KeychainStore))
+    }
 }
 
 /// The flags of `sentinel run`.
