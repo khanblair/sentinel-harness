@@ -51,7 +51,16 @@ fn folder_has_python_test(folder: &Path) -> bool {
 }
 
 fn is_python_test_name(name: &str) -> bool {
-    name.ends_with(".py") && (name.starts_with("test_") || name.ends_with("_test.py"))
+    let path = Path::new(name);
+    let is_python = path
+        .extension()
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("py"));
+    let stem = path
+        .file_stem()
+        .and_then(|stem| stem.to_str())
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    is_python && (stem.starts_with("test_") || stem.ends_with("_test"))
 }
 
 fn detect_go(repo: &Path) -> Option<Vec<String>> {
@@ -125,8 +134,15 @@ mod tests {
     #[test]
     fn detect_runs_the_package_json_test_script_through_sh() {
         let dir = tempfile::tempdir().unwrap();
-        write(dir.path(), "package.json", r#"{"scripts":{"test":"node run.js"}}"#);
-        assert_eq!(detect(dir.path()), Some(words(&["sh", "-c", "node run.js"])));
+        write(
+            dir.path(),
+            "package.json",
+            r#"{"scripts":{"test":"node run.js"}}"#,
+        );
+        assert_eq!(
+            detect(dir.path()),
+            Some(words(&["sh", "-c", "node run.js"]))
+        );
     }
 
     #[test]
@@ -141,7 +157,11 @@ mod tests {
     fn detect_prefers_package_json_over_cargo_toml() {
         let dir = tempfile::tempdir().unwrap();
         write(dir.path(), "Cargo.toml", "[package]\n");
-        write(dir.path(), "package.json", r#"{"scripts":{"test":"vitest"}}"#);
+        write(
+            dir.path(),
+            "package.json",
+            r#"{"scripts":{"test":"vitest"}}"#,
+        );
         assert_eq!(detect(dir.path()), Some(words(&["sh", "-c", "vitest"])));
     }
 
@@ -196,7 +216,11 @@ mod tests {
     #[test]
     fn detect_picks_make_test_only_when_a_test_target_exists() {
         let dir = tempfile::tempdir().unwrap();
-        write(dir.path(), "Makefile", "build:\n\tcc main.c\n\ntest:\n\t./run\n");
+        write(
+            dir.path(),
+            "Makefile",
+            "build:\n\tcc main.c\n\ntest:\n\t./run\n",
+        );
         assert_eq!(detect(dir.path()), Some(words(&["make", "test"])));
 
         let other = tempfile::tempdir().unwrap();
@@ -230,7 +254,7 @@ mod tests {
 
     #[test]
     fn split_command_gives_no_words_for_blank_text() {
-        assert!(split_command("").is_empty());
-        assert!(split_command("   ").is_empty());
+        assert_eq!(split_command(""), Vec::<String>::new());
+        assert_eq!(split_command("   "), Vec::<String>::new());
     }
 }

@@ -297,7 +297,10 @@ mod tests {
 
     #[test]
     fn the_default_is_used_when_nothing_else_applies() {
-        assert_eq!(pick_command(None, &default_command(), None), default_command());
+        assert_eq!(
+            pick_command(None, &default_command(), None),
+            default_command()
+        );
     }
 
     #[test]
