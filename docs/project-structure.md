@@ -90,6 +90,7 @@ docs/
   ui-registry.md          component list
   mobile.md               phone experience
   progress-tracker.md     live status
+  hackathon-writeup.md    one page write-up for Collision Course: what it does, what went wrong, what to fix next
   images/home-stream.png  README picture: a finished chat with the Board panel
   images/backlog-run.png  README picture: a run in waves with its barrier
   images/reserved-panel.png README picture: the Reserved panel
@@ -266,6 +267,8 @@ crates/sentinel-plan/
   src/graph.rs                         task graph, cycle check
   src/lib.rs                           exports
   src/plan_check.rs                    Plan validation: ids, references, scope paths, and dependency cycles
+  src/plan_json.rs                     Reading a plan out of what a model answered: cutting the JSON out of prose, finding the `tasks`
+  src/plan_prompt.rs                   The prompt of the planner: the shape of a plan, the rules, the repository files, and the backlog
   src/planner.rs                       planner model call, scope and dependency output
   src/scopes.rs                        Scopes of planned tasks: the files a task's text names, a folder when it names none, and an
   tests/graph.rs                       graph tests
@@ -349,6 +352,7 @@ crates/sentinel-daemon/
   src/agents.rs                        Finding the agent CLIs on this computer, turning them into workers, and asking one of them
   src/agents_config.rs                 Pure helpers that pick the tools and the routing from one scan. They take no engine, so the
   src/answer.rs                        Replies that need no run: a chat reply, an answer to a question, and research. Each asks one
+  src/answer_plan.rs                   The planner's calls: ask agents in turn for a plan, or for a plain reply to a message that
   src/ask.rs                           Questions the run loop puts to the user: approval cards and decisions. Each one waits for an
   src/assets.rs                        The web UI, embedded in the daemon. A path with no file gets the page, so the single page app
   src/attach.rs                        Attachments: what the composer plus button adds to a chat. A file, a folder, or a backlog is a
@@ -374,6 +378,7 @@ crates/sentinel-daemon/
   src/connections.rs                   connection state and test actions (Tailscale, OpenRouter, MCP, git, keychain)
   src/context_usage.rs                 The Context panel's numbers: what the next task would put in the window of the agent routed for
   src/controls.rs                      Engine methods that change settings and answer questions. Each one says who did it, because a
+  src/culprit.rs                       A failed barrier blames only the tasks whose own change breaks the suite. Each checkpoint of the
   src/data_clear.rs                    Clear the data of one scope, so the app can start again from the setup wizard. Every call
   src/doctor.rs                        install check used by onboarding and `sentinel doctor`
   src/dry_run.rs                       The dry run: a rehearsal on a sample project that ships with Sentinel. A second engine runs the
@@ -484,6 +489,8 @@ crates/sentinel-cli/
   src/login_path.rs                    Finds the agent CLIs when the Mac app starts from Finder, Spotlight, or the Dock. Those
   src/main.rs                          entry
   src/projects.rs                      The projects the app serves besides the first one. The first project starts the host loop, the
+  src/results_page.rs                  The results page of a run. `sentinel report --page` writes it from `.sentinel/report.md` and,
+  src/results_page/tables.rs           The tables, bars, and status marks of the results page. Each function returns HTML. Text from
   src/selftest.rs                      `sentinel selftest`: runs the real engine on a throwaway repository with scripted agents that
   src/selftest_cases.rs                The scenarios of `sentinel selftest`: each bad agent, its scripted plans, and what the finished
   src/selftest_repo.rs                 The throwaway repository of `sentinel selftest`: its files, the scripted plans, and the folder
