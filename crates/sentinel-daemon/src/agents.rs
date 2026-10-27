@@ -204,7 +204,7 @@ impl Engine {
             }));
         }
         if is_openrouter_adapter(&tool.adapter) {
-            return openrouter_worker(self.inner.secrets.as_ref(), &self.config());
+            return openrouter_worker(self.inner.secrets.as_ref(), &self.config(), &tool.id);
         }
         let profile = profile_for(&tool.adapter)?;
         if tool.path.is_empty() {

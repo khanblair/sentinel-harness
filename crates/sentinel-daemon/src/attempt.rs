@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use sentinel_core::{Event, RunId, Task, TaskId, TaskStatus, ToolId, ToolInfo};
+use sentinel_core::{Event, RunId, Task, TaskId, TaskStatus, Tier, ToolId, ToolInfo};
 use sentinel_store::{CheckpointRecord, RunRecord};
 use sentinel_tree::{Checkpoint, checkpoint, restore_path, write_guard_files};
 use sentinel_workers::budget::default_ceiling;
@@ -12,7 +12,7 @@ use sentinel_workers::{OutputLine, RunControl, RunOutcome, RunSpec};
 use tokio::sync::{mpsc, watch};
 
 use crate::agent_health::{escalate, refuse_attempt, stop_at_agent};
-use crate::agents_config::Pick;
+use crate::agents_config::{Pick, roster_pick};
 use crate::engine::{Engine, EngineError, Result, lock};
 use crate::prompt::{Retry, task_prompt};
 use crate::run_ctx::{RunCtx, merge_kill};
@@ -44,7 +44,7 @@ async fn try_attempt(ctx: &Arc<RunCtx>, task_id: &TaskId) -> Result<()> {
         .get(task_id)
         .copied()
         .unwrap_or(task.tier);
-    let agent = match engine.pick_agent(ctx.forced.as_ref(), tier)? {
+    let agent = match pick_attempt(ctx, &task, tier)? {
         Pick::Agent(agent) => agent,
         Pick::Unavailable(reason) => return refuse_attempt(ctx, task_id, &reason),
     };
@@ -69,6 +69,24 @@ async fn try_attempt(ctx: &Arc<RunCtx>, task_id: &TaskId) -> Result<()> {
     }
     fail_task(ctx, task_id, &reason, &outcome.output_tail.join("\n"));
     Ok(())
+}
+
+/// The agent for one try. With a roster, the task's turn and its failed tries pick it, and a
+/// skipped agent is passed over. A forced agent, or no roster, leaves the pick to the routing.
+fn pick_attempt(ctx: &RunCtx, task: &Task, tier: Tier) -> Result<Pick> {
+    let roster = ctx.engine.roster();
+    if ctx.forced.is_some() || roster.is_empty() {
+        return ctx.engine.pick_agent(ctx.forced.as_ref(), tier);
+    }
+    let (turn, failures) = {
+        let mut memory = lock(&ctx.memory);
+        (memory.turn_of(&task.id), memory.failures_of(&task.id))
+    };
+    let skip = ctx.engine.skipped_agents(&roster)?;
+    match roster_pick(&roster, turn, failures, &skip) {
+        Some(agent) => Ok(Pick::Agent(agent)),
+        None => ctx.engine.pick_agent(None, tier),
+    }
 }
 
 fn tool_info(engine: &Engine, agent: &ToolId) -> Result<ToolInfo> {
@@ -314,6 +332,7 @@ fn record_checkpoint(ctx: &RunCtx, task: &Task, made: Checkpoint) -> Result<()> 
 pub(crate) fn fail_task(ctx: &RunCtx, task_id: &TaskId, reason: &str, output: &str) {
     let engine = &ctx.engine;
     undo_partial_writes(ctx, task_id);
+    lock(&ctx.memory).record_failed_try(task_id);
     let summary = failure_summary(
         &FailureInput {
             failing_tests: &[],

@@ -39,15 +39,17 @@ pub(crate) fn openrouter_entry(secrets: &dyn SecretStore) -> ToolInfo {
     }
 }
 
-/// A worker for one run. The model is the tool's entry in `models`, or the router when none is set.
+/// A worker for one run. The model is the entry of this tool id in `models`, or the router when none
+/// is set. A roster may run two copies of this tool, each with its own model.
 pub(crate) fn openrouter_worker(
     secrets: &dyn SecretStore,
     config: &Config,
+    tool: &ToolId,
 ) -> Result<Arc<dyn Worker>> {
     let api_key = saved_key(secrets).ok_or_else(|| EngineError::Invalid(MISSING_KEY.to_owned()))?;
     let model = config
         .models
-        .get(TOOL_ID)
+        .get(tool.as_str())
         .filter(|model| !model.is_empty())
         .cloned()
         .unwrap_or_else(|| DEFAULT_MODEL.to_owned());
@@ -105,10 +107,19 @@ mod tests {
     #[test]
     fn a_worker_needs_a_saved_key() {
         let store = MemoryStore::new();
-        let error = openrouter_worker(&store, &Config::default()).err();
+        let tool = ToolId::new(TOOL_ID);
+        let error = openrouter_worker(&store, &Config::default(), &tool).err();
         assert!(matches!(error, Some(EngineError::Invalid(text)) if text == MISSING_KEY));
         store.set(TOOL_ID, "sk-or-unit-test").unwrap();
-        assert!(openrouter_worker(&store, &Config::default()).is_ok());
+        assert!(openrouter_worker(&store, &Config::default(), &tool).is_ok());
+    }
+
+    #[test]
+    fn a_second_copy_of_the_tool_builds_its_own_worker() {
+        let store = MemoryStore::new();
+        store.set(TOOL_ID, "sk-or-unit-test").unwrap();
+        let copy = ToolId::new("openrouter~2");
+        assert!(openrouter_worker(&store, &Config::default(), &copy).is_ok());
     }
 
     #[test]

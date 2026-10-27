@@ -56,6 +56,7 @@ mod quit;
 mod report_build;
 mod resume;
 mod reviewer;
+pub mod roster;
 pub mod routes;
 mod routines;
 mod routines_tick;

@@ -12,6 +12,7 @@ use sentinel_daemon::cmd::SystemRunner;
 use sentinel_daemon::config::Config;
 use sentinel_daemon::doctor::{current_os, install_check};
 use sentinel_daemon::engine::{Engine, EngineOptions};
+use sentinel_daemon::roster::{HACKATHON_AGENTS, parse_roster};
 use sentinel_daemon::secrets::{EnvFallback, KeychainStore};
 use sentinel_daemon::starter;
 use sentinel_daemon::test_command::{detect, split_command};
@@ -46,25 +47,32 @@ pub(crate) fn open_engine(repo: &Path) -> Result<Engine> {
     .context("could not open Sentinel state")
 }
 
-pub(crate) async fn run(
-    backlog: &str,
-    repo: Option<PathBuf>,
-    cap: Option<String>,
-    test_cmd: Option<String>,
-) -> Result<ExitCode> {
-    let repo = repo_or_current(repo)?;
+/// The flags of `sentinel run`.
+pub(crate) struct RunArgs {
+    pub backlog: String,
+    pub repo: Option<PathBuf>,
+    pub cap: Option<String>,
+    pub test_cmd: Option<String>,
+    pub agents: Option<String>,
+}
+
+pub(crate) async fn run(args: RunArgs) -> Result<ExitCode> {
+    let repo = repo_or_current(args.repo)?;
     let engine = open_engine(&repo)?;
-    if let Some(cap) = cap {
+    if let Some(cap) = args.cap {
         engine.update_config(|c| c.cap_usd = cap)?;
     }
-    let command = choose_test_command(&engine, &repo, test_cmd.as_deref())?;
+    let command = choose_test_command(&engine, &repo, args.test_cmd.as_deref())?;
     println!("test command: {}", command.join(" "));
     engine.update_config(|c| c.test_command = command)?;
     engine.scan_tools().await?;
+    if let Some(text) = args.agents.as_deref() {
+        apply_agents(&engine, text)?;
+    }
     let mut events = engine.subscribe();
     engine
         .start_run(RunRequest {
-            backlog: Some(backlog.to_owned()),
+            backlog: Some(args.backlog),
             ..RunRequest::default()
         })
         .await?;
@@ -81,6 +89,23 @@ pub(crate) async fn run(
         print_event(&record.event);
     }
     print_summary(&engine, &repo)
+}
+
+/// The roster of the run, from `--agents`. Prints one line per agent, and a warning when the list is
+/// shorter than the hackathon asks for.
+fn apply_agents(engine: &Engine, text: &str) -> Result<()> {
+    let specs = parse_roster(text).map_err(|error| anyhow::anyhow!("--agents: {error}"))?;
+    let roster = engine.apply_roster(&specs)?;
+    for line in engine.roster_lines(&roster)? {
+        println!("{line}");
+    }
+    if roster.len() < HACKATHON_AGENTS {
+        println!(
+            "warning: the hackathon asks for {HACKATHON_AGENTS} agents; this roster has {}",
+            roster.len()
+        );
+    }
+    Ok(())
 }
 
 /// The test command for this run. An empty `--test-cmd` is a mistake, so it stops the run.
