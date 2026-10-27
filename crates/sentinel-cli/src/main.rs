@@ -7,6 +7,8 @@ mod doctor_host;
 mod login_path;
 mod projects;
 mod selftest;
+mod selftest_cases;
+mod selftest_repo;
 mod serve;
 mod service;
 #[cfg(all(feature = "window", target_os = "macos"))]

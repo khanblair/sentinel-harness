@@ -36,6 +36,7 @@ mod dry_run;
 mod dry_run_book;
 mod dry_run_preflight;
 pub mod engine;
+mod engine_scripted;
 pub mod folders;
 mod folders_git;
 mod folders_tree;

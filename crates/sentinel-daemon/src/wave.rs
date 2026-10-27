@@ -128,6 +128,8 @@ pub(crate) async fn barrier_and_verify(
         barrier.task_finished();
     }
     if checkpointed.is_empty() {
+        // A blocked task was reverted while the guard watched. Put the tree back in step with HEAD.
+        restore_strays(ctx);
         return Ok(());
     }
     restore_strays(ctx);
@@ -258,16 +260,34 @@ fn block_tampered(
         receipt_json: "null".to_owned(),
     };
     ctx.engine.store().upsert_verification(&record)?;
-    ctx.engine.store().set_task_status(id, verdict.status)?;
-    ctx.engine.emit(&Event::TaskStatus {
-        task: id.clone(),
-        status: verdict.status,
-    })?;
+    walk_to(ctx, id, verdict.status)?;
     ctx.engine.emit(&Event::Verdict {
         task: id.clone(),
         status: verdict.status,
         reason: verdict.reason.clone(),
     })?;
+    Ok(())
+}
+
+/// A checkpointed task reaches an end status only through the steps the state machine allows:
+/// verifying, then failed, then blocked.
+fn walk_to(ctx: &RunCtx, id: &TaskId, end: TaskStatus) -> Result<()> {
+    let steps: &[TaskStatus] = if end == TaskStatus::Blocked {
+        &[
+            TaskStatus::Verifying,
+            TaskStatus::Failed,
+            TaskStatus::Blocked,
+        ]
+    } else {
+        &[TaskStatus::Verifying, end]
+    };
+    for status in steps {
+        ctx.engine.store().set_task_status(id, *status)?;
+        ctx.engine.emit(&Event::TaskStatus {
+            task: id.clone(),
+            status: *status,
+        })?;
+    }
     Ok(())
 }
 

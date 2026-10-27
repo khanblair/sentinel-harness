@@ -3,253 +3,24 @@
 //! no network, and no money.
 
 use std::fs;
-use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
-use std::process::{Command, ExitCode};
-use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::process::ExitCode;
+use std::time::Duration;
 
 use anyhow::{Context, bail};
 use sentinel_core::api::RunRequest;
-use sentinel_core::{Event, HarnessState, TaskStatus};
-use sentinel_daemon::cmd::SystemRunner;
+use sentinel_core::{Event, HarnessState};
 use sentinel_daemon::engine::{Engine, EngineOptions, FakeAgents};
-use sentinel_daemon::secrets::MemoryStore;
+
+use crate::selftest_cases::{Check, Outcome, Scenario, scenarios};
+use crate::selftest_repo::{
+    BACKLOG_FILE, REPO_FILES, Scratch, write_plans, write_repo, write_script,
+};
 
 /// A scenario that runs longer than this is a FAIL, never a hang.
 const SCENARIO_TIMEOUT: Duration = Duration::from_secs(60);
 /// Large enough to hold every event of one scenario run.
 const EVENT_LIMIT: u32 = 100_000;
-const BACKLOG_FILE: &str = "backlog.md";
-const TEST_SCRIPT: &str = "#!/bin/sh\nexit 0\n";
-const BETA_ORIGINAL: &str = "beta original";
-
-/// The files of the throwaway repository. A scenario's backlog is added on top of them.
-/// `.gitignore` keeps the engine's `.sentinel` folder out of the clean-tree check.
-const REPO_FILES: [(&str, &str); 6] = [
-    ("src/alpha.txt", "alpha original\n"),
-    ("src/beta.txt", "beta original\n"),
-    ("src/gamma.txt", "gamma original\n"),
-    ("tests/run.sh", TEST_SCRIPT),
-    ("README.md", "# selftest repo\n"),
-    (".gitignore", ".sentinel/\n"),
-];
-
-const FAKE_AGENT: &str = include_str!("../../../fixtures/selftest/fake-agent");
-
-/// `Ok` carries the detail for the PASS line. `Err` carries the reason for the FAIL line.
-type Check = Result<String, String>;
-
-/// One bad agent: its backlog and scripted plans, and what the finished run must show.
-struct Scenario {
-    name: &'static str,
-    backlog: &'static str,
-    plan_json: &'static str,
-    /// Each scripted task as (file name, text). The fake agent reads `T-NN.fake` from here.
-    plans: &'static [(&'static str, &'static str)],
-    expect: fn(&Outcome) -> Check,
-}
-
-/// What a finished run left behind. The expectations read only this, so they run without an engine.
-struct Outcome {
-    /// Each task and the status it ended with.
-    statuses: Vec<(String, TaskStatus)>,
-    /// The task and the reason of each verdict the run gave.
-    reasons: Vec<(String, String)>,
-    /// Every event the run stored, in order.
-    events_seen: Vec<Event>,
-    /// The path and text of each file of the repository after the run.
-    files: Vec<(String, String)>,
-}
-
-impl Outcome {
-    fn status(&self, task: &str) -> Option<TaskStatus> {
-        self.statuses
-            .iter()
-            .find(|(id, _)| id == task)
-            .map(|(_, status)| *status)
-    }
-
-    fn file(&self, path: &str) -> Option<&str> {
-        self.files
-            .iter()
-            .find(|(name, _)| name == path)
-            .map(|(_, text)| text.as_str())
-    }
-
-    fn saw(&self, wanted: impl Fn(&Event) -> bool) -> bool {
-        self.events_seen.iter().any(wanted)
-    }
-
-    fn reason_contains(&self, task: &str, text: &str) -> bool {
-        self.reasons
-            .iter()
-            .any(|(id, reason)| id == task && reason.contains(text))
-    }
-
-    fn wrote_blocked(&self, path: &str) -> bool {
-        self.saw(|event| {
-            matches!(event, Event::WriteBlocked { path: blocked, .. } if blocked == path)
-        })
-    }
-
-    fn started(&self, task: &str) -> bool {
-        self.saw(|event| {
-            matches!(
-                event,
-                Event::TaskStatus { task: id, status: TaskStatus::Running }
-                    if id.to_string() == task
-            )
-        })
-    }
-}
-
-fn expect_collider(outcome: &Outcome) -> Check {
-    if !outcome.wrote_blocked("src/beta.txt") {
-        return Err("no write to src/beta.txt was blocked".to_owned());
-    }
-    match outcome.file("src/beta.txt") {
-        Some(text) if text.trim_end() == BETA_ORIGINAL => {
-            Ok("a write outside its files was blocked and restored".to_owned())
-        }
-        Some(text) => Err(format!("src/beta.txt still holds {:?}", text.trim_end())),
-        None => Err("src/beta.txt is missing after the run".to_owned()),
-    }
-}
-
-fn expect_tamperer(outcome: &Outcome) -> Check {
-    if outcome.status("T-01") == Some(TaskStatus::Verified) {
-        return Err("T-01 was verified after it edited a protected file".to_owned());
-    }
-    if !outcome.reason_contains("T-01", "tamper") {
-        return Err("no verdict on T-01 names the tamper".to_owned());
-    }
-    match outcome.file("tests/run.sh") {
-        Some(TEST_SCRIPT) => {
-            Ok("a protected test file was edited and the task was not verified".to_owned())
-        }
-        Some(_) => Err("tests/run.sh still holds the agent's edit".to_owned()),
-        None => Err("tests/run.sh is missing after the run".to_owned()),
-    }
-}
-
-fn expect_liar(outcome: &Outcome) -> Check {
-    if outcome.status("T-01") == Some(TaskStatus::Verified) {
-        return Err("T-01 was verified although it changed nothing".to_owned());
-    }
-    let checkpointed = outcome.saw(|event| {
-        matches!(event, Event::Checkpoint { task, .. } if task.to_string() == "T-01")
-    });
-    if checkpointed {
-        return Err("T-01 was checkpointed without any change".to_owned());
-    }
-    Ok("a claim of done with no change was not verified".to_owned())
-}
-
-/// The run reports the cap through a budget threshold, a task ceiling, or the 70 percent stop.
-fn reported_cap(outcome: &Outcome) -> bool {
-    outcome.saw(|event| {
-        matches!(event, Event::BudgetThreshold { .. } | Event::TaskCeilingHit { .. })
-            || matches!(event, Event::Message { text, .. } if text.contains("of the cap is spent"))
-    })
-}
-
-fn expect_overspender(outcome: &Outcome) -> Check {
-    if !reported_cap(outcome) {
-        return Err("the run never reported that the cap was spent".to_owned());
-    }
-    if outcome.started("T-02") {
-        return Err("T-02 started after the cap was spent".to_owned());
-    }
-    Ok("the run stopped on the cap and the next task never started".to_owned())
-}
-
-fn expect_crasher(outcome: &Outcome) -> Check {
-    let failing = outcome.status("T-01");
-    if !matches!(failing, Some(TaskStatus::Blocked | TaskStatus::Failed | TaskStatus::Skipped)) {
-        return Err(format!("T-01 ended as {failing:?}, not blocked, failed, or skipped"));
-    }
-    let other = outcome.status("T-02");
-    if other != Some(TaskStatus::Verified) {
-        return Err(format!("T-02 ended as {other:?}, not verified"));
-    }
-    Ok("the failing task ended blocked and the other task still verified".to_owned())
-}
-
-/// Every scenario, in the order the command prints them.
-fn scenarios() -> Vec<Scenario> {
-    vec![collider(), tamperer(), liar(), overspender(), crasher()]
-}
-
-// Each agent misbehaves once, on its own backlog. T-NN.fake files are the scripts.
-
-fn collider() -> Scenario {
-    // UNSURE: the watcher may restore src/beta.txt during the wave, or only the barrier does. Both
-    // report WriteBlocked for the path, so the check accepts either.
-    Scenario {
-        name: "collider",
-        backlog: include_str!("../../../fixtures/selftest/collider/backlog.md"),
-        plan_json: include_str!("../../../fixtures/selftest/collider/plan.json"),
-        plans: &[
-            ("T-01.fake", include_str!("../../../fixtures/selftest/collider/T-01.fake")),
-            ("T-02.fake", include_str!("../../../fixtures/selftest/collider/T-02.fake")),
-        ],
-        expect: expect_collider,
-    }
-}
-
-fn tamperer() -> Scenario {
-    // UNSURE: the planner may refuse a scope that names a protected file. Then the run never
-    // reaches the tamper check and this scenario reports FAIL with no tamper reason.
-    Scenario {
-        name: "tamperer",
-        backlog: include_str!("../../../fixtures/selftest/tamperer/backlog.md"),
-        plan_json: include_str!("../../../fixtures/selftest/tamperer/plan.json"),
-        plans: &[(
-            "T-01.fake",
-            include_str!("../../../fixtures/selftest/tamperer/T-01.fake"),
-        )],
-        expect: expect_tamperer,
-    }
-}
-
-fn liar() -> Scenario {
-    Scenario {
-        name: "liar",
-        backlog: include_str!("../../../fixtures/selftest/liar/backlog.md"),
-        plan_json: include_str!("../../../fixtures/selftest/liar/plan.json"),
-        plans: &[("T-01.fake", include_str!("../../../fixtures/selftest/liar/T-01.fake"))],
-        expect: expect_liar,
-    }
-}
-
-fn overspender() -> Scenario {
-    // UNSURE: which cap event comes first depends on the timing of the cost line and the kill
-    // signal. The check accepts any of the three forms the engine can emit.
-    Scenario {
-        name: "overspender",
-        backlog: include_str!("../../../fixtures/selftest/overspender/backlog.md"),
-        plan_json: include_str!("../../../fixtures/selftest/overspender/plan.json"),
-        plans: &[
-            ("T-01.fake", include_str!("../../../fixtures/selftest/overspender/T-01.fake")),
-            ("T-02.fake", include_str!("../../../fixtures/selftest/overspender/T-02.fake")),
-        ],
-        expect: expect_overspender,
-    }
-}
-
-fn crasher() -> Scenario {
-    Scenario {
-        name: "crasher",
-        backlog: include_str!("../../../fixtures/selftest/crasher/backlog.md"),
-        plan_json: include_str!("../../../fixtures/selftest/crasher/plan.json"),
-        plans: &[
-            ("T-01.fake", include_str!("../../../fixtures/selftest/crasher/T-01.fake")),
-            ("T-02.fake", include_str!("../../../fixtures/selftest/crasher/T-02.fake")),
-        ],
-        expect: expect_crasher,
-    }
-}
 
 /// `sentinel selftest`: run every scenario, or the one named by `only`, and print a line each.
 pub(crate) async fn run(only: Option<&str>) -> anyhow::Result<ExitCode> {
@@ -268,16 +39,65 @@ pub(crate) async fn run(only: Option<&str>) -> anyhow::Result<ExitCode> {
         }
     }
     println!("{passed} of {total} scenarios passed");
-    Ok(if passed == total { ExitCode::SUCCESS } else { ExitCode::FAILURE })
+    Ok(if passed == total {
+        ExitCode::SUCCESS
+    } else {
+        ExitCode::FAILURE
+    })
 }
 
 /// Runs one scenario and turns every outcome into a check. A timeout is a FAIL, never a hang.
 async fn check_scenario(scenario: &Scenario) -> Check {
     match tokio::time::timeout(SCENARIO_TIMEOUT, run_scenario(scenario)).await {
-        Ok(Ok(outcome)) => (scenario.expect)(&outcome),
+        Ok(Ok(outcome)) => (scenario.expect)(&outcome)
+            .map_err(|reason| format!("{reason}\n{}", describe(&outcome))),
         Ok(Err(error)) => Err(format!("{error:#}")),
-        Err(_) => Err(format!("timed out after {} seconds", SCENARIO_TIMEOUT.as_secs())),
+        Err(_) => Err(format!(
+            "timed out after {} seconds",
+            SCENARIO_TIMEOUT.as_secs()
+        )),
     }
+}
+
+/// What the run did, in a few indented lines, so a FAIL shows why.
+fn describe(outcome: &Outcome) -> String {
+    let statuses: Vec<String> = outcome
+        .statuses
+        .iter()
+        .map(|(task, status)| format!("{task}={}", status.label()))
+        .collect();
+    let reasons: Vec<String> = outcome
+        .reasons
+        .iter()
+        .map(|(task, reason)| format!("{task}: {reason}"))
+        .collect();
+    let blocked: Vec<&str> = outcome
+        .events_seen
+        .iter()
+        .filter_map(|event| {
+            let Event::WriteBlocked { path, .. } = event else {
+                return None;
+            };
+            Some(path.as_str())
+        })
+        .collect();
+    let notes: Vec<&str> = outcome
+        .events_seen
+        .iter()
+        .filter_map(|event| {
+            let Event::Message { from, text, .. } = event else {
+                return None;
+            };
+            (from == "sentinel").then_some(text.as_str())
+        })
+        .collect();
+    format!(
+        "  tasks: {}\n  verdicts: {}\n  writes blocked: {}\n  notes: {}",
+        statuses.join(", "),
+        reasons.join(" | "),
+        blocked.join(", "),
+        notes.join(" | ")
+    )
 }
 
 /// Prints the PASS or FAIL line and says whether the scenario passed.
@@ -335,17 +155,11 @@ async fn run_scenario(scenario: &Scenario) -> anyhow::Result<Outcome> {
 
 /// An engine with the scripted agents, the cap, and short waits for answers no one gives.
 fn selftest_engine(repo: &Path, script: PathBuf, plans: PathBuf) -> anyhow::Result<Engine> {
-    let engine = Engine::open(EngineOptions {
-        repo_root: repo.to_path_buf(),
-        home: repo.to_path_buf(),
-        runner: Arc::new(SystemRunner),
-        secrets: Arc::new(MemoryStore::new()),
-        fake_agents: Some(FakeAgents {
-            script,
-            plans_dir: plans,
-        }),
-        in_memory: true,
-    })?;
+    let fake = FakeAgents {
+        script,
+        plans_dir: plans,
+    };
+    let engine = Engine::open(EngineOptions::scripted(repo, fake))?;
     engine.update_config(|c| {
         "1.00".clone_into(&mut c.cap_usd);
         c.test_command = vec!["sh".to_owned(), "tests/run.sh".to_owned()];
@@ -397,90 +211,19 @@ fn verdict_reason(event: &Event) -> Option<(String, String)> {
 }
 
 fn read_repo_file(repo: &Path, path: &str) -> anyhow::Result<(String, String)> {
-    let text = fs::read_to_string(repo.join(path))
-        .with_context(|| format!("could not read {path}"))?;
+    let text =
+        fs::read_to_string(repo.join(path)).with_context(|| format!("could not read {path}"))?;
     Ok((path.to_owned(), text))
-}
-
-/// The throwaway repository: the base files and the backlog, committed on `main`.
-fn write_repo(repo: &Path, backlog: &str) -> anyhow::Result<()> {
-    for (path, text) in REPO_FILES {
-        write_file(&repo.join(path), text)?;
-    }
-    write_file(&repo.join(BACKLOG_FILE), backlog)?;
-    git(repo, &["init", "-b", "main"])?;
-    git(repo, &["config", "user.name", "Sentinel selftest"])?;
-    git(repo, &["config", "user.email", "selftest@example.com"])?;
-    git(repo, &["add", "-A"])?;
-    git(repo, &["commit", "-m", "start"])
-}
-
-/// The scripted plans sit outside the repository, so they never show up as changes.
-fn write_plans(plans: &Path, scenario: &Scenario) -> anyhow::Result<()> {
-    write_file(&plans.join("plan.json"), scenario.plan_json)?;
-    for (name, text) in scenario.plans {
-        write_file(&plans.join(name), text)?;
-    }
-    Ok(())
-}
-
-fn write_script(path: &Path) -> anyhow::Result<()> {
-    write_file(path, FAKE_AGENT)?;
-    fs::set_permissions(path, fs::Permissions::from_mode(0o755))
-        .context("could not make the fake agent runnable")
-}
-
-fn write_file(path: &Path, text: &str) -> anyhow::Result<()> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    fs::write(path, text).with_context(|| format!("could not write {}", path.display()))
-}
-
-fn git(repo: &Path, args: &[&str]) -> anyhow::Result<()> {
-    let output = Command::new("git")
-        .current_dir(repo)
-        .args(args)
-        .output()
-        .context("could not start git")?;
-    if output.status.success() {
-        return Ok(());
-    }
-    bail!(
-        "git {}: {}",
-        args.join(" "),
-        String::from_utf8_lossy(&output.stderr).trim()
-    )
-}
-
-/// A folder under the system temp folder, removed when the scenario ends.
-struct Scratch(PathBuf);
-
-impl Scratch {
-    fn new(name: &str) -> anyhow::Result<Self> {
-        let nanos = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_or(0, |elapsed| elapsed.as_nanos());
-        let path = std::env::temp_dir().join(format!(
-            "sentinel-selftest-{name}-{}-{nanos}",
-            std::process::id()
-        ));
-        fs::create_dir_all(&path)
-            .with_context(|| format!("could not make {}", path.display()))?;
-        Ok(Self(fs::canonicalize(&path)?))
-    }
-
-}
-
-impl Drop for Scratch {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.0);
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::selftest_cases::{
+        TEST_SCRIPT, expect_collider, expect_crasher, expect_liar, expect_overspender,
+        expect_tamperer,
+    };
+    use sentinel_core::TaskStatus;
 
     /// A hand-built outcome. Tests add events or reasons when a check needs them.
     fn outcome(statuses: &[(&str, TaskStatus)], files: &[(&str, &str)]) -> Outcome {
@@ -498,10 +241,10 @@ mod tests {
         }
     }
 
-    fn blocked_beta() -> Event {
+    fn blocked_gamma() -> Event {
         Event::WriteBlocked {
             task: None,
-            path: "src/beta.txt".to_owned(),
+            path: "src/gamma.txt".to_owned(),
             restored: true,
         }
     }
@@ -511,22 +254,22 @@ mod tests {
     }
 
     #[test]
-    fn collider_passes_when_the_write_is_blocked_and_beta_is_restored() {
-        let mut good = outcome(&[], &[("src/beta.txt", "beta original\n")]);
-        good.events_seen.push(blocked_beta());
+    fn collider_passes_when_the_write_is_blocked_and_gamma_is_restored() {
+        let mut good = outcome(&[], &[("src/gamma.txt", "gamma original\n")]);
+        good.events_seen.push(blocked_gamma());
         assert!(expect_collider(&good).is_ok());
     }
 
     #[test]
-    fn collider_fails_when_beta_keeps_the_write_of_the_other_task() {
-        let mut bad = outcome(&[], &[("src/beta.txt", "beta changed by T-01\n")]);
-        bad.events_seen.push(blocked_beta());
+    fn collider_fails_when_gamma_keeps_the_write() {
+        let mut bad = outcome(&[], &[("src/gamma.txt", "gamma changed by T-01\n")]);
+        bad.events_seen.push(blocked_gamma());
         assert!(expect_collider(&bad).is_err());
     }
 
     #[test]
     fn collider_fails_when_no_write_was_blocked() {
-        let quiet = outcome(&[], &[("src/beta.txt", "beta original\n")]);
+        let quiet = outcome(&[], &[("src/gamma.txt", "gamma original\n")]);
         assert!(expect_collider(&quiet).is_err());
     }
 
@@ -549,8 +292,10 @@ mod tests {
             &[("T-01", TaskStatus::Verified)],
             &[("tests/run.sh", TEST_SCRIPT)],
         );
-        bad.reasons
-            .push(("T-01".to_owned(), "tampered with a protected file".to_owned()));
+        bad.reasons.push((
+            "T-01".to_owned(),
+            "tampered with a protected file".to_owned(),
+        ));
         assert!(expect_tamperer(&bad).is_err());
     }
 
@@ -560,8 +305,10 @@ mod tests {
             &[("T-01", TaskStatus::Blocked)],
             &[("tests/run.sh", "#!/bin/sh\nexit 0\n# edited\n")],
         );
-        bad.reasons
-            .push(("T-01".to_owned(), "tampered with a protected file".to_owned()));
+        bad.reasons.push((
+            "T-01".to_owned(),
+            "tampered with a protected file".to_owned(),
+        ));
         assert!(expect_tamperer(&bad).is_err());
     }
 
@@ -598,7 +345,10 @@ mod tests {
     #[test]
     fn crasher_passes_when_the_failing_task_ends_blocked_and_the_other_verifies() {
         let good = outcome(
-            &[("T-01", TaskStatus::Blocked), ("T-02", TaskStatus::Verified)],
+            &[
+                ("T-01", TaskStatus::Blocked),
+                ("T-02", TaskStatus::Verified),
+            ],
             &[],
         );
         assert!(expect_crasher(&good).is_ok());
@@ -629,6 +379,29 @@ mod tests {
 
     #[test]
     fn only_picks_the_named_scenario() {
-        assert_eq!(choose(Some("liar")).map(|picked| picked.len()).ok(), Some(1));
+        assert_eq!(
+            choose(Some("liar")).map(|picked| picked.len()).ok(),
+            Some(1)
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn the_tamperer_scenario_passes_on_the_real_engine() {
+        let scenario = scenarios()
+            .into_iter()
+            .find(|scenario| scenario.name == "tamperer")
+            .expect("the tamperer scenario exists");
+        let check = check_scenario(&scenario).await;
+        assert!(check.is_ok(), "{check:?}");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn the_collider_scenario_passes_on_the_real_engine() {
+        let scenario = scenarios()
+            .into_iter()
+            .find(|scenario| scenario.name == "collider")
+            .expect("the collider scenario exists");
+        let check = check_scenario(&scenario).await;
+        assert!(check.is_ok(), "{check:?}");
     }
 }
