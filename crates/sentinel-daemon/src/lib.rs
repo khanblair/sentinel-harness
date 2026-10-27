@@ -26,6 +26,7 @@ mod changes;
 mod chat_agent;
 mod chats;
 mod close_out;
+mod culprit;
 pub mod cmd;
 pub mod config;
 pub mod connections;

@@ -31,7 +31,7 @@ pub enum Proof {
 }
 
 #[derive(Debug, Error)]
-enum ProofError {
+pub(crate) enum ProofError {
     #[error("{0}")]
     Tree(#[from] TreeError),
     #[error("could not write the check folder: {0}")]
@@ -40,7 +40,7 @@ enum ProofError {
     TooLarge,
 }
 
-type ProofResult<T = ()> = std::result::Result<T, ProofError>;
+pub(crate) type ProofResult<T = ()> = std::result::Result<T, ProofError>;
 
 /// The task whose verdict is being proven, with the diff that the verdict was read from.
 pub(crate) struct ProofTarget<'a> {
@@ -127,16 +127,20 @@ fn build_check_tree(git: &Git, commit: &str, test_files: &[String], root: &Path)
     Ok(())
 }
 
-/// Write every file of `commit^` into `root`. Submodules and other non-blob entries are skipped.
+/// Write every file of `commit^` into `root`.
 fn rebuild_parent_tree(git: &Git, commit: &str, root: &Path) -> ProofResult {
-    let parent = format!("{commit}^");
-    let raw = git.run(&["ls-tree", "-r", "-z", &parent])?;
+    rebuild_tree(git, &format!("{commit}^"), root)
+}
+
+/// Write every file of `rev` into `root`. Submodules and other non-blob entries are skipped.
+pub(crate) fn rebuild_tree(git: &Git, rev: &str, root: &Path) -> ProofResult {
+    let raw = git.run(&["ls-tree", "-r", "-z", rev])?;
     let listed = parse_listing(&raw);
     if listed.len() > MAX_LISTED_FILES {
         return Err(ProofError::TooLarge);
     }
     for file in listed.iter().filter(|file| file.blob) {
-        if let Some(bytes) = git.file_at(&parent, &file.path)? {
+        if let Some(bytes) = git.file_at(rev, &file.path)? {
             write_bytes(&root.join(&file.path), &bytes, file.executable)?;
         }
     }
@@ -159,7 +163,7 @@ fn parse_record(record: &str) -> Option<Listed> {
     })
 }
 
-fn write_bytes(path: &Path, bytes: &[u8], executable: bool) -> ProofResult {
+pub(crate) fn write_bytes(path: &Path, bytes: &[u8], executable: bool) -> ProofResult {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }

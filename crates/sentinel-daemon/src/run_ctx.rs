@@ -43,6 +43,8 @@ pub(crate) struct RunMemory {
     pub failed_tries: HashMap<TaskId, u32>,
     /// Tries given back to each task because its agent failed for its own reasons.
     pub refunds: HashMap<TaskId, u32>,
+    /// HEAD before the tasks of the current wave started. A failed barrier rebuilds from here.
+    pub wave_base: Option<String>,
 }
 
 impl RunMemory {
