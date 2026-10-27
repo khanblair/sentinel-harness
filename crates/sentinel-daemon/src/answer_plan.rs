@@ -99,10 +99,17 @@ fn unusable_feedback(ctx: &RunCtx, tool: &ToolInfo, text: &str, request: &PlanRe
         .err()
         .map_or_else(|| "it was not a plan".to_owned(), |error| error.to_string());
     let reason: String = reason.chars().take(200).collect();
+    let began: String = text
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .chars()
+        .take(160)
+        .collect();
     crate::plan_phase::say(
         ctx,
         format!(
-            "{} gave no usable plan: {reason} Asking once more.",
+            "{} gave no usable plan: {reason} It began: {began} Asking once more.",
             tool.name
         ),
     );

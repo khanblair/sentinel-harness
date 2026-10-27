@@ -143,9 +143,32 @@ fn push_backlog(prompt: &mut String, items: &[BacklogItem]) {
 /// Parse a JSON plan from model output (may be wrapped in prose or code fences).
 pub fn parse_plan_json(text: &str, request: &PlanRequest) -> Result<Plan> {
     let json_text = first_json_object(text)?;
-    let plan: Plan = serde_json::from_str(json_text)?;
+    let value: serde_json::Value = serde_json::from_str(json_text)?;
+    let Some(found) = plan_in(&value) else {
+        return Err(PlanError::Parse(format!(
+            "no \"tasks\" list in the JSON, which has the keys {}",
+            top_keys(&value)
+        )));
+    };
+    let plan: Plan = serde_json::from_value(found.clone())?;
     validate_plan(&plan, request)?;
     Ok(plan)
+}
+
+/// The object that holds the `tasks` list: the value itself, or an object inside it, such as
+/// `{"plan": {"tasks": [...]}}`.
+fn plan_in(value: &serde_json::Value) -> Option<&serde_json::Value> {
+    if value.get("tasks").is_some_and(serde_json::Value::is_array) {
+        return Some(value);
+    }
+    value.as_object()?.values().find_map(plan_in)
+}
+
+fn top_keys(value: &serde_json::Value) -> String {
+    value.as_object().map_or_else(
+        || "none".to_owned(),
+        |map| map.keys().cloned().collect::<Vec<_>>().join(", "),
+    )
 }
 
 /// True when the text carries a plan's `tasks` key. A broken plan must never reach the chat as a
@@ -180,7 +203,7 @@ fn first_json_object(text: &str) -> Result<&str> {
 }
 
 fn holds_tasks_key(block: &str) -> bool {
-    serde_json::from_str::<serde_json::Value>(block).is_ok_and(|value| value.get("tasks").is_some())
+    serde_json::from_str::<serde_json::Value>(block).is_ok_and(|value| plan_in(&value).is_some())
 }
 
 /// Byte length of the object at the start of `text`, which must begin with `{`. A brace inside a
@@ -344,6 +367,21 @@ impl PlannerBackend for FixedPlanner {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_plan_inside_another_object_is_found() {
+        let request = make_request(vec![make_item("T-01", "Fix it", "", false)], vec![]);
+        let text = r#"{"plan": {"tasks": [{"id": "T-01", "tier": "cheap"}]}}"#;
+        let plan = parse_plan_json(text, &request).unwrap();
+        assert_eq!(plan.tasks[0].id, TaskId::new("T-01"));
+    }
+
+    #[test]
+    fn an_answer_without_tasks_names_its_keys() {
+        let request = make_request(vec![make_item("T-01", "Fix it", "", false)], vec![]);
+        let error = parse_plan_json(r#"{"steps": [], "summary": "x"}"#, &request).unwrap_err();
+        assert!(error.to_string().contains("steps, summary"), "{error}");
+    }
 
     #[test]
     fn a_new_test_path_copies_the_style_of_the_repository_tests() {

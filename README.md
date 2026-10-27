@@ -78,6 +78,36 @@ cargo run -- daemon --repo "$HOME/Sentinel Starter" --dev-bind
 
 Sentinel uses the agent CLIs it finds. Run `cargo run -- scan` to see which ones, and `cargo run -- doctor` to check your setup.
 
+## Run a backlog from the terminal (Collision Course)
+
+This is the one-command run for the hackathon harness. It needs Rust (stable), Node 20 or newer for the practice repository's own tests, and at least 3 agents across 2 tools or models. The UI is not needed: a fresh clone builds without `trunk`.
+
+```bash
+export SENTINEL_NO_KEYCHAIN=1   # read keys from the environment only
+export OPENROUTER_API_KEY=...   # only when an agent uses OpenRouter
+cargo run --release -- run backlog/backlog.json --repo ../collision-course-ledger --cap 5.00 \
+  --agents "claude=haiku,opencode=opencode/glm-5.3-flash-free,opencode=opencode/deepseek-v4.1-flash-free"
+```
+
+- `--cap` is the hard budget in dollars. The run stops starting tasks at 70 percent of it and kills the workers at 95 percent. A free model spends nothing, a Claude run reports its own cost, and an OpenRouter call returns its usage. An agent that reports no cost is counted by a time guess.
+- `--agents` names the agents, cheapest first. `TOOL=MODEL` runs the same tool with another model as a separate agent. The strongest agent writes the plan. The first try of each task rotates across the agents, and a failed try moves to the next stronger one. Run `sentinel scan` to see the tools on your machine.
+- `--test-cmd` sets the full suite command. Without it, Sentinel reads `package.json`, `Cargo.toml`, pytest files, `go.mod`, or a Makefile. It never needs npm: a `package.json` test script runs through `sh -c`.
+- The backlog is `backlog.json` (`{ "tasks": [{ "id", "title", "body" }] }`) or markdown.
+
+What the run does: it asks the strongest agent for a plan with a scope of files for every task, runs tasks with different files in waves, runs the full suite after each wave, and finds the one task that broke the suite when it fails. A task is Verified only when the suite passes, its new tests fail without the change, no protected file changed, and a second, different agent approved the diff. Two tasks that contradict each other are both skipped, with the reason. A ticket that says it is finished is checked, not trusted. Files in `tests.lock.json` can never change.
+
+The result is in `.sentinel/` of the repository: `report.md` (statuses, reasons, cost, and an Evidence section), `evidence.json`, and `log.jsonl` (every event). `sentinel report --writeup` drafts the one page write-up from them.
+
+Prove the harness catches cheating, with no agent and no money:
+
+```bash
+cargo run --release -- selftest
+```
+
+It runs seven scripted bad agents (a collider, a tamperer, a liar, an overspender, a crasher, one that needs a file outside its scope, and one that breaks the suite) and prints PASS or FAIL for each.
+
+Dependencies are in `Cargo.toml` and `Cargo.lock`. There is no orchestration framework and no Agent HQ code: the coordination layer (tasks, file reservations, the write guard, waves, the budget guard, resume after a crash, and the verifier) is in `crates/`.
+
 ## Checks
 
 ```bash
