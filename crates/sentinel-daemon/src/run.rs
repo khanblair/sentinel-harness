@@ -210,6 +210,12 @@ impl Engine {
         Ok(budget)
     }
 
+    fn make_scheduler(&self, config: &Config) -> Result<Scheduler> {
+        let scheduler = Scheduler::new(self.store().clone())
+            .map_err(|e| EngineError::Invalid(e.to_string()))?;
+        Ok(scheduler.with_retry_limit(config.max_attempts.max(1)))
+    }
+
     fn prepare_run(
         &self,
         source: RunSource,
@@ -219,10 +225,7 @@ impl Engine {
         let config = self.config();
         let git = self.open_tree(resume)?;
         let budget = self.make_budget(&config, resume)?;
-        let retry_limit = self.router()?.retry_limit();
-        let scheduler = Scheduler::new(self.store().clone())
-            .map_err(|e| EngineError::Invalid(e.to_string()))?
-            .with_retry_limit(retry_limit);
+        let scheduler = self.make_scheduler(&config)?;
         let (pause_tx, pause_rx) = watch::channel(false);
         let (stop_tx, stop_rx) = watch::channel(false);
         let memory = Arc::new(Mutex::new(RunMemory::default()));

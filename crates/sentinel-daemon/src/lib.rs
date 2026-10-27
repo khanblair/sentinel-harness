@@ -51,6 +51,7 @@ pub mod live;
 pub mod onboarding;
 mod openrouter_tool;
 pub mod pairing;
+mod plan_contradictions;
 mod plan_phase;
 mod prompt;
 mod pumps;

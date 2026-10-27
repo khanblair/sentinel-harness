@@ -6,19 +6,17 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use sentinel_core::api::RunRequest;
-use sentinel_core::{DecisionState, Event, Task, TaskId, TaskStatus};
+use sentinel_core::{Event, Task, TaskId, TaskStatus};
 use sentinel_gate::policy::{next_mode_after_plan_approval, plan_gate};
 use sentinel_plan::backlog::{BacklogItem, parse_backlog};
-use sentinel_plan::contradiction::{
-    ContradictionPair, Resolution, apply_answer, decision_for, find_contradictions,
-};
+use sentinel_plan::contradiction::find_contradictions;
 use sentinel_plan::planner::{
     Plan, PlanRequest, build_tasks, fill_empty_scopes, order_shared_scopes,
 };
 use sentinel_store::VerificationRecord;
 
 use crate::answer::unreached_text;
-use crate::ask::{ask_approval, ask_decision};
+use crate::ask::ask_approval;
 use crate::engine::{Engine, EngineError, Result, lock};
 use crate::resume::resume_phase;
 use crate::run::Ending;
@@ -107,7 +105,7 @@ pub(crate) async fn plan_phase(ctx: &Arc<RunCtx>, request: &RunRequest) -> Resul
         contradictions: count(pairs.len()),
         already_done,
     })?;
-    settle_contradictions(ctx, &pairs, &tasks, &plan).await?;
+    crate::plan_contradictions::settle_contradictions(ctx, &pairs, &tasks, &plan).await?;
     mark_ready(ctx)?;
     if approve_plan(ctx).await {
         Ok(PlanOutcome::Approved)
@@ -225,7 +223,7 @@ fn repo_files(ctx: &RunCtx) -> Vec<String> {
 }
 
 /// Puts a note from the run in the stream, from `sentinel`.
-fn say(ctx: &RunCtx, text: String) {
+pub(crate) fn say(ctx: &RunCtx, text: String) {
     ctx.engine.emit_quiet(&Event::Message {
         from: "sentinel".to_owned(),
         to: None,
@@ -310,98 +308,6 @@ pub(crate) fn finish_without_work(
     Ok(())
 }
 
-async fn settle_contradictions(
-    ctx: &Arc<RunCtx>,
-    pairs: &[ContradictionPair],
-    tasks: &[Task],
-    plan: &Plan,
-) -> Result<()> {
-    let title = |id: &TaskId| {
-        tasks
-            .iter()
-            .find(|t| &t.id == id)
-            .map_or_else(String::new, |t| t.title.clone())
-    };
-    for pair in pairs {
-        if ctx.config.park_contradictions {
-            park_pair(ctx, pair, plan)?;
-            continue;
-        }
-        let decision = decision_for(pair, &title);
-        let answer = ask_decision(ctx, &decision).await;
-        let state = if answer.is_some() {
-            DecisionState::Answered
-        } else {
-            DecisionState::Defaulted
-        };
-        let resolved = sentinel_core::Decision {
-            state,
-            answer: answer.clone(),
-            ..decision
-        };
-        let resolution = apply_answer(&resolved, answer.as_deref());
-        apply_resolution(ctx, resolution, answer.is_some())?;
-    }
-    Ok(())
-}
-
-/// Skips both tasks of a contradiction without asking. Each task gives its planner note as the reason.
-fn park_pair(ctx: &RunCtx, pair: &ContradictionPair, plan: &Plan) -> Result<()> {
-    say(
-        ctx,
-        format!(
-            "{} and {} contradict each other, so both are skipped without a question.",
-            pair.a, pair.b
-        ),
-    );
-    for id in [&pair.a, &pair.b] {
-        let reason = parked_reason(pair, &note_of(plan, id));
-        finish_without_work(ctx, id, TaskStatus::Skipped, &reason)?;
-    }
-    Ok(())
-}
-
-/// The reason a parked task is skipped. It names both tasks and, when the planner gave one, the note.
-fn parked_reason(pair: &ContradictionPair, note: &str) -> String {
-    let base = format!(
-        "These two tasks contradict each other: {} and {}. Neither was done.",
-        pair.a, pair.b
-    );
-    let note = note.trim();
-    if note.is_empty() {
-        base
-    } else {
-        format!("{base} {note}")
-    }
-}
-
-fn note_of(plan: &Plan, id: &TaskId) -> String {
-    plan.tasks
-        .iter()
-        .find(|task| &task.id == id)
-        .map_or_else(String::new, |task| task.note.clone())
-}
-
-/// Carry out what the user chose: skip the loser, or mark both tasks as contradicting.
-fn apply_resolution(ctx: &RunCtx, resolution: Resolution, answered: bool) -> Result<()> {
-    match resolution {
-        Resolution::Keep { chosen, skipped } => {
-            let reason = format!("You chose {chosen} instead, so this task was skipped.");
-            finish_without_work(ctx, &skipped, TaskStatus::Skipped, &reason)
-        }
-        Resolution::SkipBoth { a, b } => {
-            let why = if answered {
-                "You skipped both tasks."
-            } else {
-                "Nobody answered, so both tasks were skipped."
-            };
-            let reason = format!("{a} and {b} contradict each other. {why}");
-            finish_without_work(ctx, &a, TaskStatus::Contradiction, &reason)?;
-            finish_without_work(ctx, &b, TaskStatus::Contradiction, &reason)
-        }
-    }
-}
-
 fn mark_ready(ctx: &RunCtx) -> Result<()> {
     let store = ctx.engine.store();
     for task in store.list_tasks()? {
@@ -467,6 +373,8 @@ pub(crate) async fn first_wave(
 mod tests {
     use super::*;
     use crate::answer::{REPLY_CHARS, reply_from};
+    use crate::plan_contradictions::parked_reason;
+    use sentinel_plan::contradiction::ContradictionPair;
 
     #[test]
     fn a_plain_answer_is_the_reply_as_it_is() {

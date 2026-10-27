@@ -31,6 +31,7 @@ const TOP_LEVEL_KEYS: &[&str] = &[
     "decision_timeout_seconds",
     "approval_timeout_seconds",
     "park_contradictions",
+    "max_attempts",
     "prove_new_tests",
     "telegram",
 ];
@@ -41,6 +42,10 @@ const OPENROUTER_API_URL: &str = "https://openrouter.ai/api/v1";
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, deny_unknown_fields)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "each flag is its own line in the saved settings file, so they cannot be grouped"
+)]
 pub struct Config {
     pub repo_path: Option<String>,
     pub backlog: String,
@@ -70,6 +75,8 @@ pub struct Config {
     pub decision_timeout_seconds: u64,
     /// An approval card nobody answers in this time is denied.
     pub approval_timeout_seconds: u64,
+    /// Tries a task gets before it ends Blocked. A failed try moves the next one to a stronger agent.
+    pub max_attempts: u32,
     /// Skip both tasks of a contradiction at once, with no question. `sentinel run` sets it.
     pub park_contradictions: bool,
     /// A verified task's new tests must fail on the code from before the task.
@@ -135,6 +142,7 @@ impl Default for Config {
             task_timeout_seconds: 900,
             decision_timeout_seconds: 120,
             approval_timeout_seconds: 300,
+            max_attempts: 3,
             park_contradictions: false,
             prove_new_tests: false,
             telegram: TelegramConfig::default(),
@@ -318,6 +326,7 @@ mod tests {
             task_timeout_seconds: 300,
             decision_timeout_seconds: 60,
             approval_timeout_seconds: 90,
+            max_attempts: 5,
             park_contradictions: true,
             prove_new_tests: true,
             telegram: TelegramConfig {

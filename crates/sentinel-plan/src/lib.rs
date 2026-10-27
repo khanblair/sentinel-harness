@@ -5,6 +5,7 @@ pub mod contradiction;
 pub mod graph;
 mod plan_check;
 pub mod planner;
+mod scopes;
 
 pub use planner::{Plan, PlanRequest, PlannedTask};
 

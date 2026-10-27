@@ -223,7 +223,7 @@ fn send_back(ctx: &RunCtx, id: &TaskId, checkpoint: &Checkpoint, failure: &Failu
         .store()
         .get_task(id)?
         .ok_or_else(|| EngineError::NotFound(id.to_string()))?;
-    if task.attempts >= ctx.engine.router()?.retry_limit() {
+    if task.attempts >= ctx.config.max_attempts.max(1) {
         ctx.engine
             .store()
             .set_task_status(id, TaskStatus::Blocked)?;
