@@ -98,6 +98,8 @@ pub(crate) struct Inner {
     pub fallback_plan: Mutex<Option<Plan>>,
     /// Agents paused after a failure a retry will not fix. Routing skips them for a while.
     pub health: Health,
+    /// The roster of the next run, cheapest first. Empty when the routing picks the agents.
+    pub roster: Mutex<Vec<ToolId>>,
 }
 
 #[derive(Clone)]
@@ -131,6 +133,7 @@ impl Engine {
                 devices_from: Mutex::new(None),
                 fallback_plan: Mutex::new(None),
                 health: Health::default(),
+                roster: Mutex::new(Vec::new()),
             }),
         };
         engine.refresh_repo();
@@ -167,6 +170,11 @@ impl Engine {
 
     pub(crate) fn fallback_plan(&self) -> Option<Plan> {
         lock(&self.inner.fallback_plan).clone()
+    }
+
+    /// The roster of the next run, cheapest first. Empty when the routing picks the agents.
+    pub(crate) fn roster(&self) -> Vec<ToolId> {
+        lock(&self.inner.roster).clone()
     }
 
     pub fn subscribe(&self) -> broadcast::Receiver<EventRecord> {

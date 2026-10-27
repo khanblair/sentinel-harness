@@ -47,6 +47,10 @@ enum Command {
         /// Without it, Sentinel uses the saved setting, then the project's own test command.
         #[arg(long)]
         test_cmd: Option<String>,
+        /// The agents of the run, cheapest first, for example `claude=haiku,openrouter=qwen/qwen3-coder`.
+        /// A tool may appear twice with different models. Without it, the routing picks the agents.
+        #[arg(long)]
+        agents: Option<String>,
     },
     /// Find the agent CLIs on this computer.
     Scan {
@@ -215,7 +219,17 @@ async fn dispatch(command: Command) -> anyhow::Result<ExitCode> {
             repo,
             cap,
             test_cmd,
-        } => commands::run(&backlog, repo, cap, test_cmd).await,
+            agents,
+        } => {
+            commands::run(commands::RunArgs {
+                backlog,
+                repo,
+                cap,
+                test_cmd,
+                agents,
+            })
+            .await
+        }
         Command::Scan { repo } => commands::scan(repo).await,
         Command::Doctor { repo } => commands::doctor(repo).await,
         Command::Report { repo, writeup } => commands::report(repo, writeup),

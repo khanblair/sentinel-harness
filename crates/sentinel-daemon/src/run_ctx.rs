@@ -36,6 +36,27 @@ pub(crate) struct RunMemory {
     /// The tier of the next attempt. It climbs one step after each failure.
     pub tiers: HashMap<TaskId, Tier>,
     pub agents: HashMap<TaskId, ToolId>,
+    /// The turn of each task, in the order the run first picked it. A roster gives turn `k` to
+    /// `roster[k % n]`, so every agent gets work.
+    pub turns: HashMap<TaskId, usize>,
+    /// The failed tries of each task. A roster moves each one to a stronger agent.
+    pub failed_tries: HashMap<TaskId, u32>,
+}
+
+impl RunMemory {
+    /// The turn of a task. Its first pick takes the next free turn, and later picks keep it.
+    pub(crate) fn turn_of(&mut self, task: &TaskId) -> usize {
+        let next = self.turns.len();
+        *self.turns.entry(task.clone()).or_insert(next)
+    }
+
+    pub(crate) fn failures_of(&self, task: &TaskId) -> u32 {
+        self.failed_tries.get(task).copied().unwrap_or(0)
+    }
+
+    pub(crate) fn record_failed_try(&mut self, task: &TaskId) {
+        *self.failed_tries.entry(task.clone()).or_insert(0) += 1;
+    }
 }
 
 pub(crate) struct RunCtx {
@@ -175,5 +196,25 @@ mod tests {
         drop(dropped_tx);
         live_tx.send_replace(true);
         merged.wait_for(|killed| *killed).await.unwrap();
+    }
+
+    #[test]
+    fn a_task_keeps_the_turn_of_its_first_pick() {
+        let mut memory = RunMemory::default();
+        let first = TaskId::new("T-01");
+        let second = TaskId::new("T-02");
+        assert_eq!(memory.turn_of(&first), 0);
+        assert_eq!(memory.turn_of(&second), 1);
+        assert_eq!(memory.turn_of(&first), 0);
+    }
+
+    #[test]
+    fn each_failed_try_of_a_task_is_counted_for_that_task_only() {
+        let mut memory = RunMemory::default();
+        let task = TaskId::new("T-01");
+        memory.record_failed_try(&task);
+        memory.record_failed_try(&task);
+        assert_eq!(memory.failures_of(&task), 2);
+        assert_eq!(memory.failures_of(&TaskId::new("T-02")), 0);
     }
 }
