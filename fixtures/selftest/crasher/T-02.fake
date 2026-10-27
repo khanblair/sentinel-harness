@@ -1,0 +1,3 @@
+say T-02 changes gamma and adds a test file
+write src/gamma.txt::gamma changed by T-02
+write src/gamma_test.txt::a test file for gamma

@@ -1,0 +1,3 @@
+say T-01 changes alpha and weakens the test script
+write src/alpha.txt::alpha changed by T-01
+append tests/run.sh::# edited by the agent

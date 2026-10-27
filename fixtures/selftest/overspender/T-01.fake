@@ -1,0 +1,3 @@
+say T-01 changes alpha and reports a cost of nine dollars
+write src/alpha.txt::alpha changed by T-01
+cost 9.00

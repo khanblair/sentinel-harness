@@ -1,0 +1,22 @@
+{
+ "tasks": [
+  {
+   "id": "T-01",
+   "scope": ["src/alpha.txt"],
+   "depends_on": [],
+   "read_after_write": [],
+   "tier": "cheap",
+   "already_done": false,
+   "contradicts": []
+  },
+  {
+   "id": "T-02",
+   "scope": ["src/gamma.txt"],
+   "depends_on": ["T-01"],
+   "read_after_write": [],
+   "tier": "cheap",
+   "already_done": false,
+   "contradicts": []
+  }
+ ]
+}

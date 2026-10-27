@@ -6,6 +6,7 @@ mod commands;
 mod doctor_host;
 mod login_path;
 mod projects;
+mod selftest;
 mod serve;
 mod service;
 #[cfg(all(feature = "window", target_os = "macos"))]
@@ -121,6 +122,12 @@ enum Command {
     },
     /// Serve the file and Brain tools over stdio for an agent. Agent CLIs start it; no need to run it by hand.
     Mcp,
+    /// Run scripted bad agents on a throwaway repository and print a PASS or FAIL line for each check.
+    Selftest {
+        /// Run only the scenario with this name: collider, tamperer, liar, overspender, or crasher.
+        #[arg(long)]
+        only: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -223,6 +230,7 @@ async fn dispatch(command: Command) -> anyhow::Result<ExitCode> {
         Command::App { repo } => app::app(repo).await,
         Command::Stop { repo } => serve::stop(repo).await,
         Command::Starter { dir } => commands::starter(dir),
+        Command::Selftest { only } => selftest::run(only.as_deref()).await,
         other @ (Command::Daemon { .. }
         | Command::Open { .. }
         | Command::Pair { .. }
@@ -275,7 +283,8 @@ async fn dispatch_serve(command: Command) -> anyhow::Result<ExitCode> {
         | Command::Mcp
         | Command::App { .. }
         | Command::Stop { .. }
-        | Command::Starter { .. } => {
+        | Command::Starter { .. }
+        | Command::Selftest { .. } => {
             unreachable!("handled by dispatch")
         }
     }

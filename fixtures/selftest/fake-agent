@@ -1,0 +1,59 @@
+#!/bin/sh
+set -u
+
+task_id="${SENTINEL_TASK_ID:-}"
+plans_dir="${FAKE_PLANS_DIR:-$(dirname "$0")/plans}"
+
+plan_file="$plans_dir/$task_id.fake"
+
+if [ ! -f "$plan_file" ]; then
+  printf 'fake-agent: no plan for %s\n' "$task_id" >&2
+  exit 2
+fi
+
+while IFS= read -r line; do
+  case "$line" in
+    ''|\#*) continue ;;
+  esac
+
+  command="${line%% *}"
+  arg="${line#* }"
+
+  case "$command" in
+    say)
+      printf '%s\n' "$arg"
+      ;;
+    write)
+      path="${arg%%::*}"
+      text="${arg#*::}"
+      mkdir -p "$(dirname "$path")"
+      printf '%b\n' "$text" > "$path"
+      ;;
+    append)
+      path="${arg%%::*}"
+      text="${arg#*::}"
+      mkdir -p "$(dirname "$path")"
+      printf '%b\n' "$text" >> "$path"
+      ;;
+    delete)
+      path="${arg%%::*}"
+      rm -f "$path"
+      ;;
+    sleep)
+      sleep "$arg"
+      ;;
+    cost)
+      printf 'Total cost: $%s\n' "$arg"
+      ;;
+    fail)
+      exit "$arg"
+      ;;
+    *)
+      printf 'fake-agent: unknown command\n' >&2
+      exit 3
+      ;;
+  esac
+done < "$plan_file"
+
+printf 'fake-agent: done\n'
+exit 0
