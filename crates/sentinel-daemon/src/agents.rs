@@ -20,7 +20,8 @@ use sentinel_workers::{CommandLine, RunControl, RunOutcome, RunSpec, Worker};
 use tokio::sync::{mpsc, watch};
 
 use crate::agents_config::{fill_routing, route_for_tier, without_missing_tools};
-use crate::answer::{answer_text, ask_agent_for_plan};
+use crate::answer::answer_text;
+use crate::answer_plan::ask_agent_for_plan;
 use crate::engine::{Engine, EngineError, FakeAgents, Result};
 use crate::keys;
 use crate::openrouter_tool::{is_openrouter_adapter, openrouter_entry, openrouter_worker};

@@ -3,25 +3,21 @@
 //! for a plan, or for a plain reply to a message that needs no plan. A chat with its own agent
 //! asks that agent alone, and a failure stops the run instead of trying another agent.
 
-use std::sync::Arc;
 use std::time::Duration;
 
 use sentinel_brain::mode::may_write;
-use sentinel_core::{
-    ChatId, Cost, Event, HarnessState, Intent, NoteId, NoteType, Tier, ToolId, ToolInfo,
-};
-use sentinel_plan::planner::{PlanRequest, holds_plan_json, parse_plan_json, planner_prompt};
-use sentinel_workers::{Budget, EndKind, RunOutcome, Worker};
+use sentinel_core::{ChatId, Cost, Event, HarnessState, Intent, NoteId, NoteType, Tier, ToolId};
+use sentinel_plan::planner::{PlanRequest, holds_plan_json, parse_plan_json};
+use sentinel_workers::{Budget, EndKind, RunOutcome};
 use tokio::sync::watch;
 
-use crate::agents::{TEXT_TIMEOUT, TextJob, run_for_outcome};
-use crate::agents_config::Pick;
+use crate::agents::{TextJob, run_for_outcome};
+use crate::answer_plan::planner_agent;
 use crate::brain::{note_written, slug, write_note};
 use crate::controls::Caller;
 use crate::engine::{Engine, Result};
 use crate::intent::Typed;
 use crate::plan_phase::Asked;
-use crate::run_ctx::RunCtx;
 use crate::run_source::RunSource;
 
 /// The longest reply the chat gets from an agent.
@@ -38,7 +34,7 @@ const TITLE_CHARS: usize = 80;
 const RESEARCH_WORDS: usize = 6;
 
 /// Said when no planning agent is on and ready.
-const NO_PLANNER: &str = "no planning agent is on and ready";
+pub(crate) const NO_PLANNER: &str = "no planning agent is on and ready";
 
 /// One question to one agent: the tier that picks it, the prompt, a cost ceiling in micro-dollars,
 /// the time it may take, and the chat's agent when the chat has one.
@@ -74,94 +70,6 @@ pub(crate) async fn ask_once(
         return Err(no_answer_reason(&outcome));
     }
     reply_from(&text).ok_or_else(|| "it gave no usable answer".to_owned())
-}
-
-/// Ask the planner agents in turn. A message run stops at the first answer that is not a plan,
-/// so a greeting costs one call. A forced agent is asked once, and its answer is final.
-pub(crate) async fn ask_agent_for_plan(ctx: &RunCtx, request: &PlanRequest) -> Asked {
-    if ctx.forced.is_some() {
-        return ask_tier(ctx, request, Tier::Cheap).await;
-    }
-    let roster = ctx.engine.roster();
-    if !roster.is_empty() {
-        return ask_roster_for_plan(ctx, request, &roster).await;
-    }
-    let message = ctx.source.words.is_some();
-    let mut tier = Tier::Cheap;
-    for _ in 0..2 {
-        match ask_tier(ctx, request, tier).await {
-            Asked::Unusable => {}
-            Asked::Failed(_) if !message => {}
-            asked @ (Asked::Plan(_) | Asked::Reply(_) | Asked::Failed(_)) => return asked,
-        }
-        tier = tier.escalate().unwrap_or(tier);
-    }
-    Asked::Unusable
-}
-
-/// With a roster, the plan is the most important call of the run, so the strongest agent plans.
-/// An agent that fails or answers with no plan is left out, and the next one is asked.
-async fn ask_roster_for_plan(ctx: &RunCtx, request: &PlanRequest, roster: &[ToolId]) -> Asked {
-    let message = ctx.source.words.is_some();
-    for agent in roster.iter().rev() {
-        match ask_picked(ctx, request, Tier::Smart, Some(agent)).await {
-            Asked::Unusable | Asked::Failed(_) if !message => {}
-            asked @ (Asked::Plan(_) | Asked::Reply(_) | Asked::Failed(_)) => return asked,
-            Asked::Unusable => {}
-        }
-    }
-    Asked::Unusable
-}
-
-/// One question to the planner agent of a tier.
-async fn ask_tier(ctx: &RunCtx, request: &PlanRequest, tier: Tier) -> Asked {
-    ask_picked(ctx, request, tier, ctx.forced.as_ref()).await
-}
-
-/// One question to a planner agent: the named one, or the pick of the tier.
-async fn ask_picked(
-    ctx: &RunCtx,
-    request: &PlanRequest,
-    tier: Tier,
-    agent: Option<&ToolId>,
-) -> Asked {
-    let (tool, worker) = match planner_agent(&ctx.engine, tier, agent) {
-        Ok(found) => found,
-        Err(reason) => return Asked::Failed(reason),
-    };
-    let job = TextJob {
-        stop: ctx.stop.clone(),
-        budget: ctx.budget.clone(),
-        worker: worker.as_ref(),
-        tool: &tool,
-        prompt: planner_prompt(request),
-    };
-    let (text, outcome) = run_for_outcome(&ctx.engine, job, TEXT_TIMEOUT).await;
-    crate::agent_health::pause_after_failure(&ctx.engine, &tool, &outcome);
-    read_answer(&text, &outcome, request, ctx.source.words.is_some())
-}
-
-/// The tool and worker of the planner agent for a tier, or the reason there is none. A forced
-/// agent is the only planner, so its reason is the one the owner reads.
-fn planner_agent(
-    engine: &Engine,
-    tier: Tier,
-    forced: Option<&ToolId>,
-) -> std::result::Result<(ToolInfo, Arc<dyn Worker>), String> {
-    let agent = match engine.pick_agent(forced, tier).map_err(|e| e.to_string())? {
-        Pick::Agent(agent) => agent,
-        Pick::Unavailable(reason) if forced.is_some() => return Err(reason),
-        Pick::Unavailable(_) => return Err(NO_PLANNER.to_owned()),
-    };
-    let tool = engine
-        .store()
-        .list_tools()
-        .map_err(|e| e.to_string())?
-        .into_iter()
-        .find(|t| t.id == agent)
-        .ok_or_else(|| NO_PLANNER.to_owned())?;
-    let worker = engine.worker_for(&tool).map_err(|e| e.to_string())?;
-    Ok((tool, worker))
 }
 
 /// The answer as a chat reply. `None` when the answer holds a plan or is empty.

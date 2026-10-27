@@ -10,9 +10,7 @@ use sentinel_core::{Event, Task, TaskId, TaskStatus};
 use sentinel_gate::policy::{next_mode_after_plan_approval, plan_gate};
 use sentinel_plan::backlog::{BacklogItem, parse_backlog};
 use sentinel_plan::contradiction::find_contradictions;
-use sentinel_plan::planner::{
-    Plan, PlanRequest, build_tasks, fill_empty_scopes, order_shared_scopes,
-};
+use sentinel_plan::planner::{Plan, PlanRequest, build_tasks, fill_empty_scopes};
 use sentinel_store::VerificationRecord;
 
 use crate::answer::unreached_text;
@@ -231,8 +229,9 @@ pub(crate) fn say(ctx: &RunCtx, text: String) {
     });
 }
 
-/// Gives unnamed tasks a scope, then orders the tasks that write the same file. Each change is
-/// said in the stream, so the owner can see why a task waits.
+/// Gives unnamed tasks a scope. Each change is said in the stream, so the owner can see why a task
+/// waits. Tasks that write the same file never share a wave, and the wave builder takes them in id
+/// order, so no hard link is added: a link would skip every later task when an earlier one fails.
 fn shape_plan(ctx: &RunCtx, request: &PlanRequest, plan: Plan) -> Plan {
     let (plan, folder_only) = fill_empty_scopes(request, plan);
     for (id, folder) in &folder_only {
@@ -243,22 +242,7 @@ fn shape_plan(ctx: &RunCtx, request: &PlanRequest, plan: Plan) -> Plan {
             ),
         );
     }
-    let before = dependency_count(&plan);
-    let plan = order_shared_scopes(plan);
-    let added = dependency_count(&plan).saturating_sub(before);
-    if added > 0 {
-        say(
-            ctx,
-            format!(
-                "Tasks that write the same file run in id order. {added} ordering link(s) added."
-            ),
-        );
-    }
     plan
-}
-
-fn dependency_count(plan: &Plan) -> usize {
-    plan.tasks.iter().map(|task| task.depends_on.len()).sum()
 }
 
 /// A task the backlog calls done is still checked. It stays ready, and the stream says so.

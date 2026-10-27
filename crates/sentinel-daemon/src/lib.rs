@@ -6,6 +6,7 @@ mod agent_test;
 mod agents;
 mod agents_config;
 mod answer;
+mod answer_plan;
 mod ask;
 pub mod assets;
 mod attach;
