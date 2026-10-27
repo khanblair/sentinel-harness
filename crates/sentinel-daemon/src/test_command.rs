@@ -24,8 +24,18 @@ fn detect_node(repo: &Path) -> Option<Vec<String>> {
     if script.trim().is_empty() {
         return None;
     }
+    if repo.join("tests.lock.json").is_file() {
+        // The locked test folders take no new file, so the tests of the tasks are in their own
+        // folder. They run after the project's own suite.
+        let both = format!("({}) && {OWN_TESTS_CLAUSE}", script.trim());
+        return Some(words(&["sh", "-c", &both]));
+    }
     Some(words(&["sh", "-c", script]))
 }
+
+/// Runs the tests that the tasks wrote in `sentinel-tests/`, when there are any.
+const OWN_TESTS_CLAUSE: &str =
+    "if ls sentinel-tests/*.test.js >/dev/null 2>&1; then node --test sentinel-tests/*.test.js; fi";
 
 fn detect_rust(repo: &Path) -> Option<Vec<String>> {
     repo.join("Cargo.toml")
@@ -115,6 +125,21 @@ pub fn split_command(text: &str) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_locked_node_repository_also_runs_the_tests_of_the_tasks() {
+        let folder = tempfile::tempdir().unwrap();
+        fs::write(
+            folder.path().join("package.json"),
+            r#"{"scripts": {"test": "node scripts/run-suite.js test"}}"#,
+        )
+        .unwrap();
+        fs::write(folder.path().join("tests.lock.json"), "{}").unwrap();
+        let command = detect(folder.path()).unwrap();
+        assert_eq!(command[..2], ["sh", "-c"]);
+        assert!(command[2].starts_with("(node scripts/run-suite.js test) && "));
+        assert!(command[2].contains("node --test sentinel-tests/*.test.js"));
+    }
 
     fn write(dir: &Path, name: &str, text: &str) {
         let path = dir.join(name);

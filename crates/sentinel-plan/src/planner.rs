@@ -191,6 +191,27 @@ impl PlannerBackend for FixedPlanner {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_repository_that_locks_its_tests_gets_new_tests_in_its_own_folder() {
+        let files = vec![
+            "test/accounts.test.js".to_owned(),
+            "tests.lock.json".to_owned(),
+        ];
+        let id = TaskId::new("T05");
+        assert_eq!(
+            new_test_path(&files, &id),
+            Some("sentinel-tests/t05.test.js".to_owned())
+        );
+        let request = make_request(vec![], files);
+        let mut task = planned_task("T05", &[]);
+        task.scope = vec!["src/a.js".to_owned(), "test/t05.test.js".to_owned()];
+        let shaped = ensure_test_files(&request, Plan { tasks: vec![task] });
+        assert_eq!(
+            shaped.tasks[0].scope,
+            ["src/a.js", "sentinel-tests/t05.test.js"]
+        );
+    }
     use crate::plan_json::first_json_object;
 
     #[test]

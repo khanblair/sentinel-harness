@@ -106,6 +106,15 @@ fn is_source_folder(name: &str) -> bool {
     !name.starts_with('.') && !NON_SOURCE_FOLDERS.contains(&name)
 }
 
+/// A repository with this file locks its test folders: a new file there counts as tampering.
+const LOCK_FILE: &str = "tests.lock.json";
+/// Where the new tests of a task go when the repository locks its own test folders.
+const OWN_TEST_FOLDER: &str = "sentinel-tests";
+
+fn is_locked(repo_files: &[String]) -> bool {
+    repo_files.iter().any(|file| file == LOCK_FILE)
+}
+
 /// The path of a new test file for a task, named like the repository's own test files, or `None`
 /// when the repository has no test file to copy the style of. A task needs a new test file in its
 /// scope: without one it cannot prove its work, and the guard would undo a test written anyway.
@@ -129,6 +138,11 @@ pub fn new_test_path(repo_files: &[String], id: &TaskId) -> Option<String> {
         Some((_, ext)) => format!("{lower_id}.{ext}"),
         None => lower_id,
     };
+    let folder = if is_locked(repo_files) {
+        OWN_TEST_FOLDER
+    } else {
+        folder
+    };
     Some(if folder.is_empty() {
         fresh
     } else {
@@ -141,8 +155,13 @@ pub fn new_test_path(repo_files: &[String], id: &TaskId) -> Option<String> {
 /// whose tests are in `test/`, is replaced: the suite would never run a test written there.
 pub fn ensure_test_files(request: &PlanRequest, mut plan: Plan) -> Plan {
     let folders = test_folders(&request.repo_files);
+    let locked = is_locked(&request.repo_files);
     for pt in &mut plan.tasks {
-        if !folders.is_empty() {
+        if locked {
+            // The locked folders take no new file, so the only test a task may write is its own.
+            pt.scope
+                .retain(|entry| !is_test_path(entry) || entry.starts_with("sentinel-tests/"));
+        } else if !folders.is_empty() {
             pt.scope.retain(|entry| {
                 !is_test_path(entry)
                     || request.repo_files.contains(entry)
