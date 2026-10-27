@@ -647,8 +647,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn long_line_is_cut_to_4096_characters() {
-        let (ctrl, _received) = control("10.00");
+    async fn a_long_line_is_cut_for_the_stream_and_kept_whole_in_the_tail() {
+        let (ctrl, mut received) = control("10.00");
         let out = run_command(
             sh("printf '%10000s' '' | tr ' ' x; echo"),
             &spec(Duration::from_secs(5)),
@@ -657,7 +657,9 @@ mod tests {
         )
         .await;
         assert_eq!(out.output_tail.len(), 1);
-        assert_eq!(out.output_tail[0].chars().count(), MAX_LINE_CHARS);
+        assert_eq!(out.output_tail[0].chars().count(), 10_000);
+        let shown = received.recv().await.expect("the stream got the line");
+        assert_eq!(shown.text.chars().count(), MAX_LINE_CHARS);
     }
 
     fn spend_on(ctrl: &RunControl, source: &CostSource) -> Spend {

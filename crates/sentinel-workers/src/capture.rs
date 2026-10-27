@@ -13,7 +13,11 @@ use tokio::time;
 
 use crate::worker::{OutputLine, RunSpec};
 
+/// The longest line the stream shows.
 pub(crate) const MAX_LINE_CHARS: usize = 4096;
+/// The longest line the output tail keeps. A planner's answer is one long line of JSON, and a
+/// plan cut in the middle cannot be read.
+pub(crate) const MAX_TAIL_LINE_CHARS: usize = 262_144;
 pub(crate) const TAIL_LINES: usize = 200;
 
 #[derive(Clone)]
@@ -68,14 +72,15 @@ where
 {
     let mut lines = BufReader::new(reader).lines();
     while let Ok(Some(line)) = lines.next_line().await {
-        let text: String = line.chars().take(MAX_LINE_CHARS).collect();
+        let shown: String = line.chars().take(MAX_LINE_CHARS).collect();
         let message = OutputLine {
             task: sink.task.clone(),
             agent: sink.agent.clone(),
-            text: text.clone(),
+            text: shown,
         };
         let _ = sink.lines.send(message);
-        if raw.send(text).is_err() {
+        let kept: String = line.chars().take(MAX_TAIL_LINE_CHARS).collect();
+        if raw.send(kept).is_err() {
             break;
         }
     }
