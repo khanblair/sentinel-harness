@@ -1,0 +1,2 @@
+say T-02 changes gamma
+write src/gamma.txt::gamma changed by T-02

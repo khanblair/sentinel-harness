@@ -51,8 +51,8 @@ pub enum EngineError {
 
 pub type Result<T> = std::result::Result<T, EngineError>;
 
-/// A scripted test double for the agent CLIs. Only tests set it: the product always runs the real
-/// CLIs.
+/// A scripted test double for the agent CLIs. Only tests and `sentinel selftest` set it: the product
+/// always runs the real CLIs.
 #[derive(Debug, Clone)]
 pub struct FakeAgents {
     pub script: PathBuf,

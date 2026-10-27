@@ -1,0 +1,13 @@
+{
+ "tasks": [
+  {
+   "id": "T-01",
+   "scope": ["src/alpha.txt", "tests/run.sh"],
+   "depends_on": [],
+   "read_after_write": [],
+   "tier": "cheap",
+   "already_done": false,
+   "contradicts": []
+  }
+ ]
+}
