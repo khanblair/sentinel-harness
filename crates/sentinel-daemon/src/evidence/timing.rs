@@ -101,4 +101,3 @@ fn ratio(part: i128, whole: i128) -> f64 {
     let hundredths = part * 100 / whole;
     f64::from(u32::try_from(hundredths).unwrap_or(0)) / 100.0
 }
-

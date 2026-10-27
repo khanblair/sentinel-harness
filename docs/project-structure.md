@@ -267,6 +267,7 @@ crates/sentinel-plan/
   src/lib.rs                           exports
   src/plan_check.rs                    Plan validation: ids, references, scope paths, and dependency cycles
   src/planner.rs                       planner model call, scope and dependency output
+  src/scopes.rs                        Scopes of planned tasks: the files a task's text names, a folder when it names none, and an
   tests/graph.rs                       graph tests
 ```
 
@@ -277,6 +278,7 @@ crates/sentinel-verify/
   Cargo.toml                           manifest
   src/gate.rs                          run the full suite at a barrier
   src/lib.rs                           exports
+  src/protect.rs                       Protected files: paths no agent may change. The practice repo pins each one in
   src/quality.rs                       quality notes on agent diffs (warnings only)
   src/report.rs                        honest report generator
   src/verdict.rs                       combine checks into a status
@@ -351,6 +353,7 @@ crates/sentinel-daemon/
   src/assets.rs                        The web UI, embedded in the daemon. A path with no file gets the page, so the single page app
   src/attach.rs                        Attachments: what the composer plus button adds to a chat. A file, a folder, or a backlog is a
   src/attempt.rs                       One attempt at one task: choose an agent, run it, and either checkpoint its work or put the
+  src/attempt_end.rs                   How an attempt ends for good or goes back: the failure summary, the status, and the undo of
   src/auth.rs                          allowlist, pairing code, one-time button tokens
   src/brain.rs                         The Brain in the daemon. The vault and the index open on first use. A watcher keeps the index in
   src/brain_care.rs                    The care schedule and the care run. The run calls no agent. It lowers the strength of unused
@@ -377,6 +380,10 @@ crates/sentinel-daemon/
   src/dry_run_book.rs                  What the dry run shows: each stage's state, the counts at the end, and the notes the wizard
   src/dry_run_preflight.rs             The agent check before a dry run. Each agent the dry run may use is tested once, with the same
   src/engine.rs                        The engine: one handle that owns the state of a Sentinel daemon. The HTTP layer, the CLI, and the
+  src/engine_scripted.rs               Options for an engine that runs scripted agents on a repository, with state in memory. The
+  src/evidence.rs                      The evidence section of the report: what the store and the event log show about the agents,
+  src/evidence/render.rs               The evidence as Markdown. The builder in `evidence.rs` makes the data, this file shows it
+  src/evidence/timing.rs               Run slicing and timing: the events of the last run, its waves, and how long its tasks ran
   src/folders.rs                       native folder dialog, phone folder browser, repo checks
   src/folders_git.rs                   The git half of the repository check: the clean working tree row, and the commit that takes
   src/folders_tree.rs                  The repository tree that the folder browser lists. `folders.rs` re-exports `repo_tree` and
@@ -392,13 +399,16 @@ crates/sentinel-daemon/
   src/onboarding.rs                    onboarding state and steps
   src/openrouter_tool.rs               The `OpenRouter` worker offered as a tool: its entry in the tool list and the worker built for
   src/pairing.rs                       QR payload and one-time code
+  src/plan_contradictions.rs           Contradictions between planned tasks: ask the owner, or park both tasks when no one can answer
   src/plan_phase.rs                    The first phase of a run: read the backlog, plan it, settle contradictions, and mark which
   src/prompt.rs                        The text each worker gets. Rules go in the prompt as guidance; the guard enforces the real
+  src/proof.rs                         Proof that a verified task's new tests catch the change. They must fail on the code from
   src/pumps.rs                         Two small background jobs of a run: the write guard's events become stream events, and the
   src/quit.rs                          A way to stop the daemon from the UI. The app has no terminal, so Ctrl+C is not there
   src/report_build.rs                  Build the honest report from what the store knows, and write `.sentinel/report.md`
   src/resume.rs                        Crash resume. A run that stopped without finishing keeps its tasks in the store. The next
   src/reviewer.rs                      Who reviews a task's diff. A different agent gives the real review. Without one (fake mode, or
+  src/roster.rs                        The agents of a run, chosen with `sentinel run --agents`. A roster lists the agents from the
   src/routes/access.rs                 Pairing, devices, Tailscale, and the folder pickers
   src/routes/brain.rs                  The Brain routes under `/api/brain`. A phone may read notes and the graph, review lessons, and
   src/routes/changes.rs                Live project state: the working tree, one file's diff, and the backlog tasks. Any device
@@ -421,6 +431,7 @@ crates/sentinel-daemon/
   src/secrets.rs                       Secrets for the daemon. Values live in the OS keychain, never on disk and never in logs
   src/server.rs                        Binds the daemon to the tailnet address and serves the API, the WebSocket, and the UI
   src/settings.rs                      settings queries
+  src/settings_view.rs                 The config values the UI shows in Settings
   src/skills.rs                        Skills: folders with a `SKILL.md` that teach agents one thing (`docs/product-scope.md`, F24)
   src/skills_found.rs                  Skills that other tools keep in their own folders, offered for import (`docs/product-scope.md`,
   src/skills_pick.rs                   Which skills a task gets, and the text they add to its prompt. Always skills come first, then
@@ -432,6 +443,7 @@ crates/sentinel-daemon/
   src/telegram_poll.rs                 The long-poll loop. It fetches updates, drops the ones from anyone but the owner, and hands the
   src/telegram_router.rs               The router turns one chat command or one button press into one Engine call, made as the phone
   src/telegram_store.rs                The Telegram chat row and the paired flag, read and written by the daemon. The store keeps
+  src/test_command.rs                  The command the barrier runs when a repository does not name one. A Rust repo gets
   src/verify_phase.rs                  After the barrier: check each checkpointed task of the wave and give it a status. Only
   src/wave.rs                          One wave: reserve files, run the tasks together, wait at the barrier, run the full suite on a
   src/ws.rs                            The live stream on `GET /ws`. The first frame must authenticate. Then the client subscribes
@@ -450,6 +462,7 @@ crates/sentinel-daemon/
   tests/hub.rs                         The hub: many projects behind one server. The first project keeps the paired phones, the keys,
   tests/keys.rs                        The provider key routes over HTTP: the rows, a save, a delete, the refusals, and a test with no
   tests/openrouter_tool.rs             The `OpenRouter` worker offered as a tool in a real-mode engine: its entry after a scan, and a
+  tests/roster_run.rs                  A roster of three scripted agents runs the sample backlog, and each agent takes at least one task
   tests/routines.rs                    Routines end to end: the two built-in routines, who may change what, the input rules, and the
   tests/security.rs                    The route access matrix. Every route answers the right way to a caller with no token, a paired
   tests/security/coverage.rs           Reads the route source at test time. A `.route(` call with no row in `ROUTES` fails the build,
@@ -471,6 +484,9 @@ crates/sentinel-cli/
   src/login_path.rs                    Finds the agent CLIs when the Mac app starts from Finder, Spotlight, or the Dock. Those
   src/main.rs                          entry
   src/projects.rs                      The projects the app serves besides the first one. The first project starts the host loop, the
+  src/selftest.rs                      `sentinel selftest`: runs the real engine on a throwaway repository with scripted agents that
+  src/selftest_cases.rs                The scenarios of `sentinel selftest`: each bad agent, its scripted plans, and what the finished
+  src/selftest_repo.rs                 The throwaway repository of `sentinel selftest`: its files, the scripted plans, and the folder
   src/serve.rs                         The commands that run or reach the daemon: `daemon`, `open`, `pair`, and `keys`
   src/service.rs                       `sentinel service`: run the daemon at boot and restart it when it stops. A launchd job on
   src/window.rs                        The macOS app window: the same local UI, served by the same daemon, inside a native window

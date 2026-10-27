@@ -1,6 +1,7 @@
 //! The evidence as Markdown. The builder in `evidence.rs` makes the data, this file shows it.
 
 use sentinel_core::Cost;
+use std::fmt::Write as _;
 
 use super::{
     AgentEvidence, ClaimRow, Collisions, CostEvidence, Evidence, Honesty, LISTED_PATHS,
@@ -28,37 +29,40 @@ fn push_agents(out: &mut String, agents: &[AgentEvidence]) {
     out.push_str("| Agent | Tasks started | Verified | Spend | Spend source |\n");
     out.push_str("|-------|---------------|----------|-------|--------------|\n");
     for row in agents {
-        out.push_str(&format!(
-            "| {} | {} | {} | {} | {} |\n",
+        let _ = writeln!(
+            out,
+            "| {} | {} | {} | {} | {} |",
             row.agent,
             row.tasks_started,
             row.tasks_verified,
             money(row.spend),
             row.spend_source
-        ));
+        );
     }
     out.push('\n');
 }
 
 fn push_waves(out: &mut String, waves: &WaveEvidence) {
-    out.push_str(&format!(
+    let _ = write!(
+        out,
         "Waves: {}. Most tasks in one wave: {}. Parallel share: {:.2} (tasks running at once, on average).\n\n",
         waves.count, waves.most_tasks, waves.parallel_share
-    ));
+    );
 }
 
 fn push_collisions(out: &mut String, collisions: &Collisions) {
     out.push_str("### Collisions\n\n");
     out.push_str("| Check | Count |\n|-------|-------|\n");
-    out.push_str(&format!("| Writes blocked | {} |\n", collisions.writes_blocked));
-    out.push_str(&format!("| Writes restored | {} |\n", collisions.writes_restored));
-    out.push_str(&format!("| Tampers blocked | {} |\n", collisions.tampers_blocked));
+    let _ = writeln!(out, "| Writes blocked | {} |", collisions.writes_blocked);
+    let _ = writeln!(out, "| Writes restored | {} |", collisions.writes_restored);
+    let _ = writeln!(out, "| Tampers blocked | {} |", collisions.tampers_blocked);
     out.push('\n');
     if !collisions.blocked_paths.is_empty() {
-        out.push_str(&format!(
+        let _ = write!(
+            out,
             "Blocked paths (first {LISTED_PATHS}): {}\n\n",
             collisions.blocked_paths.join(", ")
-        ));
+        );
     }
 }
 
@@ -69,22 +73,21 @@ fn push_cost(out: &mut String, cost: &CostEvidence) {
     let used = cost
         .percent_of_cap
         .map_or_else(|| "no cap".to_owned(), |p| format!("{p}%"));
-    let per_verified = cost
-        .per_verified
-        .map_or_else(|| "none".to_owned(), money);
-    out.push_str(&format!(
-        "| {} | {} | {} | {} | {} |\n",
+    let per_verified = cost.per_verified.map_or_else(|| "none".to_owned(), money);
+    let _ = writeln!(
+        out,
+        "| {} | {} | {} | {} | {} |",
         money(cost.spent),
         money(cost.cap),
         used,
         cost.tasks_verified,
         per_verified
-    ));
+    );
     out.push('\n');
     let threshold = cost
         .highest_threshold
         .map_or_else(|| "none reached".to_owned(), |p| format!("{p}%"));
-    out.push_str(&format!("Highest budget threshold: {threshold}.\n\n"));
+    let _ = write!(out, "Highest budget threshold: {threshold}.\n\n");
 }
 
 fn push_claims(out: &mut String, claims: &[ClaimRow]) {
@@ -104,8 +107,9 @@ fn push_claims(out: &mut String, claims: &[ClaimRow]) {
         "|------|----------|------------|----------|-------------|--------------|--------|--------|\n",
     );
     for claim in claims {
-        out.push_str(&format!(
-            "| {} | {} | {} | {} | {} | {} | {} | {} |\n",
+        let _ = writeln!(
+            out,
+            "| {} | {} | {} | {} | {} | {} | {} | {} |",
             claim.task,
             yes_no(Some(claim.finished)),
             yes_no(claim.tests_pass),
@@ -114,21 +118,23 @@ fn push_claims(out: &mut String, claims: &[ClaimRow]) {
             yes_no(claim.tamper_clear),
             claim.status.label(),
             claim.reason.replace('|', "\\|")
-        ));
+        );
     }
     out.push('\n');
 }
 
 fn push_honesty(out: &mut String, honesty: &Honesty) {
     out.push_str("### Honesty\n\n");
-    out.push_str(&format!(
+    let _ = write!(
+        out,
         "{} Verified, {} Partial, {} Blocked, {} Skipped, {} Failed.\n\n",
         honesty.verified, honesty.partial, honesty.blocked, honesty.skipped, honesty.failed
-    ));
-    out.push_str(&format!(
+    );
+    let _ = write!(
+        out,
         "Claims not confirmed: {}. These tasks finished but were not Verified.\n\n",
         honesty.claims_not_confirmed
-    ));
+    );
 }
 
 fn yes_no(value: Option<bool>) -> &'static str {

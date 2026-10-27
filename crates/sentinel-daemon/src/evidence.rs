@@ -36,6 +36,10 @@ pub struct TaskRow {
 
 /// The four checks and the reason, as the verifier stored them.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[expect(
+    clippy::struct_excessive_bools,
+    reason = "one flag for each of the four checks of the verdict"
+)]
 pub struct VerificationRow {
     pub task: TaskId,
     pub tests_pass: bool,
@@ -199,7 +203,7 @@ fn empty_agent(agent: &ToolId) -> AgentEvidence {
 }
 
 fn with_spend_source(mut row: AgentEvidence) -> AgentEvidence {
-    row.spend_source = spend_source(row.spend).to_owned();
+    spend_source(row.spend).clone_into(&mut row.spend_source);
     row
 }
 
@@ -397,7 +401,55 @@ mod tests {
     /// Three tasks in one wave. T-1 is Verified, T-2 is Partial, and T-3 is Blocked by a tamper
     /// and never checkpointed. The run lasts 12 seconds. The task run times add up to 13.
     fn sample_input() -> EvidenceInput {
-        let events = vec![
+        let events = sample_events();
+        EvidenceInput {
+            tasks: vec![
+                TaskRow {
+                    id: TaskId::new("T-1"),
+                    status: TaskStatus::Verified,
+                    cost: Cost::from_micro_usd(100_000, false),
+                },
+                TaskRow {
+                    id: TaskId::new("T-2"),
+                    status: TaskStatus::Partial,
+                    cost: Cost::from_micro_usd(50_000, false),
+                },
+                TaskRow {
+                    id: TaskId::new("T-3"),
+                    status: TaskStatus::Blocked,
+                    cost: Cost::from_micro_usd(20_000, true),
+                },
+            ],
+            verifications: sample_verifications(),
+            events,
+            total_cost: Cost::from_micro_usd(170_000, true),
+            cap: Cost::from_micro_usd(2_000_000, false),
+        }
+    }
+
+    fn sample_verifications() -> Vec<VerificationRow> {
+        vec![
+            VerificationRow {
+                task: TaskId::new("T-1"),
+                tests_pass: true,
+                new_test: true,
+                reviewer_ok: true,
+                tamper_clear: true,
+                reason: "All four checks passed.".to_owned(),
+            },
+            VerificationRow {
+                task: TaskId::new("T-2"),
+                tests_pass: true,
+                new_test: false,
+                reviewer_ok: true,
+                tamper_clear: true,
+                reason: "no new test added".to_owned(),
+            },
+        ]
+    }
+
+    fn sample_events() -> Vec<EventRecord> {
+        vec![
             record(
                 0,
                 Event::RunStarted {
@@ -423,6 +475,14 @@ mod tests {
             checkpoint(9, "T-2"),
             verdict(10, "T-2", TaskStatus::Partial, "no new test added"),
             record(11, Event::BudgetThreshold { percent: 70 }),
+        ]
+        .into_iter()
+        .chain(sample_late_events())
+        .collect()
+    }
+
+    fn sample_late_events() -> Vec<EventRecord> {
+        vec![
             goes_to(10, "T-3", "claude"),
             task_status(10, "T-3", TaskStatus::Running),
             verdict(
@@ -438,47 +498,7 @@ mod tests {
                     total: 3,
                 },
             ),
-        ];
-        EvidenceInput {
-            tasks: vec![
-                TaskRow {
-                    id: TaskId::new("T-1"),
-                    status: TaskStatus::Verified,
-                    cost: Cost::from_micro_usd(100_000, false),
-                },
-                TaskRow {
-                    id: TaskId::new("T-2"),
-                    status: TaskStatus::Partial,
-                    cost: Cost::from_micro_usd(50_000, false),
-                },
-                TaskRow {
-                    id: TaskId::new("T-3"),
-                    status: TaskStatus::Blocked,
-                    cost: Cost::from_micro_usd(20_000, true),
-                },
-            ],
-            verifications: vec![
-                VerificationRow {
-                    task: TaskId::new("T-1"),
-                    tests_pass: true,
-                    new_test: true,
-                    reviewer_ok: true,
-                    tamper_clear: true,
-                    reason: "All four checks passed.".to_owned(),
-                },
-                VerificationRow {
-                    task: TaskId::new("T-2"),
-                    tests_pass: true,
-                    new_test: false,
-                    reviewer_ok: true,
-                    tamper_clear: true,
-                    reason: "no new test added".to_owned(),
-                },
-            ],
-            events,
-            total_cost: Cost::from_micro_usd(170_000, true),
-            cap: Cost::from_micro_usd(2_000_000, false),
-        }
+        ]
     }
 
     fn agent<'a>(evidence: &'a Evidence, name: &str) -> &'a AgentEvidence {
