@@ -7,7 +7,7 @@ use sentinel_core::{Scope, TaskId, ToolId, ToolInfo};
 use sentinel_store::Store;
 use sentinel_verify::Result as VerifyResult;
 use sentinel_verify::verifier::{
-    DiffReviewer, Review, ReviewRequest, parse_review_answer, review_prompt,
+    DiffReviewer, Review, ReviewRequest, has_verdict, parse_review_answer, review_prompt,
 };
 use tokio::sync::watch;
 
@@ -88,25 +88,48 @@ pub(crate) struct AgentReviewer {
     pub budget: Arc<sentinel_workers::Budget>,
 }
 
-/// The best of the ready agents that did not write the diff. The highest tier is tried first. The
-/// author is the chat's forced agent when the chat has one, so a forced agent never reviews itself.
-pub(crate) fn pick_reviewer(mut tools: Vec<ToolInfo>, author: Option<&ToolId>) -> Option<ToolInfo> {
+/// How many agents are asked for a verdict before the review counts as unanswered.
+const MAX_REVIEWERS: usize = 3;
+
+/// Every ready agent that did not write the diff, the highest tier first. The first one reviews
+/// first. The author is the chat's forced agent when the chat has one, so a forced agent never
+/// reviews itself.
+pub(crate) fn reviewer_candidates(
+    mut tools: Vec<ToolInfo>,
+    author: Option<&ToolId>,
+) -> Vec<ToolInfo> {
     tools.sort_by_key(|t| std::cmp::Reverse(t.tier));
-    tools.into_iter().find(|t| Some(&t.id) != author)
+    tools.retain(|t| Some(&t.id) != author);
+    tools
 }
 
 impl AgentReviewer {
-    fn pick(&self, task: &TaskId) -> Option<ToolInfo> {
+    fn candidates(&self, task: &TaskId) -> Vec<ToolInfo> {
         let author: Option<ToolId> = lock(&self.memory).agents.get(task).cloned();
         let tools: Vec<ToolInfo> = self
             .engine
             .store()
             .list_tools()
-            .ok()?
-            .into_iter()
-            .filter(|t| t.enabled && t.status.is_ready())
-            .collect();
-        pick_reviewer(tools, author.as_ref())
+            .map(|all| {
+                all.into_iter()
+                    .filter(|t| t.enabled && t.status.is_ready())
+                    .collect()
+            })
+            .unwrap_or_default();
+        reviewer_candidates(tools, author.as_ref())
+    }
+
+    /// What one agent answered to the review prompt, or `None` when it could not be started.
+    async fn ask(&self, tool: &ToolInfo, request: &ReviewRequest) -> Option<String> {
+        let worker = self.engine.worker_for(tool).ok()?;
+        let job = TextJob {
+            stop: self.stop.clone(),
+            budget: self.budget.clone(),
+            worker: worker.as_ref(),
+            tool,
+            prompt: review_prompt(request, MAX_DIFF_BYTES),
+        };
+        Some(run_for_text(&self.engine, job).await)
     }
 }
 
@@ -116,32 +139,35 @@ impl DiffReviewer for AgentReviewer {
         request: &'a ReviewRequest,
     ) -> futures::future::BoxFuture<'a, VerifyResult<Review>> {
         Box::pin(async move {
-            let Some(tool) = self.pick(&request.task_id) else {
-                return Ok(Review {
-                    ok: false,
-                    reason: "No second agent was ready to review this diff.".to_owned(),
-                    reviewer: "none".to_owned(),
-                });
-            };
-            let Ok(worker) = self.engine.worker_for(&tool) else {
-                return Ok(Review {
-                    ok: false,
-                    reason: format!("{} could not be started for the review.", tool.name),
-                    reviewer: tool.id.to_string(),
-                });
-            };
-            let prompt = review_prompt(request, MAX_DIFF_BYTES);
-            let job = TextJob {
-                stop: self.stop.clone(),
-                budget: self.budget.clone(),
-                worker: worker.as_ref(),
-                tool: &tool,
-                prompt,
-            };
-            let text = run_for_text(&self.engine, job).await;
-            Ok(parse_review_answer(&text, &tool.name))
+            let candidates = self.candidates(&request.task_id);
+            let mut last: Option<Review> = None;
+            for tool in candidates.iter().take(MAX_REVIEWERS) {
+                let Some(text) = self.ask(tool, request).await else {
+                    continue;
+                };
+                let review = parse_review_answer(&text, &tool.name);
+                if has_verdict(&text) {
+                    return Ok(review);
+                }
+                last = Some(review);
+            }
+            Ok(last.map_or_else(no_reviewer, unanswered))
         })
     }
+}
+
+fn no_reviewer() -> Review {
+    Review {
+        ok: false,
+        reason: "No second agent was ready to review this diff.".to_owned(),
+        reviewer: "none".to_owned(),
+    }
+}
+
+/// Every asked agent answered without a YES or NO. That is a failed review, not a rejection.
+fn unanswered(mut last: Review) -> Review {
+    last.reason = format!("No reviewer gave a verdict. {}", last.reason);
+    last
 }
 
 #[cfg(test)]
@@ -196,14 +222,19 @@ mod tests {
             reviewer_tool("claude", Tier::Smart),
             reviewer_tool("codex", Tier::Mid),
         ];
-        let reviewer = pick_reviewer(tools, Some(&ToolId::new("claude")));
+        let reviewer = reviewer_candidates(tools, Some(&ToolId::new("claude")))
+            .into_iter()
+            .next();
         assert_eq!(reviewer.map(|tool| tool.id), Some(ToolId::new("codex")));
     }
 
     #[test]
     fn with_no_other_agent_there_is_no_reviewer() {
         let tools = vec![reviewer_tool("claude", Tier::Smart)];
-        assert_eq!(pick_reviewer(tools, Some(&ToolId::new("claude"))), None);
+        assert_eq!(
+            reviewer_candidates(tools, Some(&ToolId::new("claude"))).len(),
+            0
+        );
     }
 
     #[test]
@@ -213,7 +244,9 @@ mod tests {
             reviewer_tool("cheap", Tier::Cheap),
             reviewer_tool("mid", Tier::Mid),
         ];
-        let reviewer = pick_reviewer(tools, Some(&ToolId::new("author")));
+        let reviewer = reviewer_candidates(tools, Some(&ToolId::new("author")))
+            .into_iter()
+            .next();
         assert_eq!(reviewer.map(|tool| tool.id), Some(ToolId::new("mid")));
     }
 }

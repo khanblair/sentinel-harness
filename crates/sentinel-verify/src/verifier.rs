@@ -99,6 +99,14 @@ pub fn parse_review_answer(text: &str, reviewer: &str) -> Review {
     }
 }
 
+/// True when the answer holds a line that starts with the word YES or NO. An answer without one is
+/// not a rejection: the reviewer gave no verdict.
+pub fn has_verdict(text: &str) -> bool {
+    text.lines()
+        .map(|line| strip_colour(line).trim().to_owned())
+        .any(|line| verdict_of(&line).is_some())
+}
+
 /// `Some((ok, reason))` when the line starts with the word YES or NO.
 fn verdict_of(line: &str) -> Option<(bool, String)> {
     let head: String = line
@@ -167,6 +175,12 @@ impl DiffReviewer for FixedReviewer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_answer_with_only_a_banner_has_no_verdict() {
+        assert!(!has_verdict("\u{1b}[0m> build · glm-5.3-flash-free\n"));
+        assert!(has_verdict("> banner\nNO missing test"));
+    }
 
     #[test]
     fn a_banner_and_colour_codes_before_the_verdict_are_skipped() {
