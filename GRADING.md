@@ -70,4 +70,4 @@ Running the harness once on the hidden backlog and committing its report, logs a
 
 The full grading report for all entries is shared separately by the organizers.
 
-Grader: Calvin Magezi (organizer), with an AI assistant (Claude) running the builds and checks. Disclosure: you are a member of Kolaborate staff.
+Grader: Calvin Magezi (organizer), with an AI assistant (Claude) running the builds and checks. Disclosure: you are a member of Kolaborate staff. Staff were permitted to enter, and every entry was graded with the same rubric and script.
