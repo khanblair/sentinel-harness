@@ -1,8 +1,8 @@
 # Collision Course: how Sentinel was graded
 
-Organizer grading for the Collision Course hackathon (Kolaborate Academy, 23 to 30 October 2026). These scores are a draft until the leaderboard is published on the platform.
+Organizer grading for the Collision Course hackathon (Kolaborate Academy, 23 to 30 October 2026). Results were published on the platform on 30 October 2026.
 
-**Total: 0.080 of 1.000, currently ranked 3 of 3.**
+**Total: 0.080 of 1.000, ranked 3 of 3.**
 
 | Criterion | Weight | Score |
 |---|---|---|
@@ -70,4 +70,4 @@ Running the harness once on the hidden backlog and committing its report, logs a
 
 The full grading report for all entries is shared separately by the organizers.
 
-Grader: Calvin Magezi (organizer), with an AI assistant (Claude) running the builds and checks. Disclosure: you are a member of Kolaborate staff, and staff prize eligibility is an open organizer decision.
+Grader: Calvin Magezi (organizer), with an AI assistant (Claude) running the builds and checks. Disclosure: you are a member of Kolaborate staff.
