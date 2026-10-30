@@ -163,7 +163,8 @@ fn selftest_engine(repo: &Path, script: PathBuf, plans: PathBuf) -> anyhow::Resu
     engine.update_config(|c| {
         "1.00".clone_into(&mut c.cap_usd);
         c.test_command = vec!["sh".to_owned(), "tests/run.sh".to_owned()];
-        c.protected_paths = vec!["tests/".to_owned()];
+        // The existing test is protected. A new test file in `tests/` is allowed, as in a real run.
+        c.protected_paths = vec!["tests/run.sh".to_owned()];
         c.task_timeout_seconds = 20;
         c.max_parallel = 3;
         c.decision_timeout_seconds = 2;
@@ -393,23 +394,13 @@ mod tests {
         );
     }
 
+    /// Every scenario runs on the real engine. A planner or guard change that breaks one fails here
+    /// first, not on the machine of someone who runs `sentinel selftest`.
     #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn the_tamperer_scenario_passes_on_the_real_engine() {
-        let scenario = scenarios()
-            .into_iter()
-            .find(|scenario| scenario.name == "tamperer")
-            .expect("the tamperer scenario exists");
-        let check = check_scenario(&scenario).await;
-        assert!(check.is_ok(), "{check:?}");
-    }
-
-    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-    async fn the_collider_scenario_passes_on_the_real_engine() {
-        let scenario = scenarios()
-            .into_iter()
-            .find(|scenario| scenario.name == "collider")
-            .expect("the collider scenario exists");
-        let check = check_scenario(&scenario).await;
-        assert!(check.is_ok(), "{check:?}");
+    async fn every_scenario_passes_on_the_real_engine() {
+        for scenario in scenarios() {
+            let check = check_scenario(&scenario).await;
+            assert!(check.is_ok(), "{}: {check:?}", scenario.name);
+        }
     }
 }

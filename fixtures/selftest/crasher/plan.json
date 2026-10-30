@@ -11,7 +11,7 @@
   },
   {
    "id": "T-02",
-   "scope": ["src/gamma.txt", "src/gamma_test.txt"],
+   "scope": ["src/gamma.txt", "tests/gamma_test.sh"],
    "depends_on": [],
    "read_after_write": [],
    "tier": "cheap",
